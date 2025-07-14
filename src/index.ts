@@ -4,6 +4,7 @@ import morgan from 'morgan';
 import indexarConversaRouter from './routes/indexarConversa';
 import consultarContextoRouter from './routes/consultarContexto';
 import feedbackRouter from './routes/feedback';
+import conversarRouter from './routes/conversar';
 import path from 'path';
 
 // Configurações iniciais
@@ -20,6 +21,7 @@ app.use(morgan('dev'));
 app.use('/indexar-conversa', indexarConversaRouter);
 app.use('/consultar-contexto', consultarContextoRouter);
 app.use('/feedback', feedbackRouter);
+app.use('/conversar', conversarRouter);
 
 // Health check
 app.get('/health', (_, res) => res.send('OK'));
