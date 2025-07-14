@@ -1,5 +1,6 @@
-import { OpenAIEmbeddings } from 'langchain/embeddings/openai';
+import { ChatOpenAI } from "@langchain/openai";
 
-export const openaiEmbeddings = new OpenAIEmbeddings({
-  openAIApiKey: process.env.OPENAI_API_KEY,
-}); 
+const model = new ChatOpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  modelName: "gpt-4-1106-preview",
+});
