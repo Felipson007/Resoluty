@@ -1,21 +1,10 @@
-// Função utilitária para dividir um texto em chunks de até 500 tokens
-// (Tokenização real deve ser feita com LangChain ou OpenAI, aqui é um placeholder)
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 
-export function chunkText(text: string, maxTokens: number = 500): string[] {
-  // TODO: Substituir por tokenização real
-  const words = text.split(' ');
-  const chunks: string[] = [];
-  let chunk: string[] = [];
-
-  for (const word of words) {
-    chunk.push(word);
-    if (chunk.length >= maxTokens) {
-      chunks.push(chunk.join(' '));
-      chunk = [];
-    }
-  }
-  if (chunk.length > 0) {
-    chunks.push(chunk.join(' '));
-  }
+export async function chunkText(text: string, maxTokens: number = 500): Promise<string[]> {
+  const splitter = new RecursiveCharacterTextSplitter({
+    chunkSize: maxTokens,
+    chunkOverlap: 50, // pode ajustar o overlap se quiser
+  });
+  const chunks = await splitter.splitText(text);
   return chunks;
 } 
