@@ -256,16 +256,7 @@ export default function CustomerSuccess() {
             <Bar data={dados.grandeData} options={chartOptions('')} height={320} />
           </Paper>
           {/* Indicadores de Quitação */}
-          <Grid container spacing={2} mb={3} justifyContent="center">
-            {indicadoresQuitacao.map((ind) => (
-              <Grid item xs={12} sm={6} md={3} key={ind.label}>
-                <Paper sx={{ p: 2, borderRadius: 2, background: '#1976d2', color: '#fff', fontWeight: 700, textAlign: 'center', boxShadow: 2 }}>
-                  <Typography variant="body2">{ind.label}</Typography>
-                  <Typography variant="h6">{ind.value}</Typography>
-                </Paper>
-              </Grid>
-            ))}
-          </Grid>
+  
           {/* Gráficos de Quitação */}
           <Grid container spacing={3} mb={3} justifyContent="center">
             <Grid item xs={12} md={6}>
