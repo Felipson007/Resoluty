@@ -10,6 +10,8 @@ import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import { useNavigate } from 'react-router-dom';
+import { csBackgroundColor, resolutyPalette } from '../pages/CustomerSuccess';
+import Logo from '../logo.svg'; // Usar logo Resoluty
 
 const sections = [
   {
@@ -46,12 +48,16 @@ export default function Sidebar() {
       PaperProps={{
         style: {
           width: 240,
-          background: '#fff',
+          background: resolutyPalette.sidebar,
+          color: resolutyPalette.text,
           borderRight: '1px solid #eee',
           paddingTop: 24,
         },
       }}
     >
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 2 }}>
+        <img src={Logo} alt="Resoluty Logo" style={{ height: 40 }} />
+      </Box>
       <Box sx={{ px: 2 }}>
         {sections.map(section => (
           <Box key={section.title} mb={2}>
@@ -63,10 +69,16 @@ export default function Sidebar() {
                 <ListItem
                   key={item.text}
                   onClick={() => navigate(item.path)}
-                  sx={{ pl: 2, mb: 0.5, borderRadius: 1, '&:hover': { background: '#f5f5f5' } }}
+                  sx={{
+                    pl: 2,
+                    mb: 0.5,
+                    borderRadius: 1,
+                    '&:hover': { background: resolutyPalette.hoverSidebar },
+                    background: item.path === window.location.pathname ? resolutyPalette.activeSidebar : 'transparent',
+                    color: item.path === window.location.pathname ? resolutyPalette.text : resolutyPalette.text,
+                  }}
                   component="li"
                 >
-                
                   <ListItemIcon sx={{ minWidth: 36 }}>{item.icon}</ListItemIcon>
                   <ListItemText primary={item.text} />
                 </ListItem>

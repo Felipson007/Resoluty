@@ -4,7 +4,6 @@ import Sidebar from './components/Sidebar';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import CustomerSuccess from './pages/CustomerSuccess';
-import BreadcrumbsNav from './components/BreadcrumbsNav';
 import Gestao from './pages/Gestao';
 import Financeiro from './pages/Financeiro';
 import Comercial from './pages/Comercial';
@@ -19,7 +18,6 @@ function AppRoutes() {
     <div style={{ display: 'flex' }}>
       {!hideSidebar && <Sidebar />}
       <div style={{ flex: 1, paddingLeft: !hideSidebar ? SIDEBAR_WIDTH : 0, transition: 'padding-left 0.2s' }}>
-        {!hideSidebar && <BreadcrumbsNav />}
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/home" element={<Home />} />
