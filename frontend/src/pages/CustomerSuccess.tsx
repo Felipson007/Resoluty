@@ -180,8 +180,8 @@ export default function CustomerSuccess() {
     { label: 'Média de meses de quitação por funcionário', value: dados.indicadores[10].value },
   ];
 
-  // Dados para o gráfico de pizza de quitação
-  const quitacaoPieData = {
+  // Dados para o gráfico de barras grande de quitação
+  const quitacaoAllBarData = {
     labels: [
       'Média de Meses de Quitação',
       '% Quitação',
@@ -190,16 +190,15 @@ export default function CustomerSuccess() {
     ],
     datasets: [
       {
+        label: 'Indicadores de Quitação',
         data: [
-          parseFloat(dados.indicadores[7].value.replace(',', '.')), // Média de Meses de Quitação
-          parseFloat(dados.indicadores[8].value.replace('%', '').replace(',', '.')), // % Quitação
-          // Para % Quitação por funcionário, pegar média dos valores
+          parseFloat(dados.indicadores[7].value.replace(',', '.')),
+          parseFloat(dados.indicadores[8].value.replace('%', '').replace(',', '.')),
           (() => {
             const arr = dados.indicadores[9].value.match(/\d+/g);
             if (!arr) return 0;
             return arr.map(Number).reduce((a, b) => a + b, 0) / arr.length;
           })(),
-          // Para Média de meses de quitação por funcionário, pegar média dos valores
           (() => {
             const arr = dados.indicadores[10].value.match(/\d+\.?\d*/g);
             if (!arr) return 0;
@@ -259,10 +258,10 @@ export default function CustomerSuccess() {
   
           {/* Gráficos de Quitação */}
           <Grid container spacing={3} mb={3} justifyContent="center">
-            <Grid item xs={12} md={6}>
-              <Paper sx={{ p: 2, borderRadius: 2, background: '#fff', boxShadow: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 340 }}>
-                <Typography variant="subtitle1" sx={{ mb: 2, color: '#1976d2', fontWeight: 700 }}>Indicadores de Quitação (Pizza)</Typography>
-                <Pie data={quitacaoPieData} />
+            <Grid item xs={12}>
+              <Paper sx={{ p: 2, borderRadius: 2, background: '#fff', boxShadow: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 380 }}>
+                <Typography variant="subtitle1" sx={{ mb: 2, color: '#1976d2', fontWeight: 700 }}>Indicadores de Quitação (Barras)</Typography>
+                <Bar data={quitacaoAllBarData} options={chartOptions('Indicadores de Quitação')} height={300} />
               </Paper>
             </Grid>
             <Grid item xs={12} md={6}>
@@ -275,7 +274,7 @@ export default function CustomerSuccess() {
         </Grid>
         {/* Coluna lateral com indicadores principais */}
         <Grid item xs={12} md={3} lg={2}>
-          <Stack spacing={3} sx={{ height: '100%', justifyContent: 'flex-start' }}>
+          <Stack spacing={3} sx={{ height: '100%', justifyContent: 'fle  x-start' }}>
             {indicadoresPrincipais.map((ind) => (
               <Paper key={ind.label} sx={{ p: 2, borderRadius: 2, background: '#fff', color: '#1976d2', fontWeight: 700, textAlign: 'center', boxShadow: 3 }}>
                 <Typography variant="body1" sx={{ fontWeight: 700 }}>{ind.label}</Typography>
