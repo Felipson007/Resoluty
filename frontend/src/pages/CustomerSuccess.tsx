@@ -214,7 +214,7 @@ export const resolutyPalette = {
   funcionarioA: '#60A5FA',
   funcionarioB: '#F97316',
   funcionarioC: '#8B5CF6',
-  funcionarioD: '#F472B6',
+  funcionarioD: '#F472B6',  
   // Interações
   hoverSidebar: '#F5F5F5',
   activeSidebar: '#E0E0E0',
@@ -260,7 +260,7 @@ const darkPaper = {
 export const csBackgroundColor = resolutyPalette.background;
 
 const SHEET_ID = '1KQkNGco7Nht6J7JiD98heXPLOz_K8uwTQ45u_Vw2uLM';
-const SHEET_TAB = 'Metas Geral';
+const SHEET_TAB = 'Metas CS';
 
 function getMesAnoPlanilha(dateString: string): string {
   // Exemplo: '1/7/2024' ou '15/07/2024'
