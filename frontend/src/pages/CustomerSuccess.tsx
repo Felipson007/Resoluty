@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Box, Typography, Paper, Stack, TextField, Button, Grid, AppBar, Toolbar, Avatar } from '@mui/material';
 import { Bar, Pie, Line } from 'react-chartjs-2';
-import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { MonetizationOn, TrendingUp, TrendingDown, Percent, Assignment, Star, WaterDrop, QrCode2, CalendarToday } from '@mui/icons-material';
 import {
   Chart as ChartJS,
@@ -13,6 +12,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
+import { getSheetData } from '../utils/googleSheets';
 
 ChartJS.register(
   CategoryScale,
@@ -259,191 +259,265 @@ const darkPaper = {
 
 export const csBackgroundColor = resolutyPalette.background;
 
+const SHEET_ID = '1KQkNGco7Nht6J7JiD98heXPLOz_K8uwTQ45u_Vw2uLM';
+const SHEET_TAB = 'Metas Geral';
+
+function getMesAnoPlanilha(dateString: string): string {
+  // Exemplo: '1/7/2024' ou '15/07/2024'
+  if (!dateString) return '';
+  const parts = dateString.split('/');
+  if (parts.length < 3) return '';
+  const mes = parts[1].padStart(2, '0');
+  const ano = parts[2].length === 2 ? '20' + parts[2] : parts[2];
+  return `${mes}/${ano}`;
+}
+
+function getMesAnoAtual(): string {
+  const data = new Date();
+  const mes = String(data.getMonth() + 1).padStart(2, '0');
+  const ano = data.getFullYear();
+  return `${mes}/${ano}`;
+}
+
 export default function CustomerSuccess() {
-  const [data] = useState(getMockData());
+  const [periodoState, setPeriodoState] = useState({ inicio: '', fim: '' });
+  const [dados, setDados] = useState(getMockData());
+  const [sheetData, setSheetData] = useState<any[][]>([]);
+  const [loadingSheet, setLoadingSheet] = useState(false);
+  const [sheetError, setSheetError] = useState<string | null>(null);
+  const [kpis, setKpis] = useState({ meta: 0, realizado: 0, diferenca: 0, pctMeta: '0%', avaliacoes: 0 });
+  const mesAnoAtual = getMesAnoAtual();
+
+  // Atualiza KPIs sempre que sheetData muda
+  useEffect(() => {
+    if (!sheetData.length) return;
+    const mesAnoAtual = getMesAnoAtual();
+    console.log('mesAnoAtual:', mesAnoAtual);
+    sheetData.forEach((row, idx) => {
+      console.log(`Linha ${idx + 1}:`, row[0], '->', getMesAnoPlanilha(row[0] || ''));
+    });
+    // Busca a linha do mês/ano atual
+    const linhaMes = sheetData.find(row => getMesAnoPlanilha(row[0] || '') === mesAnoAtual);
+    console.log('Linha encontrada:', linhaMes);
+    function parseNumber(val: any) {
+      if (!val) return 0;
+      // Remove R$, pontos e troca vírgula por ponto
+      return Number(String(val).replace(/[^\d,.-]/g, '').replace('.', '').replace(',', '.')) || 0;
+    }
+    setKpis({
+      meta: linhaMes ? parseNumber(linhaMes[2]) : 0,        // Coluna C
+      realizado: linhaMes ? parseNumber(linhaMes[3]) : 0,   // Coluna D
+      diferenca: linhaMes ? parseNumber(linhaMes[4]) : 0,   // Coluna E
+      pctMeta: linhaMes ? String(linhaMes[5]) : '0%',
+      avaliacoes: 0 // TODO: implementar lógica para buscar quantidade de avaliações
+    });
+  }, [sheetData, mesAnoAtual]);
+
+  // Atualiza dados do Google Sheets a cada 10 minutos e na virada de mês/ano
+  useEffect(() => {
+    let lastMes = mesAnoAtual;
+    let timeout: NodeJS.Timeout;
+    const fetchSheet = async () => {
+      setLoadingSheet(true);
+      setSheetError(null);
+      try {
+        const data = await getSheetData(SHEET_ID, SHEET_TAB);
+        setSheetData(data);
+      } catch (err: any) {
+        setSheetError(err.message);
+      } finally {
+        setLoadingSheet(false);
+      }
+    };
+    fetchSheet();
+    const checkMonthChange = () => {
+      const mesAtualCheck = getMesAnoAtual();
+      if (mesAtualCheck !== lastMes) {
+        lastMes = mesAtualCheck;
+        fetchSheet();
+      }
+      timeout = setTimeout(checkMonthChange, 60 * 1000); // checa a cada minuto
+    };
+    const interval = setInterval(fetchSheet, 10 * 60 * 1000); // atualiza a cada 10 minutos
+    checkMonthChange();
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, [mesAnoAtual]);
+
+  // KPIs principais na ordem solicitada
+  const kpiOrder = [
+    { key: 'meta', label: 'Meta', icon: kpiIcons[0], color: kpiColors[0], value: kpis.meta.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) },
+    { key: 'realizado', label: 'Realizado', icon: kpiIcons[1], color: kpiColors[1], value: kpis.realizado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) },
+    { key: 'diferenca', label: 'Diferença', icon: kpiIcons[2], color: kpiColors[2], value: kpis.diferenca.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) },
+    { key: 'pctMeta', label: '% da Meta', icon: kpiIcons[3], color: kpiColors[3], value: kpis.pctMeta },
+    { key: 'avaliacoes', label: 'Avaliações Google', icon: kpiIcons[5], color: kpiColors[5], value: kpis.avaliacoes || 0 },
+  ];
 
   return (
-    <Box sx={{ 
-      background: resolutyPalette.background, 
-      minHeight: '100vh', 
-      p: 3,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 3
-    }}>
-      {/* Header com filtro */}
-      <Box sx={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        mb: 3
-      }}>
+    <Box sx={{ minHeight: '100vh', background: '#fff', p: 4, overflow: 'auto' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" sx={{ color: resolutyPalette.text, fontWeight: 700 }}>
           Customer Success
         </Typography>
-        
       </Box>
-
-      {/* KPIs */}
-      <Box sx={{ 
-        display: 'flex', 
-        flexWrap: 'wrap', 
-        justifyContent: 'center',
-        gap: 2,
-        mb: 3
-      }}>
-        {data.indicadores.slice(0, 7).map((kpi, index) => (
-          <Paper key={index} sx={{ ...kpiStyle, background: resolutyPalette.card, border: `1.5px solid ${resolutyPalette.border}` }}>
-            <Box sx={{ color: kpiColors[index], mb: 1 }}>
-              {kpiIcons[index]}
-            </Box>
-            <Typography variant="h6" sx={{ color: resolutyPalette.text, fontWeight: 700, mb: 1 }}>
-              {kpi.label}
-            </Typography>
-            <Typography variant="h5" sx={{ color: resolutyPalette.text, fontWeight: 700 }}>
-              {kpi.value}
-            </Typography>
-          </Paper>
-        ))}
-      </Box>
-
-      {/* Gráficos */}
-      <Box sx={{ 
-        display: 'flex', 
-        flexDirection: 'column',
-        gap: 3
-      }}>
-        {/* Primeira linha - 2 gráficos */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        {/* KPIs */}
         <Box sx={{ 
           display: 'flex', 
-          gap: 3,
-          flexWrap: 'wrap'
+          flexWrap: 'wrap', 
+          justifyContent: 'center',
+          gap: 2,
+          mb: 3
         }}>
-          {/* Faturamento */}
-          <Paper sx={{ 
-            ...darkPaper, 
-            flex: '1 1 45%',
-            minWidth: 400,
-            p: 3,
-            height: 400
-          }}>
-            <Box sx={{ height: '100%' }}>
-              <Bar 
-                data={data.faturamentoData} 
-                options={chartOptions('Faturamento por Funcionário')}
-              />
-            </Box>
-          </Paper>
-
-          {/* Acordos */}
-          <Paper sx={{
-            ...darkPaper, 
-            flex: '1 1 45%',
-            minWidth: 400,
-            p: 3,
-            height: 400
-          }}>
-            <Box sx={{ height: '100%' }}>
-              <Bar 
-                data={data.acordosData} 
-                options={chartOptions('Número de Acordos por Funcionário')}
-              />
-            </Box>
-          </Paper>
+          {kpiOrder.map((kpi) => (
+            <Paper key={kpi.key} sx={{ ...kpiStyle, background: resolutyPalette.card, border: `1.5px solid ${resolutyPalette.border}` }}>
+              <Box sx={{ color: kpi.color, mb: 1 }}>{kpi.icon}</Box>
+              <Typography variant="h6" sx={{ color: resolutyPalette.text, fontWeight: 700, mb: 1 }}>{kpi.label}</Typography>
+              <Typography variant="h5" sx={{ color: resolutyPalette.text, fontWeight: 700 }}>{kpi.value}</Typography>
+            </Paper>
+          ))}
         </Box>
 
-        {/* Segunda linha - 2 gráficos */}
+        {/* Gráficos */}
         <Box sx={{ 
           display: 'flex', 
-          gap: 3,
-          flexWrap: 'wrap'
+          flexDirection: 'column',
+          gap: 3
         }}>
-          {/* P.E/Adimplência */}
-          <Paper sx={{ 
-            ...darkPaper, 
-            flex: '1 1 45%',
-            minWidth: 400,
-            p: 3,
-            height: 400
+          {/* Primeira linha - 2 gráficos */}
+          <Box sx={{ 
+            display: 'flex', 
+            gap: 3,
+            flexWrap: 'wrap'
           }}>
-            <Box sx={{ height: '100%' }}>
-              <Bar 
-                data={data.peData} 
-                options={chartOptions('P.E/Adimplência por Funcionário')}
-              />
-            </Box>
-          </Paper>
+            {/* Faturamento */}
+            <Paper sx={{ 
+              ...darkPaper, 
+              flex: '1 1 45%',
+              minWidth: 400,
+              p: 3,
+              height: 400
+            }}>
+              <Box sx={{ height: '100%' }}>
+                <Bar 
+                  data={dados.faturamentoData} 
+                  options={chartOptions('Faturamento por Funcionário')}
+                />
+              </Box>
+            </Paper>
 
-          {/* Grande */}
-          <Paper sx={{ 
-            ...darkPaper, 
-            flex: '1 1 45%',
-            minWidth: 400,
-            p: 3,
-            height: 400
-          }}>
-            <Box sx={{ height: '100%' }}>
-              <Bar 
-                data={data.grandeData} 
-                options={chartOptions('Grande por Funcionário')}
-              />
-            </Box>
-          </Paper>
-        </Box>
+            {/* Acordos */}
+            <Paper sx={{
+              ...darkPaper, 
+              flex: '1 1 45%',
+              minWidth: 400,
+              p: 3,
+              height: 400
+            }}>
+              <Box sx={{ height: '100%' }}>
+                <Bar 
+                  data={dados.acordosData} 
+                  options={chartOptions('Número de Acordos por Funcionário')}
+                />
+              </Box>
+            </Paper>
+          </Box>
 
-        {/* Terceira linha - 3 gráficos */}
-        <Box sx={{ 
-          display: 'flex', 
-          gap: 3,
-          flexWrap: 'wrap'
-        }}>
-          {/* Quitação Geral */}
-          <Paper sx={{ 
-            ...darkPaper, 
-            flex: '1 1 30%',
-            minWidth: 300,
-            p: 3,
-            height: 400
+          {/* Segunda linha - 2 gráficos */}
+          <Box sx={{ 
+            display: 'flex', 
+            gap: 3,
+            flexWrap: 'wrap'
           }}>
-            <Box sx={{ height: '100%' }}>
-              <Pie 
-                data={data.quitacaoData} 
-                options={chartOptions('Quitação Geral', true)}
-              />
-            </Box>
-          </Paper>
+            {/* P.E/Adimplência */}
+            <Paper sx={{ 
+              ...darkPaper, 
+              flex: '1 1 45%',
+              minWidth: 400,
+              p: 3,
+              height: 400
+            }}>
+              <Box sx={{ height: '100%' }}>
+                <Bar 
+                  data={dados.peData} 
+                  options={chartOptions('P.E/Adimplência por Funcionário')}
+                />
+              </Box>
+            </Paper>
 
-          {/* Média de Meses de Quitação */}
-          <Paper sx={{ 
-            ...darkPaper, 
-            flex: '1 1 30%',
-            minWidth: 300,
-            p: 3,
-            height: 400
-          }}>
-            <Box sx={{ height: '100%' }}>
-              <Pie 
-                data={data.mesesQuitacaoData} 
-                options={chartOptions('Média de Meses de Quitação', true)}
-              />
-            </Box>
-          </Paper>
+            {/* Grande */}
+            <Paper sx={{ 
+              ...darkPaper, 
+              flex: '1 1 45%',
+              minWidth: 400,
+              p: 3,
+              height: 400
+            }}>
+              <Box sx={{ height: '100%' }}>
+                <Bar 
+                  data={dados.grandeData} 
+                  options={chartOptions('Grande por Funcionário')}
+                />
+              </Box>
+            </Paper>
+          </Box>
 
-          {/* Vazão da Carteira */}
-          <Paper sx={{ 
-            ...darkPaper, 
-            flex: '1 1 30%',
-            minWidth: 300,
-            p: 3,
-            height: 400
+          {/* Terceira linha - 3 gráficos */}
+          <Box sx={{ 
+            display: 'flex', 
+            gap: 3,
+            flexWrap: 'wrap'
           }}>
-            <Box sx={{ height: '100%' }}>
-              <Pie 
-                data={data.vazaoCarteiraData} 
-                options={chartOptions('Vazão da Carteira', true)}
-              />
-            </Box>
-          </Paper>
+            {/* Quitação Geral */}
+            <Paper sx={{ 
+              ...darkPaper, 
+              flex: '1 1 30%',
+              minWidth: 300,
+              p: 3,
+              height: 400
+            }}>
+              <Box sx={{ height: '100%' }}>
+                <Pie 
+                  data={dados.quitacaoData} 
+                  options={chartOptions('Quitação Geral', true)}
+                />
+              </Box>
+            </Paper>
+
+            {/* Média de Meses de Quitação */}
+            <Paper sx={{ 
+              ...darkPaper, 
+              flex: '1 1 30%',
+              minWidth: 300,
+              p: 3,
+              height: 400
+            }}>
+              <Box sx={{ height: '100%' }}>
+                <Pie 
+                  data={dados.mesesQuitacaoData} 
+                  options={chartOptions('Média de Meses de Quitação', true)}
+                />
+              </Box>
+            </Paper>
+
+            {/* Vazão da Carteira */}
+            <Paper sx={{ 
+              ...darkPaper, 
+              flex: '1 1 30%',
+              minWidth: 300,
+              p: 3,
+              height: 400
+            }}>
+              <Box sx={{ height: '100%' }}>
+                <Pie 
+                  data={dados.vazaoCarteiraData} 
+                  options={chartOptions('Vazão da Carteira', true)}
+                />
+              </Box>
+            </Paper>
+          </Box>
         </Box>
       </Box>
     </Box>

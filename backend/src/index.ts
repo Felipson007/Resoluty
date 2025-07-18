@@ -1,34 +1,46 @@
 import express from 'express';
+import cors from 'cors';
 import dotenv from 'dotenv';
-import morgan from 'morgan';
-import indexarConversaRouter from './routes/indexarConversa';
-import consultarContextoRouter from './routes/consultarContexto';
-import feedbackRouter from './routes/feedback';
-import conversarRouter from './routes/conversar';
+import { google } from 'googleapis';
+import fs from 'fs';
 import path from 'path';
 
-// Configurações iniciais
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5432;
+app.use(cors());
+app.use(express.json());
 
-// Middlewares
-app.use(express.json({ limit: '2mb' }));
-app.use(morgan('dev'));
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', message: 'Backend Resoluty rodando!' });
+});
 
-// Rotas principais
-app.use('/indexar-conversa', indexarConversaRouter);
-app.use('/consultar-contexto', consultarContextoRouter);
-app.use('/feedback', feedbackRouter);
-app.use('/conversar', conversarRouter);
+// Google Sheets endpoint
+app.get('/api/sheets/:sheetId/:tab', async (req, res) => {
+  const { sheetId, tab } = req.params;
+  try {
+    // Caminho absoluto do arquivo de credenciais informado pelo usuário
+    const keyPath = path.resolve(__dirname, './keyservice/deep-mile-466315-u4-1dec26cce0c6.json');
+    if (!fs.existsSync(keyPath)) {
+      return res.status(500).json({ error: 'Arquivo de credenciais do Google não encontrado.' });
+    }
+    const auth = new google.auth.GoogleAuth({
+      keyFile: keyPath,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: tab,
+    });
+    res.json(response.data.values || []);
+  } catch (error: any) {
+    console.error(error); // Para ver o erro detalhado no terminal
+    res.status(500).json({ error: error.message });
+  }
+});
 
-// Health check
-app.get('/health', (_, res) => res.send('OK'));
-
-// Servir logs para debug (opcional)
-app.use('/logs', express.static(path.join(__dirname, 'logs')));
-
+const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+  console.log(`Backend Resoluty rodando na porta ${PORT}`);
 }); 

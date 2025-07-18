@@ -1,3 +1,1 @@
-declare module 'gapi-script' {
-  export const gapi: typeof globalThis.gapi;
-} 
+// (Arquivo vazio, pois não é mais necessário tipagem customizada para gapi-script) 
