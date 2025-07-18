@@ -139,42 +139,44 @@ const getMockData = () => ({
   },
 });
 
-const chartOptions = (title: string) => ({
+const chartOptions = (title: string, isPie = false) => ({
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
     legend: {
       position: 'top' as const,
-      labels: { color: resolutyPalette.text, font: { size: 18 } }, // legenda branca e 18px
+      labels: { color: resolutyPalette.text, font: { size: 18 } },
     },
-    title: { display: true, text: title, color: resolutyPalette.text, font: { size: 18, weight: 700 } }, // título branco e 18px
+    title: { display: true, text: title, color: resolutyPalette.text, font: { size: 18, weight: 700 } },
     tooltip: { enabled: true },
     datalabels: {
-      color: resolutyPalette.text, // datalabels brancos
-      font: { weight: 700, size: 18 }, // tamanho 18px
+      color: resolutyPalette.text,
+      font: { weight: 700, size: 18 },
     },
   },
-  scales: {
-    y: {
-      beginAtZero: true,
-      ticks: {
-        color: resolutyPalette.text, // eixo y branco
-        font: { size: 18, weight: 700 },
-        callback: function (tickValue: string | number) {
-          if (typeof tickValue === 'number') {
-            return tickValue >= 1000 ? `${(tickValue / 1000).toFixed(1)} mil` : tickValue;
-          }
-          return tickValue;
+  ...(isPie ? {} : {
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          color: resolutyPalette.text,
+          font: { size: 18, weight: 700 },
+          callback: function (tickValue: string | number) {
+            if (typeof tickValue === 'number') {
+              return tickValue >= 1000 ? `${(tickValue / 1000).toFixed(1)} mil` : tickValue;
+            }
+            return tickValue;
+          },
+        },
+      },
+      x: {
+        ticks: {
+          color: resolutyPalette.text,
+          font: { size: 18, weight: 700 },
         },
       },
     },
-    x: {
-      ticks: {
-        color: resolutyPalette.text, // eixo x branco
-        font: { size: 18, weight: 700 },
-      },
-    },
-  },
+  })
 });
 
 const kpiIcons = [
@@ -447,7 +449,7 @@ export default function CustomerSuccess() {
             <Box sx={{ height: '100%' }}>
               <Pie 
                 data={data.quitacaoData} 
-                options={chartOptions('Quitação Geral')}
+                options={chartOptions('Quitação Geral', true)}
                 plugins={[ChartDataLabels]}
               />
             </Box>
@@ -464,7 +466,7 @@ export default function CustomerSuccess() {
             <Box sx={{ height: '100%' }}>
               <Pie 
                 data={data.mesesQuitacaoData} 
-                options={chartOptions('Média de Meses de Quitação')}
+                options={chartOptions('Média de Meses de Quitação', true)}
                 plugins={[ChartDataLabels]}
               />
             </Box>
@@ -481,7 +483,7 @@ export default function CustomerSuccess() {
             <Box sx={{ height: '100%' }}>
               <Pie 
                 data={data.vazaoCarteiraData} 
-                options={chartOptions('Vazão da Carteira')}
+                options={chartOptions('Vazão da Carteira', true)}
                 plugins={[ChartDataLabels]}
               />
             </Box>
