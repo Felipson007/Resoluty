@@ -30,7 +30,6 @@ const getMockData = () => ({
     { label: 'Meta', value: 'R$ 155.000,00' },
     { label: 'Realizado', value: 'R$ 46.321,06' },
     { label: 'Diferença', value: 'R$ -108.678,94' },
-    { label: 'Total de acordo por funcionário', value: 'Felipe: 1, Matheus: 9' },
     { label: 'Total de acordo', value: '10' },
     { label: 'Avaliação Google', value: '4.8 ★' },
     { label: 'Média de Meses de Quitação', value: '6.2' },
@@ -191,16 +190,16 @@ const kpiIcons = [
 
 // Paleta Resoluty
 export const resolutyPalette = {
-  background: '#0A1A2F', // Fundo geral
-  sidebar: '#081B30',    // Sidebar/Menu
-  text: '#FFFFFF',       // Texto principal
-  textSecondary: '#B0BEC5', // Texto secundário
-  border: '#1E3A8A',     // Borda de cards
-  card: '#0F2944',       // Fundo dos cards/KPIs
-  chartBg: '#132A45',    // Fundo dos gráficos
+  background: '#FFFFFF', // Fundo geral branco
+  sidebar: '#FFFFFF',    // Sidebar/Menu branco
+  text: '#222222',       // Texto principal escuro
+  textSecondary: '#757575', // Texto secundário cinza
+  border: '#E0E0E0',     // Borda de cards cinza claro
+  card: '#FFFFFF',       // Fundo dos cards/KPIs branco
+  chartBg: '#FFFFFF',    // Fundo dos gráficos branco
   kpiHit: '#22C55E',     // KPI atingido
   kpiMiss: '#EF4444',    // KPI não atingido
-  shadow: 'rgba(0,0,0,0.3)',
+  shadow: 'rgba(0,0,0,0.08)',
   // Gráficos principais
   chartMain: ['#4ADE80', '#3B82F6', '#FBBF24', '#F97316', '#8B5CF6', '#FB7185'],
   // Quitação
@@ -217,8 +216,8 @@ export const resolutyPalette = {
   funcionarioC: '#8B5CF6',
   funcionarioD: '#F472B6',
   // Interações
-  hoverSidebar: '#1E3A8A',
-  activeSidebar: '#3B82F6',
+  hoverSidebar: '#F5F5F5',
+  activeSidebar: '#E0E0E0',
   sucesso: '#4ADE80',
   alerta: '#FBBF24',
   erro: '#EF4444',
@@ -237,8 +236,8 @@ const kpiColors = [
 const kpiStyle = {
   p: 3,
   borderRadius: 3,
-  background: '#222',
-  color: '#fff',
+  background: '#fff',
+  color: '#222',
   fontWeight: 700,
   textAlign: 'center',
   boxShadow: 4,
@@ -262,7 +261,6 @@ export const csBackgroundColor = resolutyPalette.background;
 
 export default function CustomerSuccess() {
   const [data] = useState(getMockData());
-  const [selectedDate, setSelectedDate] = useState('2024-01-15');
 
   return (
     <Box sx={{ 
@@ -284,41 +282,6 @@ export default function CustomerSuccess() {
           Customer Success
         </Typography>
         
-        {/* Filtro de data */}
-        <Box sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: 2,
-          background: resolutyPalette.card,
-          p: 2,
-          borderRadius: 2,
-          border: `1.5px solid ${resolutyPalette.border}`,
-          minWidth: 300
-        }}>
-          <CalendarToday sx={{ color: resolutyPalette.text }} />
-          <TextField
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                color: resolutyPalette.text,
-                '& fieldset': {
-                  borderColor: resolutyPalette.border,
-                },
-                '&:hover fieldset': {
-                  borderColor: resolutyPalette.activeSidebar,
-                },
-                '&.Mui-focused fieldset': {
-                  borderColor: resolutyPalette.activeSidebar,
-                },
-              },
-              '& .MuiInputLabel-root': {
-                color: resolutyPalette.textSecondary,
-              },
-            }}
-          />
-        </Box>
       </Box>
 
       {/* KPIs */}
@@ -368,7 +331,6 @@ export default function CustomerSuccess() {
               <Bar 
                 data={data.faturamentoData} 
                 options={chartOptions('Faturamento por Funcionário')}
-                plugins={[ChartDataLabels]}
               />
             </Box>
           </Paper>
@@ -385,7 +347,6 @@ export default function CustomerSuccess() {
               <Bar 
                 data={data.acordosData} 
                 options={chartOptions('Número de Acordos por Funcionário')}
-                plugins={[ChartDataLabels]}
               />
             </Box>
           </Paper>
@@ -409,7 +370,6 @@ export default function CustomerSuccess() {
               <Bar 
                 data={data.peData} 
                 options={chartOptions('P.E/Adimplência por Funcionário')}
-                plugins={[ChartDataLabels]}
               />
             </Box>
           </Paper>
@@ -426,7 +386,6 @@ export default function CustomerSuccess() {
               <Bar 
                 data={data.grandeData} 
                 options={chartOptions('Grande por Funcionário')}
-                plugins={[ChartDataLabels]}
               />
             </Box>
           </Paper>
@@ -450,7 +409,6 @@ export default function CustomerSuccess() {
               <Pie 
                 data={data.quitacaoData} 
                 options={chartOptions('Quitação Geral', true)}
-                plugins={[ChartDataLabels]}
               />
             </Box>
           </Paper>
@@ -467,7 +425,6 @@ export default function CustomerSuccess() {
               <Pie 
                 data={data.mesesQuitacaoData} 
                 options={chartOptions('Média de Meses de Quitação', true)}
-                plugins={[ChartDataLabels]}
               />
             </Box>
           </Paper>
@@ -484,7 +441,6 @@ export default function CustomerSuccess() {
               <Pie 
                 data={data.vazaoCarteiraData} 
                 options={chartOptions('Vazão da Carteira', true)}
-                plugins={[ChartDataLabels]}
               />
             </Box>
           </Paper>
