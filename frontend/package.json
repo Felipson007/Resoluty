@@ -50,6 +50,9 @@
     ]
   },
   "devDependencies": {
-    "@types/react": "^18.2.55"
+    "@types/gapi": "^0.0.47",
+    "@types/gapi.auth2": "^0.0.61",
+    "@types/react": "^18.2.55",
+    "gapi-script": "^1.2.0"
   }
 }

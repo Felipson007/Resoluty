@@ -1,40 +1,110 @@
 import React, { useState } from 'react';
-import { Box, Button, TextField, Typography, Paper, Alert } from '@mui/material';
+import { Box, TextField, Button, Paper, Typography, Alert } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-
-// Usuários definidos pelo desenvolvedor
-const USERS = [
-  { username: 'admin', password: 'admin123' },
-  { username: 'user', password: 'user123' },
-];
+import { resolutyPalette } from './CustomerSuccess';
 
 export default function Login() {
-  const [user, setUser] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const found = USERS.find(u => u.username === user && u.password === password);
-    if (found) {
-      setError('');
-      navigate('/home');
-    } else {
-      setError('Usuário ou senha inválidos');
-    }
+    setError('');
+    setIsLoading(true);
+
+    // Simulação de validação de login
+    setTimeout(() => {
+      if (username === 'admin' && password === 'admin123') {
+        // Login bem-sucedido
+        localStorage.setItem('isAuthenticated', 'true');
+        localStorage.setItem('user', JSON.stringify({ username, role: 'admin' }));
+        navigate('/home');
+      } else if (username === 'user' && password === 'user123') {
+        // Login bem-sucedido para usuário comum
+        localStorage.setItem('isAuthenticated', 'true');
+        localStorage.setItem('user', JSON.stringify({ username, role: 'user' }));
+        navigate('/home');
+      } else {
+        setError('Usuário ou senha incorretos. Tente: admin/admin123 ou user/user123');
+      }
+      setIsLoading(false);
+    }, 1000);
   };
 
   return (
-    <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh" bgcolor="#f5f5f5">
-      <Paper elevation={3} sx={{ p: 4, minWidth: 320 }}>
-        <Typography variant="h5" mb={2}>Login</Typography>
-        <form onSubmit={handleLogin}>
-          <TextField label="Usuário" fullWidth margin="normal" value={user} onChange={e => setUser(e.target.value)} />
-          <TextField label="Senha" type="password" fullWidth margin="normal" value={password} onChange={e => setPassword(e.target.value)} />
-          {error && <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>}
-          <Button type="submit" variant="contained" color="primary" fullWidth sx={{ mt: 2 }}>Entrar</Button>
-        </form>
+    <Box sx={{ minHeight: '100vh', background: resolutyPalette.background, color: resolutyPalette.text, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Paper sx={{ background: resolutyPalette.card, color: resolutyPalette.text, borderRadius: 3, boxShadow: 4, minWidth: { xs: 280, sm: 340 }, maxWidth: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, p: 4 }}>
+        <Typography variant="h5" sx={{ fontWeight: 900, textAlign: 'center', color: resolutyPalette.text }}>Login Resoluty</Typography>
+        
+        {error && (
+          <Alert severity="error" sx={{ width: '100%', fontSize: 14 }}>
+            {error}
+          </Alert>
+        )}
+
+        <Box component="form" onSubmit={handleLogin} sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <TextField 
+            fullWidth 
+            label="Usuário" 
+            variant="outlined" 
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            disabled={isLoading}
+            sx={{ 
+              input: { color: resolutyPalette.text }, 
+              label: { color: resolutyPalette.text },
+              '& .MuiOutlinedInput-root': {
+                '& fieldset': { borderColor: resolutyPalette.text },
+                '&:hover fieldset': { borderColor: resolutyPalette.activeSidebar },
+                '&.Mui-focused fieldset': { borderColor: resolutyPalette.activeSidebar }
+              }
+            }} 
+          />
+          <TextField 
+            fullWidth 
+            label="Senha" 
+            type="password" 
+            variant="outlined" 
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={isLoading}
+            sx={{ 
+              input: { color: resolutyPalette.text }, 
+              label: { color: resolutyPalette.text },
+              '& .MuiOutlinedInput-root': {
+                '& fieldset': { borderColor: resolutyPalette.text },
+                '&:hover fieldset': { borderColor: resolutyPalette.activeSidebar },
+                '&.Mui-focused fieldset': { borderColor: resolutyPalette.activeSidebar }
+              }
+            }} 
+          />
+          <Button 
+            fullWidth 
+            variant="contained" 
+            type="submit"
+            disabled={isLoading || !username || !password}
+            sx={{ 
+              background: resolutyPalette.activeSidebar, 
+              color: resolutyPalette.text, 
+              fontWeight: 700, 
+              fontSize: 18, 
+              py: 1.5, 
+              ':hover': { background: resolutyPalette.hoverSidebar },
+              ':disabled': { background: resolutyPalette.sidebar, color: resolutyPalette.text }
+            }}
+          >
+            {isLoading ? 'Entrando...' : 'Entrar'}
+          </Button>
+        </Box>
+
+        <Typography variant="body2" sx={{ textAlign: 'center', color: resolutyPalette.text, opacity: 0.7, mt: 2 }}>
+          Credenciais de teste:<br/>
+          Admin: admin / admin123<br/>
+          Usuário: user / user123
+        </Typography>
       </Paper>
     </Box>
   );

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Box, Typography, Paper, Stack, TextField, Button, Grid, AppBar, Toolbar, Avatar } from '@mui/material';
 import { Bar, Pie, Line } from 'react-chartjs-2';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
-import { MonetizationOn, TrendingUp, TrendingDown, Percent, Assignment, Star, WaterDrop, QrCode2 } from '@mui/icons-material';
+import { MonetizationOn, TrendingUp, TrendingDown, Percent, Assignment, Star, WaterDrop, QrCode2, CalendarToday } from '@mui/icons-material';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -66,21 +66,29 @@ const getMockData = () => ({
         label: 'P.E.',
         data: [5296.33, 22222.64],
         backgroundColor: '#1976d2',
+        barPercentage: 0.6,
+        categoryPercentage: 0.6,
       },
       {
         label: 'Adimplência',
         data: [3307.39, 4445.42],
         backgroundColor: '#26c6da',
+        barPercentage: 0.6,
+        categoryPercentage: 0.6,
       },
       {
         label: 'Antecipação de P.E.',
         data: [1127.88, 0],
         backgroundColor: '#ab47bc',
+        barPercentage: 0.6,
+        categoryPercentage: 0.6,
       },
       {
         label: 'Recuperação',
         data: [0, 2647.5],
         backgroundColor: '#8d6e63',
+        barPercentage: 0.6,
+        categoryPercentage: 0.6,
       },
     ],
   },
@@ -135,20 +143,35 @@ const chartOptions = (title: string) => ({
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
-    legend: { position: 'top' as const },
-    title: { display: true, text: title },
+    legend: {
+      position: 'top' as const,
+      labels: { color: resolutyPalette.text, font: { size: 18 } }, // legenda branca e 18px
+    },
+    title: { display: true, text: title, color: resolutyPalette.text, font: { size: 18, weight: 700 } }, // título branco e 18px
     tooltip: { enabled: true },
+    datalabels: {
+      color: resolutyPalette.text, // datalabels brancos
+      font: { weight: 700, size: 18 }, // tamanho 18px
+    },
   },
   scales: {
     y: {
       beginAtZero: true,
       ticks: {
+        color: resolutyPalette.text, // eixo y branco
+        font: { size: 18, weight: 700 },
         callback: function (tickValue: string | number) {
           if (typeof tickValue === 'number') {
             return tickValue >= 1000 ? `${(tickValue / 1000).toFixed(1)} mil` : tickValue;
           }
           return tickValue;
         },
+      },
+    },
+    x: {
+      ticks: {
+        color: resolutyPalette.text, // eixo x branco
+        font: { size: 18, weight: 700 },
       },
     },
   },
@@ -236,151 +259,234 @@ const darkPaper = {
 export const csBackgroundColor = resolutyPalette.background;
 
 export default function CustomerSuccess() {
-  const [periodoState, setPeriodoState] = useState({ inicio: '', fim: '' });
-  const [dados, setDados] = useState(getMockData());
-  const [now, setNow] = useState(new Date());
-  useEffect(() => {
-    setDados(getMockData());
-    const interval = setInterval(() => setDados(getMockData()), 10 * 60 * 1000);
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => { clearInterval(interval); clearInterval(timer); };
-  }, []);
-
-  // KPIs principais
-  const kpis = [
-    { label: 'Meta', value: dados.indicadores[1].value },
-    { label: 'Realizado', value: dados.indicadores[2].value },
-    { label: 'Diferença', value: dados.indicadores[3].value },
-    { label: '% Meta Atingida', value: dados.indicadores[0].value },
-    { label: 'Total de Acordos', value: dados.indicadores[5].value },
-    { label: 'Avaliação Google', value: dados.indicadores[6].value },
-    { label: '% Vazão da Carteira', value: dados.indicadores[11].value },
-  ];
-
-  // Gráficos e dados para cada linha
-  // Linha 2
-  const faturamentoTipoData = dados.faturamentoData; // customize colors if needed
-  const acordosData = dados.acordosData;
-  // Linha 3
-  const grandeData = dados.grandeData;
-  const peData = dados.peData;
-  // Linha 4
-  const quitacaoData = dados.quitacaoData;
-  const quitacaoPieData = {
-    labels: ['Quitação Geral', 'Restante'],
-    datasets: [{
-      data: [parseFloat(dados.indicadores[8].value.replace('%','')), 100-parseFloat(dados.indicadores[8].value.replace('%',''))],
-      backgroundColor: [resolutyPalette.quitado, resolutyPalette.restante],
-    }],
-  };
-  const mesesQuitacaoData = dados.mesesQuitacaoData;
-  // Linha 5
-  const acordosRecentes = [
-    { cliente: 'João', valor: 'R$ 2.000,00', data: '2024-07-01' },
-    { cliente: 'Maria', valor: 'R$ 3.500,00', data: '2024-07-02' },
-    { cliente: 'Carlos', valor: 'R$ 1.200,00', data: '2024-07-03' },
-  ];
+  const [data] = useState(getMockData());
+  const [selectedDate, setSelectedDate] = useState('2024-01-15');
 
   return (
-    <Box sx={{ minHeight: '100vh', background: resolutyPalette.background, p: 0, overflow: 'auto' }}>
-      {/* Header Superior */}
-      <AppBar position="static" sx={{ background: resolutyPalette.sidebar, boxShadow: 3, zIndex: 1200, minHeight: 60 }}>
-        <Toolbar sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',  flexWrap: 'wrap', minHeight: 60 }}>
-          <Stack direction="row" spacing={2} alignItems="center">
-            <Avatar sx={{ bgcolor: resolutyPalette.activeSidebar, width: 48, height: 48, fontWeight: 900 }}>R</Avatar>
-            <Typography variant="h5" sx={{ fontWeight: 900, color: resolutyPalette.text, letterSpacing: 1 }}>DASHBOARD - CUSTOMER SUCCESS</Typography>
-          </Stack>
-          <Stack direction="row" spacing={2} alignItems="center">
-            <TextField
-              label="Início"
-              type="date"
-              size="small"
-              InputLabelProps={{ shrink: true }}
-              value={periodoState.inicio}
-              onChange={e => setPeriodoState(s => ({ ...s, inicio: e.target.value }))}
-              sx={{ input: { color: resolutyPalette.text }, label: { color: resolutyPalette.text }, minWidth: 120 }}
-            />
-            <TextField
-              label="Fim"
-              type="date"
-              size="small"
-              InputLabelProps={{ shrink: true }}
-              value={periodoState.fim}
-              onChange={e => setPeriodoState(s => ({ ...s, fim: e.target.value }))}
-              sx={{ input: { color: resolutyPalette.text }, label: { color: resolutyPalette.text }, minWidth: 120 }}
-            />
-            <Button variant="contained" sx={{ background: resolutyPalette.activeSidebar, color: resolutyPalette.text, fontWeight: 700, ':hover': { background: resolutyPalette.hoverSidebar } }}>Filtrar</Button>
-          </Stack>
-          <Box sx={{ minWidth: 180, textAlign: 'right' }}>
-            <Typography variant="body2" sx={{ color: resolutyPalette.text, fontWeight: 700 }}>{now.toLocaleDateString()} {now.toLocaleTimeString()}</Typography>
-          </Box>
-        </Toolbar>
-      </AppBar>
-      {/* Linha 1: KPIs */}
-      <Box sx={{ width: '100%', background: resolutyPalette.sidebar, py: 3, px: 0, display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', gap: 3 }}>
-        {kpis.map((kpi, idx) => (
-          <Paper key={kpi.label} sx={{ ...darkPaper, p: 3, minWidth: 200, minHeight: 120, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 32, borderLeft: `8px solid ${kpiColors[idx]}` }}>
-            <Box sx={{ mb: 1, color: kpiColors[idx] }}>{kpiIcons[idx]}</Box>
-            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: 20 }}>{kpi.label}</Typography>
-            <Typography variant="h4" sx={{ fontWeight: 900, fontSize: 36, color: kpiColors[idx] }}>{kpi.value}</Typography>
+    <Box sx={{ 
+      background: resolutyPalette.background, 
+      minHeight: '100vh', 
+      p: 3,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 3
+    }}>
+      {/* Header com filtro */}
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        mb: 3
+      }}>
+        <Typography variant="h4" sx={{ color: resolutyPalette.text, fontWeight: 700 }}>
+          Customer Success
+        </Typography>
+        
+        {/* Filtro de data */}
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 2,
+          background: resolutyPalette.card,
+          p: 2,
+          borderRadius: 2,
+          border: `1.5px solid ${resolutyPalette.border}`,
+          minWidth: 300
+        }}>
+          <CalendarToday sx={{ color: resolutyPalette.text }} />
+          <TextField
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                color: resolutyPalette.text,
+                '& fieldset': {
+                  borderColor: resolutyPalette.border,
+                },
+                '&:hover fieldset': {
+                  borderColor: resolutyPalette.activeSidebar,
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: resolutyPalette.activeSidebar,
+                },
+              },
+              '& .MuiInputLabel-root': {
+                color: resolutyPalette.textSecondary,
+              },
+            }}
+          />
+        </Box>
+      </Box>
+
+      {/* KPIs */}
+      <Box sx={{ 
+        display: 'flex', 
+        flexWrap: 'wrap', 
+        justifyContent: 'center',
+        gap: 2,
+        mb: 3
+      }}>
+        {data.indicadores.slice(0, 7).map((kpi, index) => (
+          <Paper key={index} sx={{ ...kpiStyle, background: resolutyPalette.card, border: `1.5px solid ${resolutyPalette.border}` }}>
+            <Box sx={{ color: kpiColors[index], mb: 1 }}>
+              {kpiIcons[index]}
+            </Box>
+            <Typography variant="h6" sx={{ color: resolutyPalette.text, fontWeight: 700, mb: 1 }}>
+              {kpi.label}
+            </Typography>
+            <Typography variant="h5" sx={{ color: resolutyPalette.text, fontWeight: 700 }}>
+              {kpi.value}
+            </Typography>
           </Paper>
         ))}
       </Box>
-      {/* Linha 2: Faturamento e Acordos */}
-      <Grid container spacing={3} sx={{ maxWidth: 1800, mx: 'auto', mb: 2 }}>
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ ...darkPaper, p: 3, height: 400 }}>
-            <Typography variant="h6" sx={{ color: resolutyPalette.sucesso, fontWeight: 700, mb: 2 }}>Faturamento por Funcionário e Tipo</Typography>
-            <Bar data={faturamentoTipoData} options={{ ...chartOptions(''), plugins: { ...chartOptions('').plugins, legend: { display: true }, datalabels: { color: resolutyPalette.text, font: { weight: 'bold', size: 16 } } }, scales: { y: { beginAtZero: true } } }} height={320} />
+
+      {/* Gráficos */}
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        gap: 3
+      }}>
+        {/* Primeira linha - 2 gráficos */}
+        <Box sx={{ 
+          display: 'flex', 
+          gap: 3,
+          flexWrap: 'wrap'
+        }}>
+          {/* Faturamento */}
+          <Paper sx={{ 
+            ...darkPaper, 
+            flex: '1 1 45%',
+            minWidth: 400,
+            p: 3,
+            height: 400
+          }}>
+            <Box sx={{ height: '100%' }}>
+              <Bar 
+                data={data.faturamentoData} 
+                options={chartOptions('Faturamento por Funcionário')}
+                plugins={[ChartDataLabels]}
+              />
+            </Box>
           </Paper>
-        </Grid>
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ ...darkPaper, p: 3, height: 400 }}>
-            <Typography variant="h6" sx={{ color: resolutyPalette.activeSidebar, fontWeight: 700, mb: 2 }}>Nº de Acordos por Funcionário</Typography>
-            <Bar data={acordosData} options={{ ...chartOptions(''), plugins: { ...chartOptions('').plugins, legend: { display: false }, datalabels: { color: resolutyPalette.text, font: { weight: 'bold', size: 16 } } }, scales: { y: { beginAtZero: true } } }} height={320} />
+
+          {/* Acordos */}
+          <Paper sx={{
+            ...darkPaper, 
+            flex: '1 1 45%',
+            minWidth: 400,
+            p: 3,
+            height: 400
+          }}>
+            <Box sx={{ height: '100%' }}>
+              <Bar 
+                data={data.acordosData} 
+                options={chartOptions('Número de Acordos por Funcionário')}
+                plugins={[ChartDataLabels]}
+              />
+            </Box>
           </Paper>
-        </Grid>
-      </Grid>
-      {/* Linha 3: Entradas Diárias e P.E/Adimplência */}
-      <Grid container spacing={3} sx={{ maxWidth: 1800, mx: 'auto', mb: 2 }}>
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ ...darkPaper, p: 3, height: 400 }}>
-            <Typography variant="h6" sx={{ color: resolutyPalette.alerta, fontWeight: 700, mb: 2 }}>Entradas Diárias por Funcionário</Typography>
-            <Bar data={grandeData} options={{ ...chartOptions(''), plugins: { ...chartOptions('').plugins, legend: { display: true }, datalabels: { color: resolutyPalette.text, font: { weight: 'bold', size: 16 } } }, scales: { y: { beginAtZero: true } } }} height={320} />
+        </Box>
+
+        {/* Segunda linha - 2 gráficos */}
+        <Box sx={{ 
+          display: 'flex', 
+          gap: 3,
+          flexWrap: 'wrap'
+        }}>
+          {/* P.E/Adimplência */}
+          <Paper sx={{ 
+            ...darkPaper, 
+            flex: '1 1 45%',
+            minWidth: 400,
+            p: 3,
+            height: 400
+          }}>
+            <Box sx={{ height: '100%' }}>
+              <Bar 
+                data={data.peData} 
+                options={chartOptions('P.E/Adimplência por Funcionário')}
+                plugins={[ChartDataLabels]}
+              />
+            </Box>
           </Paper>
-        </Grid>
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ ...darkPaper, p: 3, height: 400 }}>
-            <Typography variant="h6" sx={{ color: resolutyPalette.funcionarioA, fontWeight: 700, mb: 2 }}>P.E / Adimplência / Antecipação / Recuperação</Typography>
-            <Bar data={peData} options={{ ...chartOptions(''), plugins: { ...chartOptions('').plugins, legend: { display: true }, datalabels: { color: resolutyPalette.text, font: { weight: 'bold', size: 16 } } }, scales: { y: { beginAtZero: true } } }} height={320} />
+
+          {/* Grande */}
+          <Paper sx={{ 
+            ...darkPaper, 
+            flex: '1 1 45%',
+            minWidth: 400,
+            p: 3,
+            height: 400
+          }}>
+            <Box sx={{ height: '100%' }}>
+              <Bar 
+                data={data.grandeData} 
+                options={chartOptions('Grande por Funcionário')}
+                plugins={[ChartDataLabels]}
+              />
+            </Box>
           </Paper>
-        </Grid>
-      </Grid>
-      {/* Linha 4: Quitação e Indicadores */}
-      <Grid container spacing={3} sx={{ maxWidth: 1800, mx: 'auto', mb: 2 }}>
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ ...darkPaper, p: 3, height: 400 }}>
-            <Typography variant="h6" sx={{ color: resolutyPalette.sucesso, fontWeight: 700, mb: 2 }}>Quitação por Funcionário</Typography>
-            <Bar data={quitacaoData} options={{ ...chartOptions(''), plugins: { ...chartOptions('').plugins, legend: { display: false }, datalabels: { color: resolutyPalette.text, font: { weight: 'bold', size: 16 } } }, scales: { y: { beginAtZero: true } } }} height={320} />
+        </Box>
+
+        {/* Terceira linha - 3 gráficos */}
+        <Box sx={{ 
+          display: 'flex', 
+          gap: 3,
+          flexWrap: 'wrap'
+        }}>
+          {/* Quitação Geral */}
+          <Paper sx={{ 
+            ...darkPaper, 
+            flex: '1 1 30%',
+            minWidth: 300,
+            p: 3,
+            height: 400
+          }}>
+            <Box sx={{ height: '100%' }}>
+              <Pie 
+                data={data.quitacaoData} 
+                options={chartOptions('Quitação Geral')}
+                plugins={[ChartDataLabels]}
+              />
+            </Box>
           </Paper>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ ...darkPaper, p: 3, height: 400 }}>
-            <Typography variant="h6" sx={{ color: resolutyPalette.alerta, fontWeight: 700, mb: 2 }}>% Quitação Geral</Typography>
-            <Pie data={quitacaoPieData} options={{ plugins: { legend: { display: true, labels: { color: resolutyPalette.text, font: { size: 18 } } }, datalabels: { color: resolutyPalette.text, font: { weight: 'bold', size: 20 }, formatter: v => `${v}%` } } }} />
+
+          {/* Média de Meses de Quitação */}
+          <Paper sx={{ 
+            ...darkPaper, 
+            flex: '1 1 30%',
+            minWidth: 300,
+            p: 3,
+            height: 400
+          }}>
+            <Box sx={{ height: '100%' }}>
+              <Pie 
+                data={data.mesesQuitacaoData} 
+                options={chartOptions('Média de Meses de Quitação')}
+                plugins={[ChartDataLabels]}
+              />
+            </Box>
           </Paper>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ ...darkPaper, p: 3, height: 400 }}>
-            <Typography variant="h6" sx={{ color: resolutyPalette.activeSidebar, fontWeight: 700, mb: 2 }}>Média de Meses de Quitação por Funcionário</Typography>
-            <Bar data={mesesQuitacaoData} options={{ ...chartOptions(''), plugins: { ...chartOptions('').plugins, legend: { display: false }, datalabels: { color: resolutyPalette.text, font: { weight: 'bold', size: 16 } } }, scales: { y: { beginAtZero: true } } }} height={320} />
+
+          {/* Vazão da Carteira */}
+          <Paper sx={{ 
+            ...darkPaper, 
+            flex: '1 1 30%',
+            minWidth: 300,
+            p: 3,
+            height: 400
+          }}>
+            <Box sx={{ height: '100%' }}>
+              <Pie 
+                data={data.vazaoCarteiraData} 
+                options={chartOptions('Vazão da Carteira')}
+                plugins={[ChartDataLabels]}
+              />
+            </Box>
           </Paper>
-        </Grid>
-      </Grid>
-     
-      {/* Footer */}
-      <Box sx={{ width: '100%', background: resolutyPalette.background, py: 2, textAlign: 'center', color: resolutyPalette.text, fontWeight: 700, fontSize: 18 }}>
-        Última atualização: {now.toLocaleString()}
+        </Box>
       </Box>
     </Box>
   );
