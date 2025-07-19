@@ -4,12 +4,14 @@ import dotenv from 'dotenv';
 import { google } from 'googleapis';
 import fs from 'fs';
 import path from 'path';
+import webhookGHL from './routes/webhookGHL';
 
 dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(webhookGHL);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Backend Resoluty rodando!' });
