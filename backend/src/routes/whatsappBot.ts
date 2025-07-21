@@ -1,8 +1,10 @@
 import { makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
+// Adicione esta linha no topo do arquivo para ignorar o erro de tipagem do qrcode-terminal
+// @ts-ignore
 import qrcode from 'qrcode-terminal';
 import axios from 'axios';
 
-async function startBot() {
+async function startBot(): Promise<void> {
   const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
   const { version } = await fetchLatestBaileysVersion();
 

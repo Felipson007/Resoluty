@@ -50,4 +50,18 @@ router.post('/webhook/whatsapp', async (req, res) => {
   }
 });
 
+// Endpoint para integração local com o bot Baileys
+router.post('/webhook/ia', async (req, res) => {
+  try {
+    const { message } = req.body;
+    if (!message) return res.status(400).json({ error: 'Mensagem não fornecida.' });
+    const gptResponse = await model.invoke(message);
+    const resposta = gptResponse.content || 'Desculpe, não consegui responder.';
+    res.json({ resposta });
+  } catch (error: any) {
+    console.error('Erro no Webhook IA:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router; 
