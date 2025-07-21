@@ -6,46 +6,46 @@ dotenv.config();
 
 const router = express.Router();
 
-// Instância do modelo OpenAI
+// Instância do modelo OpenAI/Assistant
 const model = new ChatOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-  modelName: 'gpt-4-1106-preview',
+  ...(process.env.OPENAI_ASSISTANT_ID ? { assistantId: process.env.OPENAI_ASSISTANT_ID } : {}),
 });
 
-// Recebe Webhook do GHL
-router.post('/webhook/ghl', async (req, res) => {
+// Webhook para receber mensagens do WhatsApp Business API (Meta)
+router.post('/webhook/whatsapp', async (req, res) => {
   try {
-    const { message, contactId, conversationId } = req.body;
-    if (!message || !contactId) {
-      return res.status(400).json({ error: 'Dados insuficientes.' });
+    const entry = req.body.entry?.[0];
+    const changes = entry?.changes?.[0];
+    const message = changes?.value?.messages?.[0];
+    const from = message?.from; // número do usuário
+    const text = message?.text?.body;
+
+    if (from && text) {
+      // Processa a mensagem com a IA
+      const gptResponse = await model.invoke(text);
+      const resposta = gptResponse.content || 'Desculpe, não consegui responder.';
+
+      // Envia a resposta de volta usando a API oficial do WhatsApp
+      await axios.post(
+        `https://graph.facebook.com/v19.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
+        {
+          messaging_product: 'whatsapp',
+          to: from,
+          text: { body: resposta }
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
     }
 
-    // Envia mensagem ao ChatGPT
-    const gptResponse = await model.invoke(message);
-    const resposta = gptResponse.content || 'Desculpe, não consegui responder.';
-
-    // Envia resposta ao WhatsApp via GHL API
-    const ghlApiUrl = `${process.env.GHL_API_BASE}/conversations/messages`; // Exemplo de endpoint
-    const ghlToken = process.env.GHL_API_KEY;
-    await axios.post(
-      ghlApiUrl,
-      {
-        contactId,
-        conversationId,
-        message: resposta,
-        channel: 'whatsapp',
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${ghlToken}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    res.json({ success: true, resposta });
+    res.sendStatus(200);
   } catch (error: any) {
-    console.error('Erro no Webhook GHL:', error);
+    console.error('Erro no Webhook WhatsApp:', error);
     res.status(500).json({ error: error.message });
   }
 });
