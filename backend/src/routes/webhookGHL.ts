@@ -1,16 +1,47 @@
 import express from 'express';
 import axios from 'axios';
-import { ChatOpenAI } from '@langchain/openai';
+import OpenAI from 'openai';
 import dotenv from 'dotenv';
 dotenv.config();
 
 const router = express.Router();
 
 // Instância do modelo OpenAI/Assistant
-const model = new ChatOpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  ...(process.env.OPENAI_ASSISTANT_ID ? { assistantId: process.env.OPENAI_ASSISTANT_ID } : {}),
-});
+console.log('[IA] OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? '***' : 'NÃO DEFINIDA');
+console.log('[IA] OPENAI_ASSISTANT_ID:', process.env.OPENAI_ASSISTANT_ID);
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+async function askAssistant(message: string) {
+  // Cria um novo thread para cada conversa
+  const thread = await openai.beta.threads.create();
+  await openai.beta.threads.messages.create(thread.id, {
+    role: 'user',
+    content: message,
+  });
+  const run = await openai.beta.threads.runs.create(thread.id, {
+    assistant_id: process.env.OPENAI_ASSISTANT_ID!,
+  });
+
+  // Poll até o run ser completado
+  let runStatus = run.status;
+  while (runStatus !== 'completed' && runStatus !== 'failed') {
+    await new Promise((r) => setTimeout(r, 2000));
+    const updatedRun = await openai.beta.threads.runs.retrieve(run.id, { thread_id: thread.id });
+    runStatus = updatedRun.status;
+  }
+
+  const messages = await openai.beta.threads.messages.list(thread.id);
+  const lastMessage = messages.data.find((msg) => msg.role === 'assistant');
+  // Busca o primeiro bloco de texto do conteúdo
+  let resposta = 'Desculpe, não consegui responder.';
+  if (lastMessage && Array.isArray(lastMessage.content)) {
+    const textBlock = (lastMessage.content as any[]).find((c) => c.type === 'text' && c.text && typeof c.text.value === 'string');
+    if (textBlock) {
+      resposta = textBlock.text.value;
+    }
+  }
+  return resposta;
+}
 
 // Webhook para receber mensagens do WhatsApp Business API (Meta)
 router.post('/webhook/whatsapp', async (req, res) => {
@@ -23,8 +54,7 @@ router.post('/webhook/whatsapp', async (req, res) => {
 
     if (from && text) {
       // Processa a mensagem com a IA
-      const gptResponse = await model.invoke(text);
-      const resposta = gptResponse.content || 'Desculpe, não consegui responder.';
+      const resposta = await askAssistant(text);
 
       // Envia a resposta de volta usando a API oficial do WhatsApp
       await axios.post(
@@ -53,13 +83,18 @@ router.post('/webhook/whatsapp', async (req, res) => {
 // Endpoint para integração local com o bot Baileys
 router.post('/webhook/ia', async (req, res) => {
   try {
+    console.log('[IA] Body recebido:', req.body);
     const { message } = req.body;
-    if (!message) return res.status(400).json({ error: 'Mensagem não fornecida.' });
-    const gptResponse = await model.invoke(message);
-    const resposta = gptResponse.content || 'Desculpe, não consegui responder.';
+    if (!message) {
+      console.log('[IA] Nenhuma mensagem fornecida.');
+      return res.status(400).json({ error: 'Mensagem não fornecida.' });
+    }
+    console.log('[IA] Chamando askAssistant com:', message);
+    const resposta = await askAssistant(message);
+    console.log('[IA] Resposta da IA:', resposta);
     res.json({ resposta });
   } catch (error: any) {
-    console.error('Erro no Webhook IA:', error);
+    console.error('[IA] Erro no Webhook IA:', error);
     res.status(500).json({ error: error.message });
   }
 });

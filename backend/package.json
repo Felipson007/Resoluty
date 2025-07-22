@@ -23,7 +23,7 @@
     "googleapis": "^153.0.0",
     "langchain": "^0.3.29",
     "morgan": "^1.10.0",
-    "openai": "^5.9.0",
+    "openai": "^5.10.1",
     "pg": "^8.16.3",
     "pgvector": "^0.2.1",
     "qrcode-terminal": "^0.12.0",

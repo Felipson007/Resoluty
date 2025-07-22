@@ -100,11 +100,7 @@ export default function Login() {
           </Button>
         </Box>
 
-        <Typography variant="body2" sx={{ textAlign: 'center', color: resolutyPalette.text, opacity: 0.7, mt: 2 }}>
-          Credenciais de teste:<br/>
-          Admin: admin / admin123<br/>
-          Usuário: user / user123
-        </Typography>
+        {/* Removido: Dica de credenciais de teste */}
       </Paper>
     </Box>
   );

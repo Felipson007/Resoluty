@@ -25,6 +25,10 @@ async function startBot(): Promise<void> {
     }
   });
 
+  // Mapa para acumular mensagens por usuário
+  const mensagensPorUsuario: Record<string, string[]> = {};
+  const timeoutsPorUsuario: Record<string, NodeJS.Timeout> = {};
+
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return;
     const msg = messages[0];
@@ -33,19 +37,38 @@ async function startBot(): Promise<void> {
     const from = msg.key.remoteJid;
     const text = msg.message.conversation;
 
-    console.log(`Mensagem recebida de ${from}: ${text}`);
-
-    // Chama o endpoint de IA do backend
-    let resposta = 'Desculpe, não consegui responder.';
-    try {
-      const iaResp = await axios.post('http://localhost:3000/webhook/ia', { message: text });
-      resposta = iaResp.data.resposta || resposta;
-    } catch (e: any) {
-      console.error('Erro ao chamar IA:', e.message);
+    // Ignorar mensagens de grupos (terminam com '@g.us')
+    if (from && from.endsWith('@g.us')) {
+      console.log('Mensagem de grupo ignorada:', from, text);
+      return;
     }
 
-    // Envia a resposta de volta
-    await sock.sendMessage(from!, { text: resposta });
+    console.log(`Mensagem recebida de ${from}: ${text}`);
+
+    // Acumula mensagens por usuário
+    if (!mensagensPorUsuario[from!]) mensagensPorUsuario[from!] = [];
+    mensagensPorUsuario[from!].push(text);
+
+    // Se já existe um timeout, limpa para reiniciar a contagem
+    if (timeoutsPorUsuario[from!]) clearTimeout(timeoutsPorUsuario[from!]);
+
+    // Inicia/reinicia o timeout de 30 segundos
+    timeoutsPorUsuario[from!] = setTimeout(async () => {
+      const contexto = mensagensPorUsuario[from!].join('\n');
+      let resposta = 'Desculpe, não consegui responder.';
+      try {
+        console.log('Chamando IA em http://localhost:4000/webhook/ia com:', contexto);
+        const iaResp = await axios.post('http://localhost:4000/webhook/ia', { message: contexto });
+        console.log('Resposta recebida da IA:', iaResp.data);
+        resposta = iaResp.data.resposta || resposta;
+      } catch (e: any) {
+        console.error('Erro ao chamar IA:', e.message);
+      }
+      await sock.sendMessage(from!, { text: resposta });
+      // Limpa o contexto após responder
+      mensagensPorUsuario[from!] = [];
+      delete timeoutsPorUsuario[from!];
+    }, 30000); // 30 segundos
   });
 }
 
