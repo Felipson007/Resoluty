@@ -1,3 +1,5 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import { makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
 // Adicione esta linha no topo do arquivo para ignorar o erro de tipagem do qrcode-terminal
 // @ts-ignore
@@ -6,6 +8,7 @@ import axios from 'axios';
 import { gerarPromptCerebro } from '../services/cerebroService';
 import { Mensagem } from '../types/conversa';
 import { salvarInteracaoHistorico, buscarHistoricoCliente } from '../services/historicoService';
+
 
 async function startBot(): Promise<void> {
   const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
