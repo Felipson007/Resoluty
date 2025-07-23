@@ -5,6 +5,7 @@ import { google } from 'googleapis';
 import fs from 'fs';
 import path from 'path';
 import webhookGHL from './routes/webhookGHL';
+import { buscarHistoricoCliente } from './services/historicoService';
 
 dotenv.config();
 
@@ -39,6 +40,17 @@ app.get('/api/sheets/:sheetId/:tab', async (req, res) => {
   } catch (error: any) {
     console.error(error); // Para ver o erro detalhado no terminal
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint de teste para Supabase
+app.get('/api/test-supabase/:clienteId', async (req, res) => {
+  const { clienteId } = req.params;
+  try {
+    const result = await buscarHistoricoCliente(clienteId, 5);
+    res.json({ ok: true, data: result.data });
+  } catch (error: any) {
+    res.status(500).json({ ok: false, error: error.message });
   }
 });
 

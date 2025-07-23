@@ -3,6 +3,9 @@ import { makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion } from '
 // @ts-ignore
 import qrcode from 'qrcode-terminal';
 import axios from 'axios';
+import { gerarPromptCerebro } from '../services/cerebroService';
+import { Mensagem } from '../types/conversa';
+import { salvarInteracaoHistorico, buscarHistoricoCliente } from '../services/historicoService';
 
 async function startBot(): Promise<void> {
   const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
@@ -11,22 +14,26 @@ async function startBot(): Promise<void> {
   const sock = makeWASocket({
     version,
     auth: state,
-    printQRInTerminal: true,
+    // printQRInTerminal: true, // Removido pois está depreciado
   });
 
   sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('connection.update', (update) => {
     const { qr, connection } = update;
-    if (qr) qrcode.generate(qr, { small: true });
+    if (qr) {
+      console.clear(); // Limpa o terminal antes de exibir o novo QR
+      qrcode.generate(qr, { small: true });
+      console.log('Escaneie o QR Code acima para conectar o WhatsApp');
+    }
     if (connection === 'close') {
       console.log('Conexão fechada. Reconectando...');
       startBot();
     }
   });
 
-  // Mapa para acumular mensagens por usuário
-  const mensagensPorUsuario: Record<string, string[]> = {};
+  // Mapa para acumular histórico estruturado por usuário
+  const historicoPorUsuario: Record<string, Mensagem[]> = {};
   const timeoutsPorUsuario: Record<string, NodeJS.Timeout> = {};
 
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
@@ -45,30 +52,72 @@ async function startBot(): Promise<void> {
 
     console.log(`Mensagem recebida de ${from}: ${text}`);
 
-    // Acumula mensagens por usuário
-    if (!mensagensPorUsuario[from!]) mensagensPorUsuario[from!] = [];
-    mensagensPorUsuario[from!].push(text);
+    // Acumula histórico estruturado por usuário
+    if (!historicoPorUsuario[from!]) historicoPorUsuario[from!] = [];
+    historicoPorUsuario[from!].push({
+      texto: text,
+      timestamp: new Date().toISOString(),
+      autor: 'usuario',
+    });
+    // Salva mensagem do usuário no banco
+    await salvarInteracaoHistorico({
+      cliente_id: from!,
+      mensagem_usuario: text,
+      resposta_ia: '',
+      data: new Date().toISOString(),
+      canal: 'whatsapp',
+    });
 
     // Se já existe um timeout, limpa para reiniciar a contagem
     if (timeoutsPorUsuario[from!]) clearTimeout(timeoutsPorUsuario[from!]);
 
-    // Inicia/reinicia o timeout de 30 segundos
-    timeoutsPorUsuario[from!] = setTimeout(async () => {
-      const contexto = mensagensPorUsuario[from!].join('\n');
-      let resposta = 'Desculpe, não consegui responder.';
-      try {
-        console.log('Chamando IA em http://localhost:4000/webhook/ia com:', contexto);
-        const iaResp = await axios.post('http://localhost:4000/webhook/ia', { message: contexto });
-        console.log('Resposta recebida da IA:', iaResp.data);
-        resposta = iaResp.data.resposta || resposta;
-      } catch (e: any) {
-        console.error('Erro ao chamar IA:', e.message);
-      }
-      await sock.sendMessage(from!, { text: resposta });
-      // Limpa o contexto após responder
-      mensagensPorUsuario[from!] = [];
-      delete timeoutsPorUsuario[from!];
-    }, 30000); // 30 segundos
+    // Inicia/reinicia o timeout de 15 segundos
+    timeoutsPorUsuario[from!] = setTimeout(() => {
+      (async () => {
+        // Buscar histórico do banco antes de montar o prompt
+        const { data: historicoDB } = await buscarHistoricoCliente(from!, 10);
+        // Montar histórico estruturado para o cérebro
+        const historicoEstruturado = (historicoDB || []).flatMap((item: any) => [
+          { texto: item.mensagem_usuario, timestamp: item.data, autor: 'usuario' },
+          item.resposta_ia ? { texto: item.resposta_ia, timestamp: item.data, autor: 'sistema' } : null
+        ]).filter(Boolean);
+        // Acrescenta mensagens não salvas ainda (caso existam)
+        // Remove possíveis valores nulos do histórico estruturado antes de concatenar
+        const historicoFinal = [
+          ...historicoEstruturado.filter((msg): msg is Mensagem => msg !== null),
+          ...(historicoPorUsuario[from!] || [])
+        ];
+        // Gera prompt usando o cérebro
+        const promptCerebro = gerarPromptCerebro(historicoFinal);
+        let resposta = 'Desculpe, não consegui responder.';
+        try {
+          console.log('Chamando IA em http://localhost:4000/webhook/ia com:', promptCerebro);
+          const iaResp = await axios.post('http://localhost:4000/webhook/ia', { message: promptCerebro });
+          console.log('Resposta recebida da IA:', iaResp.data);
+          resposta = iaResp.data.resposta || resposta;
+          // Adiciona resposta ao histórico em memória
+          historicoPorUsuario[from!].push({
+            texto: resposta,
+            timestamp: new Date().toISOString(),
+            autor: 'sistema',
+          });
+          // Salva resposta da IA no banco
+          await salvarInteracaoHistorico({
+            cliente_id: from!,
+            mensagem_usuario: '',
+            resposta_ia: resposta,
+            data: new Date().toISOString(),
+            canal: 'whatsapp',
+          });
+        } catch (e: any) {
+          console.error('Erro ao chamar IA:', e.message);
+        }
+        await sock.sendMessage(from!, { text: resposta });
+        // Limpa o contexto textual após responder, mas mantém o histórico estruturado
+        // Se quiser limpar tudo, use: historicoPorUsuario[from!] = [];
+        delete timeoutsPorUsuario[from!];
+      })();
+    }, 15000); // 15 segundos
   });
 }
 

@@ -1,16 +1,25 @@
-import { supabase } from '../config/supabase';
+import { salvarConversaWhatsApp, recuperarConversasCliente } from '../config/supabase';
 
-export interface HistoricoInteracao {
-  cliente_id: string;
-  mensagem_usuario: string;
-  resposta_ia: string;
-  data: string;
-  canal?: string;
+export async function salvarInteracaoHistorico(interacao: any) {
+  // Seu código atual de salvar no banco
+  
+  // Adicione chamada para salvar conversa completa
+  if (interacao.mensagem_usuario) {
+    await salvarConversaWhatsApp(
+      interacao.mensagem_usuario, 
+      interacao.cliente_id,
+      interacao // Adicionando o terceiro argumento conforme esperado
+    );
+  }
 }
 
-export async function salvarInteracaoHistorico(interacao: HistoricoInteracao) {
-  const { data, error } = await supabase
-    .from('historico_conversas')
-    .insert([interacao]);
-  return { data, error };
-} 
+export async function buscarHistoricoCliente(clienteId: string, limite: number = 10) {
+  // Seu código atual de buscar histórico
+
+  // Adicione busca de conversas do Supabase
+  const conversasSupabase = await recuperarConversasCliente(clienteId, limite.toString());
+
+  return {
+    data: conversasSupabase
+  };
+}
