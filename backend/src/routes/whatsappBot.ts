@@ -9,6 +9,49 @@ import { gerarPromptCerebro } from '../services/cerebroService';
 import { Mensagem } from '../types/conversa';
 import { salvarInteracaoHistorico, buscarHistoricoCliente } from '../services/historicoService';
 
+let whatsappSocket: any = null;
+let socketIO: any = null;
+
+export function setSocketIO(io: any) {
+  socketIO = io;
+}
+
+export async function sendWhatsAppMessage(to: string, message: string): Promise<boolean> {
+  if (!whatsappSocket) {
+    console.error('WhatsApp socket não está conectado');
+    return false;
+  }
+  
+  try {
+    await whatsappSocket.sendMessage(to, { text: message });
+    
+    // Salvar mensagem enviada no histórico
+    await salvarInteracaoHistorico({
+      cliente_id: to,
+      mensagem_usuario: '',
+      resposta_ia: message,
+      data: new Date().toISOString(),
+      canal: 'whatsapp',
+    });
+    
+    // Emitir evento via Socket.IO para atualização em tempo real
+    if (socketIO) {
+      socketIO.emit('new-message', {
+        contactId: to,
+        message: {
+          texto: message,
+          timestamp: new Date().toISOString(),
+          autor: 'sistema'
+        }
+      });
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Erro ao enviar mensagem WhatsApp:', error);
+    return false;
+  }
+}
 
 async function startBot(): Promise<void> {
   const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
@@ -19,6 +62,8 @@ async function startBot(): Promise<void> {
     auth: state,
     // printQRInTerminal: true, // Removido pois está depreciado
   });
+
+  whatsappSocket = sock;
 
   sock.ev.on('creds.update', saveCreds);
 
@@ -54,6 +99,18 @@ async function startBot(): Promise<void> {
     }
 
     console.log(`Mensagem recebida de ${from}: ${text}`);
+
+    // Emitir evento via Socket.IO para nova mensagem recebida
+    if (socketIO) {
+      socketIO.emit('new-message', {
+        contactId: from,
+        message: {
+          texto: text,
+          timestamp: new Date().toISOString(),
+          autor: 'usuario'
+        }
+      });
+    }
 
     // Acumula histórico estruturado por usuário
     if (!historicoPorUsuario[from!]) historicoPorUsuario[from!] = [];
@@ -116,6 +173,19 @@ async function startBot(): Promise<void> {
           console.error('Erro ao chamar IA:', e.message);
         }
         await sock.sendMessage(from!, { text: resposta });
+        
+        // Emitir evento via Socket.IO para resposta do bot
+        if (socketIO) {
+          socketIO.emit('new-message', {
+            contactId: from,
+            message: {
+              texto: resposta,
+              timestamp: new Date().toISOString(),
+              autor: 'sistema'
+            }
+          });
+        }
+        
         // Limpa o contexto textual após responder, mas mantém o histórico estruturado
         // Se quiser limpar tudo, use: historicoPorUsuario[from!] = [];
         delete timeoutsPorUsuario[from!];
