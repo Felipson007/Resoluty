@@ -18,4 +18,4 @@ export function gerarPromptCerebro(historico: Mensagem[]): string {
 
   // Prompt com instrução clara para a IA
   return `Você é um assistente de suporte. Responda apenas sobre o problema do cliente, sem fugir do escopo. Não invente informações. Seja objetivo e claro.\n\nHistórico da conversa:\n${historicoFormatado}\n\nResponda de forma assertiva e focada no problema apresentado.`;
-} 
+}
