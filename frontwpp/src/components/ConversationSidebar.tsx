@@ -3,6 +3,7 @@ import {
   Box,
   List,
   ListItem,
+  ListItemButton,
   ListItemAvatar,
   ListItemText,
   Avatar,
@@ -90,84 +91,85 @@ const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
             
             return (
               <React.Fragment key={contact.id}>
-                <ListItem
-                  button
-                  onClick={() => onContactSelect(contact.id)}
-                  sx={{
-                    py: 2,
-                    px: 2,
-                    backgroundColor: isSelected ? '#e3f2fd' : 'transparent',
-                    borderLeft: isSelected ? '4px solid #25D366' : '4px solid transparent',
-                    '&:hover': {
-                      backgroundColor: isSelected ? '#e3f2fd' : '#f5f5f5',
-                    },
-                  }}
-                >
-                  <ListItemAvatar>
-                    <Badge
-                      badgeContent={contact.unreadCount}
-                      color="error"
-                      invisible={!contact.unreadCount}
-                    >
-                      <Avatar
-                        sx={{
-                          backgroundColor: contact.avatar ? 'transparent' : '#25D366',
-                          width: 50,
-                          height: 50,
-                        }}
-                        src={contact.avatar}
+                <ListItem disablePadding>
+                  <ListItemButton
+                    onClick={() => onContactSelect(contact.id)}
+                    sx={{
+                      py: 2,
+                      px: 2,
+                      backgroundColor: isSelected ? '#e3f2fd' : 'transparent',
+                      borderLeft: isSelected ? '4px solid #25D366' : '4px solid transparent',
+                      '&:hover': {
+                        backgroundColor: isSelected ? '#e3f2fd' : '#f5f5f5',
+                      },
+                    }}
+                  >
+                    <ListItemAvatar>
+                      <Badge
+                        badgeContent={contact.unreadCount}
+                        color="error"
+                        invisible={!contact.unreadCount}
                       >
-                        {!contact.avatar && getInitials(contact.name)}
-                      </Avatar>
-                    </Badge>
-                  </ListItemAvatar>
-                  
-                  <ListItemText
-                    primary={
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                          {contact.name}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {contact.lastMessageTime}
-                        </Typography>
-                      </Box>
-                    }
-                    secondary={
-                      <Box sx={{ mt: 0.5 }}>
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
+                        <Avatar
                           sx={{
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            mb: 1,
+                            backgroundColor: contact.avatar ? 'transparent' : '#25D366',
+                            width: 50,
+                            height: 50,
                           }}
+                          src={contact.avatar}
                         >
-                          {contact.lastMessage}
-                        </Typography>
-                        
+                          {!contact.avatar && getInitials(contact.name)}
+                        </Avatar>
+                      </Badge>
+                    </ListItemAvatar>
+                    
+                    <ListItemText
+                      primary={
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <Chip
-                            icon={<StatusIcon sx={{ fontSize: '16px !important' }} />}
-                            label={statusConfig[contact.status].label}
-                            size="small"
-                            sx={{
-                              backgroundColor: `${statusConfig[contact.status].color}20`,
-                              color: statusConfig[contact.status].color,
-                              fontWeight: 500,
-                              fontSize: '0.75rem',
-                            }}
-                          />
-                          
+                          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                            {contact.name}
+                          </Typography>
                           <Typography variant="caption" color="text.secondary">
-                            {contact.phone}
+                            {contact.lastMessageTime}
                           </Typography>
                         </Box>
-                      </Box>
-                    }
-                  />
+                      }
+                      secondary={
+                        <Box sx={{ mt: 0.5 }}>
+                          <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            sx={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              mb: 1,
+                            }}
+                          >
+                            {contact.lastMessage}
+                          </Typography>
+                          
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <Chip
+                              icon={<StatusIcon sx={{ fontSize: '16px !important' }} />}
+                              label={statusConfig[contact.status].label}
+                              size="small"
+                              sx={{
+                                backgroundColor: `${statusConfig[contact.status].color}20`,
+                                color: statusConfig[contact.status].color,
+                                fontWeight: 500,
+                                fontSize: '0.75rem',
+                              }}
+                            />
+                            
+                            <Typography variant="caption" color="text.secondary">
+                              {contact.phone}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      }
+                    />
+                  </ListItemButton>
                 </ListItem>
                 
                 {index < filteredContacts.length - 1 && (
