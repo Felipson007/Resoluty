@@ -3,6 +3,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Box } from '@mui/material';
 import WhatsAppDashboard from './components/WhatsAppDashboard';
+import WhatsAppQR from './components/WhatsAppQR';
 
 const theme = createTheme({
   palette: {
@@ -27,6 +28,7 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Box sx={{ height: '100vh', overflow: 'hidden' }}>
+        <WhatsAppQR />
         <WhatsAppDashboard />
       </Box>
     </ThemeProvider>

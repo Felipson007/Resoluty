@@ -49,30 +49,6 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Backend Resoluty rodando!' });
 });
 
-// Google Sheets endpoint
-app.get('/api/sheets/:sheetId/:tab', async (req, res) => {
-  const { sheetId, tab } = req.params;
-  try {
-    // Caminho absoluto do arquivo de credenciais informado pelo usuário
-    const keyPath = path.resolve(__dirname, './keyservice/deep-mile-466315-u4-1dec26cce0c6.json');
-    if (!fs.existsSync(keyPath)) {
-      return res.status(500).json({ error: 'Arquivo de credenciais do Google não encontrado.' });
-    }
-    const auth = new google.auth.GoogleAuth({
-      keyFile: keyPath,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-    });
-    const sheets = google.sheets({ version: 'v4', auth });
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: sheetId,
-      range: tab,
-    });
-    res.json(response.data.values || []);
-  } catch (error: any) {
-    console.error(error); // Para ver o erro detalhado no terminal
-    res.status(500).json({ error: error.message });
-  }
-});
 
 // Endpoint de teste para Supabase
 app.get('/api/test-supabase/:clienteId', async (req, res) => {
@@ -182,4 +158,25 @@ server.listen(PORT, () => {
   
   // Configurar Socket.IO no whatsappBot
   setSocketIO(io);
+}); 
+
+const AUTH_DIR = path.join(__dirname, '..', 'auth_info_baileys');
+
+function cleanupAuthDir() {
+  if (fs.existsSync(AUTH_DIR)) {
+    fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+    console.log('auth_info_baileys removido ao encerrar o backend.');
+  }
+}
+
+process.on('SIGINT', () => {
+  cleanupAuthDir();
+  process.exit();
+});
+process.on('SIGTERM', () => {
+  cleanupAuthDir();
+  process.exit();
+});
+process.on('exit', () => {
+  cleanupAuthDir();
 }); 

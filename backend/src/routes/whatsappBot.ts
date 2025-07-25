@@ -70,9 +70,12 @@ async function startBot(): Promise<void> {
   sock.ev.on('connection.update', (update) => {
     const { qr, connection } = update;
     if (qr) {
-      console.clear(); // Limpa o terminal antes de exibir o novo QR
-      qrcode.generate(qr, { small: true });
-      console.log('Escaneie o QR Code acima para conectar o WhatsApp');
+      // Envia o QR code para o frontend via Socket.IO
+      if (socketIO) {
+        socketIO.emit('qr', { qr });
+      }
+      // (Removido: console.clear e qrcode.generate)
+      // console.log('Escaneie o QR Code acima para conectar o WhatsApp');
     }
     if (connection === 'close') {
       console.log('Conexão fechada. Reconectando...');
