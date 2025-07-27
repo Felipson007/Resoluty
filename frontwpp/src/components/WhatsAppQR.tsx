@@ -1,25 +1,34 @@
 import React, { useEffect, useState } from 'react';
-import QRCode from 'qrcode.react';
+import { QRCodeSVG } from 'qrcode.react';
 import io from 'socket.io-client';
 
 const socket = io('http://localhost:4000'); // ajuste a URL se necessário
 
 export default function WhatsAppQR() {
   const [qr, setQr] = useState('');
+  const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
     socket.on('qr', (data) => {
       setQr(data.qr);
     });
+    socket.on('wpp-status', (data) => {
+      setStatus(data.status);
+    });
     return () => {
       socket.off('qr');
+      socket.off('wpp-status');
     };
   }, []);
+
+  if (status === 'open') {
+    return null; // Não mostra nada se já está conectado
+  }
 
   return (
     <div style={{ textAlign: 'center', marginTop: 40 }}>
       <h2>Escaneie o QR Code para conectar o WhatsApp</h2>
-      {qr ? <QRCode value={qr} size={256} /> : <p>Aguardando QR Code...</p>}
+      {qr ? <QRCodeSVG value={qr} size={256} /> : <p>Aguardando QR Code...</p>}
     </div>
   );
 } 

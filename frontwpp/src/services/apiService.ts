@@ -1,38 +1,31 @@
 import axios from 'axios';
-import { Contact, Message } from '../components/WhatsAppDashboard';
-
-const API_BASE_URL = 'http://localhost:4000/api';
 
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: 'http://localhost:4000/api',
   timeout: 10000,
 });
 
-// Interceptor para logging
-api.interceptors.request.use(
-  (config) => {
-    console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`);
-    return config;
-  },
-  (error) => {
-    console.error('API Request Error:', error);
-    return Promise.reject(error);
-  }
-);
+export interface Contact {
+  id: string;
+  name: string;
+  phone: string;
+  lastMessage: string;
+  lastMessageTime: string;
+  avatar?: string;
+  status: 'bot' | 'humano' | 'aguardando' | 'finalizado';
+  unreadCount?: number;
+}
 
-api.interceptors.response.use(
-  (response) => {
-    console.log(`API Response: ${response.status} ${response.config.url}`);
-    return response;
-  },
-  (error) => {
-    console.error('API Response Error:', error.response?.data || error.message);
-    return Promise.reject(error);
-  }
-);
+export interface Message {
+  id: string;
+  texto: string;
+  timestamp: string;
+  autor: 'usuario' | 'sistema';
+  contactId: string;
+}
 
 export class ApiService {
-  // Buscar lista de contatos
+  // Buscar todos os contatos
   static async getContacts(): Promise<Contact[]> {
     try {
       const response = await api.get('/contacts');
@@ -42,23 +35,15 @@ export class ApiService {
         return [];
       }
 
-      return response.data.data.map((contact: any) => {
-        // Extrair número do telefone do ID do WhatsApp
-        const phoneNumber = contact.clienteId?.replace('@s.whatsapp.net', '') || 'Desconhecido';
-        const formattedPhone = phoneNumber.replace(/(\d{2})(\d{2})(\d{4,5})(\d{4})/, '+$1 $2 $3-$4');
-        
-        return {
-          id: contact.clienteId,
-          name: phoneNumber.replace(/\D/g, '') || 'Contato',
-          phone: formattedPhone,
-          lastMessage: 'Última mensagem...',
-          lastMessageTime: contact.lastMessageAt 
-            ? new Date(contact.lastMessageAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-            : 'Agora',
-          status: contact.status || 'bot',
-          unreadCount: 0,
-        } as Contact;
-      });
+      return response.data.data.map((contact: any) => ({
+        id: contact.id,
+        name: contact.name || `Cliente ${contact.phone}`,
+        phone: contact.phone,
+        lastMessage: contact.lastMessage || 'Última mensagem...',
+        lastMessageTime: contact.lastMessageTime || 'Agora',
+        status: contact.status || 'bot',
+        unreadCount: contact.unreadCount || 0,
+      }));
     } catch (error) {
       console.error('Erro ao buscar contatos:', error);
       return [];
@@ -68,43 +53,33 @@ export class ApiService {
   // Buscar mensagens de um contato
   static async getContactMessages(contactId: string, limit: number = 50): Promise<Message[]> {
     try {
-      const response = await api.get(`/contacts/${encodeURIComponent(contactId)}/messages?limit=${limit}`);
+      // Primeiro tentar buscar do endpoint de leads
+      const response = await api.get(`/leads/${encodeURIComponent(contactId)}/messages?limit=${limit}`);
       
-      if (!response.data.ok || !response.data.data) {
-        console.warn('Resposta inválida da API de mensagens:', response.data);
-        return [];
+      if (response.data.ok && response.data.data) {
+        return response.data.data.map((msg: any) => ({
+          id: msg.id || `msg-${Date.now()}`,
+          texto: msg.mensagem,
+          timestamp: msg.timestamp,
+          autor: msg.autor === 'usuario' ? 'usuario' : 'sistema',
+          contactId: contactId,
+        }));
       }
 
-      return response.data.data.map((msg: any, index: number) => {
-        // Determinar autor baseado nos dados disponíveis
-        let autor: 'usuario' | 'sistema' = 'sistema';
-        let texto = '';
-
-        if (msg.mensagem_usuario) {
-          autor = 'usuario';
-          texto = msg.mensagem_usuario;
-        } else if (msg.resposta_ia) {
-          autor = 'sistema';
-          texto = msg.resposta_ia;
-        } else if (msg.texto) {
-          texto = msg.texto;
-          autor = msg.autor || 'sistema';
-        } else if (msg.conversation_text) {
-          texto = msg.conversation_text;
-          // Tentar determinar autor pela metadata
-          if (msg.metadata?.autor) {
-            autor = msg.metadata.autor;
-          }
-        }
-
-        return {
-          id: msg.id || `${Date.now()}-${index}`,
-          texto: texto || 'Mensagem sem conteúdo',
-          timestamp: msg.data || msg.timestamp || msg.created_at || new Date().toISOString(),
-          autor,
+      // Fallback para o endpoint antigo
+      const fallbackResponse = await api.get(`/contacts/${encodeURIComponent(contactId)}/messages?limit=${limit}`);
+      
+      if (fallbackResponse.data.ok && fallbackResponse.data.data) {
+        return fallbackResponse.data.data.map((msg: any) => ({
+          id: msg.id || `msg-${Date.now()}`,
+          texto: msg.texto || msg.mensagem,
+          timestamp: msg.timestamp,
+          autor: msg.autor === 'usuario' ? 'usuario' : 'sistema',
           contactId: contactId,
-        } as Message;
-      });
+        }));
+      }
+
+      return [];
     } catch (error) {
       console.error('Erro ao buscar mensagens:', error);
       return [];
@@ -115,7 +90,7 @@ export class ApiService {
   static async sendMessage(contactId: string, message: string): Promise<boolean> {
     try {
       const response = await api.post(`/contacts/${encodeURIComponent(contactId)}/send`, {
-        message: message,
+        message,
       });
       
       return response.data.ok === true;
@@ -176,6 +151,146 @@ export class ApiService {
       return false;
     }
   }
-}
 
-export default ApiService; 
+  // Buscar todos os leads
+  static async getLeads(): Promise<any[]> {
+    try {
+      const response = await api.get('/leads');
+      
+      if (!response.data.ok || !response.data.data) {
+        console.warn('Resposta inválida da API de leads:', response.data);
+        return [];
+      }
+
+      return response.data.data.map((lead: any) => ({
+        id: `${lead.numero}@s.whatsapp.net`,
+        name: `Cliente ${lead.numero}`,
+        phone: lead.numero,
+        lastMessage: 'Última mensagem...',
+        lastMessageTime: lead.updated_at 
+          ? new Date(lead.updated_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+          : 'Agora',
+        status: lead.metadata?.status === 'lead_novo' ? 'bot' : 
+               lead.metadata?.status === 'lead_avancado' ? 'humano' : 
+               lead.metadata?.status === 'lead_sem_interesse' ? 'finalizado' : 'bot',
+        unreadCount: 0,
+      }));
+    } catch (error) {
+      console.error('Erro ao buscar leads:', error);
+      return [];
+    }
+  }
+
+  // Buscar lead específico
+  static async getLead(numero: string): Promise<any> {
+    try {
+      const response = await api.get(`/leads/${encodeURIComponent(numero)}`);
+      return response.data.data;
+    } catch (error) {
+      console.error('Erro ao buscar lead:', error);
+      return null;
+    }
+  }
+
+  // Atualizar status de um lead
+  static async updateLeadStatus(numero: string, status: 'lead_novo' | 'lead_avancado' | 'lead_sem_interesse'): Promise<boolean> {
+    try {
+      const response = await api.put(`/api/leads/${encodeURIComponent(numero)}/status`, {
+        status,
+      });
+      return response.data.ok === true;
+    } catch (error) {
+      console.error('Erro ao atualizar status do lead:', error);
+      return false;
+    }
+  }
+
+  // Buscar leads por status
+  static async getLeadsByStatus(status: 'lead_novo' | 'lead_avancado' | 'lead_sem_interesse'): Promise<any[]> {
+    try {
+      const response = await api.get(`/api/leads/status/${status}`);
+      
+      if (!response.data.ok || !response.data.data) {
+        console.warn('Resposta inválida da API de leads por status:', response.data);
+        return [];
+      }
+
+      return response.data.data.map((lead: any) => ({
+        id: `${lead.numero}@s.whatsapp.net`,
+        name: `Cliente ${lead.numero}`,
+        phone: lead.numero,
+        lastMessage: 'Última mensagem...',
+        lastMessageTime: lead.updated_at 
+          ? new Date(lead.updated_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+          : 'Agora',
+        status: lead.metadata?.status === 'lead_novo' ? 'bot' : 
+               lead.metadata?.status === 'lead_avancado' ? 'humano' : 
+               lead.metadata?.status === 'lead_sem_interesse' ? 'finalizado' : 'bot',
+        unreadCount: 0,
+      }));
+    } catch (error) {
+      console.error('Erro ao buscar leads por status:', error);
+      return [];
+    }
+  }
+
+  // Buscar instâncias WhatsApp
+  static async getWhatsAppInstances(): Promise<any[]> {
+    try {
+      const response = await api.get('/api/whatsapp/instances');
+      
+      if (!response.data.ok || !response.data.data) {
+        console.warn('Resposta inválida da API de instâncias:', response.data);
+        return [];
+      }
+
+      return response.data.data;
+    } catch (error) {
+      console.error('Erro ao buscar instâncias WhatsApp:', error);
+      return [];
+    }
+  }
+
+  // Alternar modo SDR
+  static async toggleSDRMode(contactId: string, instanceId: string): Promise<boolean> {
+    try {
+      const response = await api.post('/api/whatsapp/toggle-sdr', {
+        contactId,
+        instanceId
+      });
+      
+      return response.data.ok === true;
+    } catch (error) {
+      console.error('Erro ao alternar modo SDR:', error);
+      return false;
+    }
+  }
+
+  // Configurar WhatsApp
+  static async configureWhatsApp(instanceId: string, number: string, enabled: boolean): Promise<boolean> {
+    try {
+      const response = await api.post('/api/whatsapp/configure', {
+        instanceId,
+        number,
+        enabled
+      });
+      
+      return response.data.ok === true;
+    } catch (error) {
+      console.error('Erro ao configurar WhatsApp:', error);
+      return false;
+    }
+  }
+
+  // Remover WhatsApp
+  static async removeWhatsApp(instanceId: string): Promise<boolean> {
+    try {
+      const response = await api.delete(`/api/whatsapp/${instanceId}`);
+      
+      return response.data.ok === true;
+    } catch (error) {
+      console.error('Erro ao remover WhatsApp:', error);
+      return false;
+    }
+  }
+} 

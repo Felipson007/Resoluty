@@ -9,6 +9,8 @@ import {
   Divider,
   Tooltip,
   Paper,
+  Switch,
+  FormControlLabel,
 } from '@mui/material';
 import {
   Send as SendIcon,
@@ -20,22 +22,27 @@ import {
   CheckCircle as CheckCircleIcon,
   LocalOffer as TagIcon,
   MoreVert as MoreVertIcon,
+  Support as SupportIcon,
 } from '@mui/icons-material';
 import { Contact } from './WhatsAppDashboard';
+import { ApiService } from '../services/apiService';
 
 interface MessageInputProps {
   onSendMessage: (message: string) => void;
   contact: Contact;
   onStatusChange: (contactId: string, newStatus: 'bot' | 'humano' | 'aguardando' | 'finalizado') => void;
+  selectedInstanceId?: string;
 }
 
 const MessageInput: React.FC<MessageInputProps> = ({
   onSendMessage,
   contact,
   onStatusChange,
+  selectedInstanceId,
 }) => {
   const [message, setMessage] = useState('');
   const [actionsMenuAnchor, setActionsMenuAnchor] = useState<null | HTMLElement>(null);
+  const [sdrMode, setSdrMode] = useState(false);
 
   const handleSendMessage = () => {
     if (message.trim()) {
@@ -64,6 +71,19 @@ const MessageInput: React.FC<MessageInputProps> = ({
     handleActionsMenuClose();
   };
 
+  const handleSDRToggle = async () => {
+    if (!selectedInstanceId) return;
+    
+    try {
+      const success = await ApiService.toggleSDRMode(contact.id, selectedInstanceId);
+      if (success) {
+        setSdrMode(!sdrMode);
+      }
+    } catch (error) {
+      console.error('Erro ao alternar modo SDR:', error);
+    }
+  };
+
   const sendQuickResponse = (quickMessage: string) => {
     onSendMessage(quickMessage);
     handleActionsMenuClose();
@@ -78,6 +98,59 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
   return (
     <Paper elevation={1} sx={{ p: 2 }}>
+      {/* Controles de Status */}
+      <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            size="small"
+            variant={contact.status === 'bot' ? 'contained' : 'outlined'}
+            startIcon={<BotIcon />}
+            onClick={() => handleStatusChange('bot')}
+            sx={{ borderRadius: 2, textTransform: 'none' }}
+          >
+            Bot Ativo
+          </Button>
+          
+          <Button
+            size="small"
+            variant={contact.status === 'humano' ? 'contained' : 'outlined'}
+            startIcon={<PersonIcon />}
+            onClick={() => handleStatusChange('humano')}
+            sx={{ borderRadius: 2, textTransform: 'none' }}
+          >
+            Assumir SDR
+          </Button>
+          
+          <Button
+            size="small"
+            variant={contact.status === 'finalizado' ? 'contained' : 'outlined'}
+            startIcon={<CheckCircleIcon />}
+            onClick={() => handleStatusChange('finalizado')}
+            sx={{ borderRadius: 2, textTransform: 'none' }}
+          >
+            Finalizar
+          </Button>
+        </Box>
+
+        {/* SDR Ativo Switch */}
+        <FormControlLabel
+          control={
+            <Switch
+              checked={sdrMode}
+              onChange={handleSDRToggle}
+              color="primary"
+            />
+          }
+          label={
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <SupportIcon fontSize="small" />
+              SDR Ativo
+            </Box>
+          }
+          sx={{ ml: 0 }}
+        />
+      </Box>
+
       {/* Respostas Rápidas */}
       <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
         {quickResponses.map((response, index) => (
@@ -101,144 +174,54 @@ const MessageInput: React.FC<MessageInputProps> = ({
         ))}
       </Box>
 
-      {/* Campo de Digitação */}
+      {/* Campo de Mensagem */}
       <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1 }}>
-        {/* Botões de Ação Lateral */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-          <Tooltip title="Anexar arquivo">
-            <IconButton size="small" color="primary">
-              <AttachFileIcon />
-            </IconButton>
-          </Tooltip>
-          
-          <Tooltip title="Emojis">
-            <IconButton size="small" color="primary">
-              <EmojiIcon />
-            </IconButton>
-          </Tooltip>
-        </Box>
-
-        {/* Campo de Texto */}
+        <IconButton size="small">
+          <EmojiIcon />
+        </IconButton>
+        
         <TextField
           fullWidth
           multiline
           maxRows={4}
-          placeholder="Digite sua mensagem..."
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyPress={handleKeyPress}
+          placeholder="Digite sua mensagem..."
           variant="outlined"
           size="small"
           sx={{
             '& .MuiOutlinedInput-root': {
               borderRadius: 3,
-              backgroundColor: '#f8f9fa',
             },
           }}
         />
-
-        {/* Botão de Envio */}
+        
+        <IconButton size="small">
+          <AttachFileIcon />
+        </IconButton>
+        
         <IconButton
           color="primary"
           onClick={handleSendMessage}
           disabled={!message.trim()}
           sx={{
-            backgroundColor: message.trim() ? '#25D366' : '#e0e0e0',
-            color: 'white',
+            backgroundColor: message.trim() ? 'primary.main' : 'grey.300',
+            color: message.trim() ? 'white' : 'grey.500',
             '&:hover': {
-              backgroundColor: message.trim() ? '#128C7E' : '#e0e0e0',
-            },
-            '&:disabled': {
-              color: '#999',
+              backgroundColor: message.trim() ? 'primary.dark' : 'grey.300',
             },
           }}
         >
           <SendIcon />
         </IconButton>
-
-        {/* Menu de Ações */}
+        
         <IconButton onClick={handleActionsMenuOpen}>
           <MoreVertIcon />
         </IconButton>
       </Box>
 
-      {/* Botões de Ação Rápida */}
-      <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-        <Button
-          size="small"
-          startIcon={<PersonIcon />}
-          variant={contact.status === 'humano' ? 'contained' : 'outlined'}
-          onClick={() => handleStatusChange('humano')}
-          sx={{
-            borderRadius: 2,
-            textTransform: 'none',
-            backgroundColor: contact.status === 'humano' ? '#ff9800' : 'transparent',
-            borderColor: '#ff9800',
-            color: contact.status === 'humano' ? 'white' : '#ff9800',
-            '&:hover': {
-              backgroundColor: contact.status === 'humano' ? '#f57c00' : '#fff3e0',
-            },
-          }}
-        >
-          {contact.status === 'humano' ? 'SDR Ativo' : 'Assumir SDR'}
-        </Button>
-
-        <Button
-          size="small"
-          startIcon={<BotIcon />}
-          variant={contact.status === 'bot' ? 'contained' : 'outlined'}
-          onClick={() => handleStatusChange('bot')}
-          sx={{
-            borderRadius: 2,
-            textTransform: 'none',
-            backgroundColor: contact.status === 'bot' ? '#25D366' : 'transparent',
-            borderColor: '#25D366',
-            color: contact.status === 'bot' ? 'white' : '#25D366',
-            '&:hover': {
-              backgroundColor: contact.status === 'bot' ? '#128C7E' : '#e8f5e8',
-            },
-          }}
-        >
-          {contact.status === 'bot' ? 'Bot Ativo' : 'Passar p/ Bot'}
-        </Button>
-
-        <Button
-          size="small"
-          startIcon={<TagIcon />}
-          variant="outlined"
-          sx={{
-            borderRadius: 2,
-            textTransform: 'none',
-            borderColor: '#9c27b0',
-            color: '#9c27b0',
-            '&:hover': {
-              backgroundColor: '#f3e5f5',
-            },
-          }}
-        >
-          Adicionar Tag
-        </Button>
-
-        <Button
-          size="small"
-          startIcon={<CheckCircleIcon />}
-          variant="outlined"
-          onClick={() => handleStatusChange('finalizado')}
-          sx={{
-            borderRadius: 2,
-            textTransform: 'none',
-            borderColor: '#4caf50',
-            color: '#4caf50',
-            '&:hover': {
-              backgroundColor: '#e8f5e8',
-            },
-          }}
-        >
-          Finalizar
-        </Button>
-      </Box>
-
-      {/* Menu de Ações Avançadas */}
+      {/* Menu de Ações */}
       <Menu
         anchorEl={actionsMenuAnchor}
         open={Boolean(actionsMenuAnchor)}
@@ -246,15 +229,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
       >
         <MenuItem onClick={() => handleStatusChange('aguardando')}>
           <ScheduleIcon sx={{ mr: 1 }} />
-          Marcar como Aguardando
+          Aguardando
         </MenuItem>
         <Divider />
-        <MenuItem onClick={handleActionsMenuClose}>
+        <MenuItem>
           <TagIcon sx={{ mr: 1 }} />
-          Gerenciar Tags
-        </MenuItem>
-        <MenuItem onClick={handleActionsMenuClose}>
-          Ver Histórico Completo
+          Adicionar Tag
         </MenuItem>
       </Menu>
     </Paper>

@@ -4,8 +4,9 @@ import { Refresh as RefreshIcon } from '@mui/icons-material';
 import ConversationSidebar from './ConversationSidebar';
 import ChatArea from './ChatArea';
 import MessageInput from './MessageInput';
+import FilterTabs from './FilterTabs';
 import socketService from '../services/socketService';
-import ApiService from '../services/apiService';
+import { ApiService } from '../services/apiService';
 
 export interface Contact {
   id: string;
@@ -35,6 +36,7 @@ const WhatsAppDashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [socketConnected, setSocketConnected] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [selectedFilter, setSelectedFilter] = useState<string>('bot-ativo');
 
   // Inicialização
   useEffect(() => {
@@ -59,7 +61,7 @@ const WhatsAppDashboard: React.FC = () => {
       console.log('❌ Socket.IO desconectado');
     };
 
-    const handleNewMessage = (data: { contactId: string; message: Message }) => {
+    const handleNewMessage = (data: { contactId: string; message: Message; lead?: any }) => {
       console.log('📨 Nova mensagem recebida:', data);
       
       // Adicionar mensagem à lista
@@ -69,17 +71,45 @@ const WhatsAppDashboard: React.FC = () => {
         return [...prev, { ...data.message, contactId: data.contactId }];
       });
 
-      // Atualizar última mensagem do contato
-      setContacts(prev => prev.map(contact => 
-        contact.id === data.contactId
-          ? { 
-              ...contact, 
-              lastMessage: data.message.texto, 
-              lastMessageTime: new Date(data.message.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-              unreadCount: contact.id === selectedContactId ? 0 : (contact.unreadCount || 0) + 1
-            }
-          : contact
-      ));
+      // Atualizar ou criar contato com informações do lead
+      setContacts(prev => {
+        const existingContactIndex = prev.findIndex(c => c.id === data.contactId);
+        
+        if (existingContactIndex >= 0) {
+          // Atualizar contato existente
+          const updatedContacts = [...prev];
+          updatedContacts[existingContactIndex] = {
+            ...updatedContacts[existingContactIndex],
+            lastMessage: data.message.texto,
+            lastMessageTime: new Date(data.message.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+            unreadCount: data.contactId === selectedContactId ? 0 : (updatedContacts[existingContactIndex].unreadCount || 0) + 1,
+            // Atualizar com dados do lead se disponível
+            ...(data.lead && {
+              name: `Cliente ${data.lead.numero}`,
+              phone: data.lead.numero,
+              status: data.lead.status === 'lead_novo' ? 'bot' : 
+                     data.lead.status === 'lead_avancado' ? 'humano' : 
+                     data.lead.status === 'lead_sem_interesse' ? 'finalizado' : 'bot'
+            })
+          };
+          return updatedContacts;
+        } else {
+          // Criar novo contato
+          const newContact: Contact = {
+            id: data.contactId,
+            name: data.lead ? `Cliente ${data.lead.numero}` : `Cliente ${data.contactId}`,
+            phone: data.lead ? data.lead.numero : data.contactId,
+            lastMessage: data.message.texto,
+            lastMessageTime: new Date(data.message.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+            status: data.lead ? 
+              (data.lead.status === 'lead_novo' ? 'bot' : 
+               data.lead.status === 'lead_avancado' ? 'humano' : 
+               data.lead.status === 'lead_sem_interesse' ? 'finalizado' : 'bot') : 'bot',
+            unreadCount: data.contactId === selectedContactId ? 0 : 1
+          };
+          return [newContact, ...prev];
+        }
+      });
     };
 
     const handleStatusUpdated = (data: { contactId: string; status: string }) => {
@@ -118,17 +148,6 @@ const WhatsAppDashboard: React.FC = () => {
       }
 
       console.log('✅ Backend está online');
-
-      // Carregar contatos
-      const contactsData = await ApiService.getContacts();
-      console.log('📋 Contatos carregados:', contactsData.length);
-      
-      setContacts(contactsData);
-
-      if (contactsData.length === 0) {
-        console.log('ℹ️ Nenhum contato encontrado. Aguardando mensagens...');
-      }
-
       setRetryCount(0);
     } catch (err: any) {
       console.error('❌ Erro ao inicializar app:', err);
@@ -212,7 +231,27 @@ const WhatsAppDashboard: React.FC = () => {
     console.log('🔄 Alterando status:', contactId, newStatus);
     
     try {
-      const success = await ApiService.updateContactStatus(contactId, newStatus);
+      // Converter status do frontend para status do lead
+      let leadStatus: 'lead_novo' | 'lead_avancado' | 'lead_sem_interesse';
+      switch (newStatus) {
+        case 'bot':
+          leadStatus = 'lead_novo';
+          break;
+        case 'humano':
+          leadStatus = 'lead_avancado';
+          break;
+        case 'finalizado':
+          leadStatus = 'lead_sem_interesse';
+          break;
+        default:
+          leadStatus = 'lead_novo';
+      }
+
+      // Extrair número do telefone do contactId
+      const numero = contactId.replace('@s.whatsapp.net', '');
+      
+      // Atualizar status do lead
+      const success = await ApiService.updateLeadStatus(numero, leadStatus);
       
       if (success) {
         console.log('✅ Status atualizado com sucesso');
@@ -233,6 +272,16 @@ const WhatsAppDashboard: React.FC = () => {
   const handleRetry = () => {
     console.log('🔄 Tentando reconectar...');
     initializeApp();
+  };
+
+  const handleFilterChange = (filterId: string) => {
+    setSelectedFilter(filterId);
+    setSelectedContactId(null);
+    setMessages([]);
+  };
+
+  const handleContactsUpdate = (newContacts: Contact[]) => {
+    setContacts(newContacts);
   };
 
   const selectedContact = contacts.find(c => c.id === selectedContactId);
@@ -292,12 +341,24 @@ const WhatsAppDashboard: React.FC = () => {
   return (
     <Box sx={{ height: '100vh', display: 'flex' }}>
       {/* Sidebar de Conversas */}
-      <Box sx={{ width: '350px', borderRight: '1px solid #e0e0e0' }}>
-        <ConversationSidebar
-          contacts={contacts}
-          selectedContactId={selectedContactId}
-          onContactSelect={handleContactSelect}
-        />
+      <Box sx={{ width: '350px', borderRight: '1px solid #e0e0e0', display: 'flex', flexDirection: 'column' }}>
+        {/* Filtros */}
+        <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0' }}>
+          <FilterTabs
+            selectedFilter={selectedFilter}
+            onFilterChange={handleFilterChange}
+            onContactsUpdate={handleContactsUpdate}
+          />
+        </Box>
+        
+        {/* Lista de Contatos */}
+        <Box sx={{ flex: 1 }}>
+          <ConversationSidebar
+            contacts={contacts}
+            selectedContactId={selectedContactId}
+            onContactSelect={handleContactSelect}
+          />
+        </Box>
       </Box>
 
       {/* Área Principal */}
@@ -330,6 +391,7 @@ const WhatsAppDashboard: React.FC = () => {
                 onSendMessage={handleSendMessage}
                 contact={selectedContact}
                 onStatusChange={handleStatusChange}
+                selectedInstanceId={selectedFilter.startsWith('whatsapp-') ? selectedFilter.replace('whatsapp-', '') : undefined}
               />
             </Box>
           </>
@@ -377,7 +439,7 @@ const WhatsAppDashboard: React.FC = () => {
           anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         >
           <Alert severity="warning">
-            Desconectado do servidor em tempo real
+            Desconectado do servidor
           </Alert>
         </Snackbar>
       )}
