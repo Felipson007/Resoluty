@@ -158,7 +158,7 @@ export class ApiService {
   // Buscar todos os leads
   static async getLeads(): Promise<any[]> {
     try {
-      const response = await api.get('/leads');
+      const response = await api.get('/api/leads');
       
       if (!response.data.ok || !response.data.data) {
         console.warn('Resposta inválida da API de leads:', response.data);
@@ -187,7 +187,7 @@ export class ApiService {
   // Buscar lead específico
   static async getLead(numero: string): Promise<any> {
     try {
-      const response = await api.get(`/leads/${encodeURIComponent(numero)}`);
+      const response = await api.get(`/api/leads/${encodeURIComponent(numero)}`);
       return response.data.data;
     } catch (error) {
       console.error('Erro ao buscar lead:', error);

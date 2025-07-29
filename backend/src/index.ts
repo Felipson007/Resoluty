@@ -14,24 +14,33 @@ dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 const app = express();
 const server = createServer(app);
+
+// Configurar CORS para permitir tanto desenvolvimento quanto produção
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://resoluty-frontend.onrender.com'
+];
+
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3000",
-    methods: ["GET", "POST"]
+    origin: allowedOrigins,
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true
   }
 });
 
 // Configurar Socket.IO no WhatsApp Bot
 setSocketIO(io);
 
-app.use(cors());
+// Configurar CORS para Express
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true
+}));
+
 app.use(express.json());
 
 // Endpoint de saúde
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
@@ -70,7 +79,7 @@ app.get('/api/leads/status/:status', async (req, res) => {
 });
 
 // Endpoint para atualizar status do lead
-app.put('/leads/:numero/status', async (req, res) => {
+app.put('/api/leads/:numero/status', async (req, res) => {
   const { numero } = req.params;
   const { status } = req.body;
   try {
@@ -82,7 +91,7 @@ app.put('/leads/:numero/status', async (req, res) => {
 });
 
 // Endpoint para obter status de todas as instâncias WhatsApp
-app.get('/whatsapp/instances', async (req, res) => {
+app.get('/api/whatsapp/instances', async (req, res) => {
   try {
     const instances = await getWhatsAppInstances();
     res.json({ ok: true, data: instances });
