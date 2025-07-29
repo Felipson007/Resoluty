@@ -4,7 +4,7 @@ import axios from 'axios';
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://resoluty.onrender.com';
 
 const api = axios.create({
-  baseURL: `${API_BASE_URL}/api`,
+  baseURL: API_BASE_URL,
   timeout: 10000,
 });
 
@@ -31,7 +31,7 @@ export class ApiService {
   // Buscar todos os contatos
   static async getContacts(): Promise<Contact[]> {
     try {
-      const response = await api.get('/contacts');
+      const response = await api.get('/api/contacts');
       
       if (!response.data.ok || !response.data.data) {
         console.warn('Resposta inválida da API de contatos:', response.data);
@@ -57,7 +57,7 @@ export class ApiService {
   static async getContactMessages(contactId: string, limit: number = 50): Promise<Message[]> {
     try {
       // Primeiro tentar buscar do endpoint de leads
-      const response = await api.get(`/leads/${encodeURIComponent(contactId)}/messages?limit=${limit}`);
+      const response = await api.get(`/api/leads/${encodeURIComponent(contactId)}/messages?limit=${limit}`);
       
       if (response.data.ok && response.data.data) {
         return response.data.data.map((msg: any) => ({
@@ -70,7 +70,7 @@ export class ApiService {
       }
 
       // Fallback para o endpoint antigo
-      const fallbackResponse = await api.get(`/contacts/${encodeURIComponent(contactId)}/messages?limit=${limit}`);
+      const fallbackResponse = await api.get(`/api/contacts/${encodeURIComponent(contactId)}/messages?limit=${limit}`);
       
       if (fallbackResponse.data.ok && fallbackResponse.data.data) {
         return fallbackResponse.data.data.map((msg: any) => ({
@@ -92,7 +92,7 @@ export class ApiService {
   // Enviar mensagem para um contato
   static async sendMessage(contactId: string, message: string): Promise<boolean> {
     try {
-      const response = await api.post(`/contacts/${encodeURIComponent(contactId)}/send`, {
+      const response = await api.post(`/api/contacts/${encodeURIComponent(contactId)}/send`, {
         message,
       });
       
@@ -110,7 +110,7 @@ export class ApiService {
     attendantId: string = 'frontend-user'
   ): Promise<boolean> {
     try {
-      const response = await api.post(`/contacts/${encodeURIComponent(contactId)}/status`, {
+      const response = await api.post(`/api/contacts/${encodeURIComponent(contactId)}/status`, {
         status,
         attendantId,
       });
@@ -125,7 +125,7 @@ export class ApiService {
   // Buscar status de um contato
   static async getContactStatus(contactId: string): Promise<any> {
     try {
-      const response = await api.get(`/contacts/${encodeURIComponent(contactId)}/status`);
+      const response = await api.get(`/api/contacts/${encodeURIComponent(contactId)}/status`);
       return response.data.data;
     } catch (error) {
       console.error('Erro ao buscar status:', error);
@@ -136,7 +136,7 @@ export class ApiService {
   // Buscar todos os status de sessões
   static async getAllSessionStatuses(): Promise<any[]> {
     try {
-      const response = await api.get('/sessions/status');
+      const response = await api.get('/api/sessions/status');
       return response.data.data || [];
     } catch (error) {
       console.error('Erro ao buscar status das sessões:', error);

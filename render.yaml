@@ -41,6 +41,6 @@ services:
     startCommand: cd frontwpp && npm run serve
     envVars:
       - key: REACT_APP_API_URL
-        value: https://resoluty-backend.onrender.com
+        value: https://resoluty.onrender.com
     autoDeploy: true
     staticPublishPath: ./frontwpp/build
