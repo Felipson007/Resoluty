@@ -1,6 +1,5 @@
 import { makeWASocket, DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
-const qrcode = require('qrcode-terminal');
 import axios from 'axios';
 import { buscarHistoricoCliente, salvarInteracaoHistorico } from '../services/historicoService';
 import { gerarPromptCerebro } from '../services/cerebroService';
@@ -174,7 +173,7 @@ async function startBot(instanceId: string, number: string): Promise<void> {
 
       if (qr && !instance.qrDisplayed) {
         console.log(`\n=== QR Code para ${number} (${instanceId}) ===`);
-        qrcode(qr, { small: true });
+        console.log('QR Code disponível no frontend');
         instance.qrDisplayed = true;
         
         // Emitir QR para frontend

@@ -41,6 +41,8 @@ const WhatsAppDashboard: React.FC = () => {
   const [socketConnected, setSocketConnected] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [selectedFilter, setSelectedFilter] = useState<string>('bot-ativo');
+  const [whatsappInstances, setWhatsappInstances] = useState<any[]>([]);
+  const [hasConnectedWhatsApp, setHasConnectedWhatsApp] = useState(false);
 
   // Inicialização
   useEffect(() => {
