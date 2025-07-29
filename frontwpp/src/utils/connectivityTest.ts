@@ -56,7 +56,7 @@ export class ConnectivityTest {
         memory: data.memory,
         clients: data.clients
       };
-    } catch (error) {
+    } catch (error: any) {
       throw {
         status: 'error',
         message: 'Backend não está respondendo',

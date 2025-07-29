@@ -42,7 +42,7 @@ export default function ConnectivityStatus({ showDetails = false }: Connectivity
     try {
       const result = await connectivityTest.runAllTests();
       setLastTest(result);
-      setStatus(result.summary.overallStatus);
+      setStatus(result.summary.overallStatus as 'healthy' | 'warning' | 'critical' | 'loading');
     } catch (error) {
       console.error('Erro ao testar conectividade:', error);
       setStatus('critical');
