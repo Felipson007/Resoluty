@@ -6,8 +6,8 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { setSocketIO } from './routes/whatsappBot';
 import { updateSessionStatus, getSessionStatus, getAllSessionStatuses } from './services/historicoService';
-import { buscarMensagensLead, buscarLeadsPorStatus, listarLeads, buscarLead, atualizarStatusLead } from './services/leadService';
-import { getWhatsAppInstances, toggleSDRMode, configureWhatsApp, removeWhatsApp, initializeWhatsApp } from './routes/whatsappBot';
+import { buscarMensagensLead, buscarLeadsPorStatus, listarLeads, buscarLead, atualizarStatusLead, salvarMensagemLead } from './services/leadService';
+import { getWhatsAppInstances, toggleSDRMode, configureWhatsApp, removeWhatsApp, initializeWhatsApp, sendWhatsAppMessage } from './routes/whatsappBot';
 
 // Configurar dotenv com o caminho correto
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
@@ -18,7 +18,8 @@ const server = createServer(app);
 // Configurar CORS para permitir tanto desenvolvimento quanto produção
 const allowedOrigins = [
   'http://localhost:3000',
-  'https://resoluty-frontend.onrender.com'
+  'https://resoluty-frontend.onrender.com',
+  'https://resoluty.onrender.com'
 ];
 
 // Configurar Socket.IO com CORS mais permissivo
@@ -136,6 +137,58 @@ app.delete('/api/whatsapp/:instanceId', async (req, res) => {
   try {
     const success = await removeWhatsApp(instanceId);
     res.json({ ok: success });
+  } catch (error: any) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Endpoint para listar contatos (alias para leads)
+app.get('/api/contacts', async (req, res) => {
+  try {
+    const leads = await listarLeads(50);
+    // Converter leads para formato de contatos
+    const contacts = leads.map((lead: any) => ({
+      id: lead.numero,
+      name: lead.nome || `Cliente ${lead.numero}`,
+      phone: lead.numero,
+      lastMessage: lead.ultima_mensagem || 'Última mensagem...',
+      lastMessageTime: lead.ultima_atualizacao || 'Agora',
+      status: lead.status === 'lead_novo' ? 'bot' : 
+              lead.status === 'lead_avancado' ? 'humano' : 
+              lead.status === 'lead_sem_interesse' ? 'finalizado' : 'aguardando',
+      unreadCount: 0
+    }));
+    res.json({ ok: true, data: contacts });
+  } catch (error: any) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Endpoint para buscar mensagens de contatos (alias para leads)
+app.get('/api/contacts/:numero/messages', async (req, res) => {
+  const { numero } = req.params;
+  const { limit } = req.query;
+  try {
+    const mensagens = await buscarMensagensLead(numero, limit ? parseInt(limit as string) : 50);
+    res.json({ ok: true, data: mensagens });
+  } catch (error: any) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Endpoint para enviar mensagem para contato
+app.post('/api/contacts/:numero/send', async (req, res) => {
+  const { numero } = req.params;
+  const { message } = req.body;
+  try {
+    const success = await sendWhatsAppMessage(numero, message);
+    if (success) {
+      // Salvar mensagem no sistema
+      await salvarMensagemLead(numero, message, 'ai');
+      res.json({ ok: true });
+    } else {
+      res.status(500).json({ ok: false, error: 'Falha ao enviar mensagem' });
+    }
   } catch (error: any) {
     res.status(500).json({ ok: false, error: error.message });
   }
