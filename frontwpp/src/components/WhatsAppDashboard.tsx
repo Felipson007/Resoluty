@@ -134,18 +134,45 @@ const WhatsAppDashboard: React.FC = () => {
       ));
     };
 
+    const handleWhatsAppStatusUpdate = (data: { status: string; instanceId: string; number: string }) => {
+      console.log('📱 Status WhatsApp atualizado:', data);
+      
+      // Atualizar status do WhatsApp quando receber eventos
+      if (data.status === 'open' || data.status === 'close') {
+        checkWhatsAppStatus();
+      }
+    };
+
     socketService.on('socket-connected', handleSocketConnected);
     socketService.on('socket-disconnected', handleSocketDisconnected);
     socketService.on('new-message', handleNewMessage);
     socketService.on('status-updated', handleStatusUpdated);
+    socketService.on('wpp-status', handleWhatsAppStatusUpdate);
 
     return () => {
       socketService.off('socket-connected', handleSocketConnected);
       socketService.off('socket-disconnected', handleSocketDisconnected);
       socketService.off('new-message', handleNewMessage);
       socketService.off('status-updated', handleStatusUpdated);
+      socketService.off('wpp-status', handleWhatsAppStatusUpdate);
     };
   }, [selectedContactId]);
+
+  const checkWhatsAppStatus = async () => {
+    try {
+      const instances = await ApiService.getWhatsAppInstances();
+      setWhatsappInstances(instances);
+      
+      // Verificar se há pelo menos um WhatsApp conectado
+      const hasConnected = instances.some((instance: any) => instance.isConnected);
+      setHasConnectedWhatsApp(hasConnected);
+      
+      return hasConnected;
+    } catch (error) {
+      console.error('Erro ao verificar status do WhatsApp:', error);
+      return false;
+    }
+  };
 
   const initializeApp = async () => {
     try {
@@ -161,6 +188,16 @@ const WhatsAppDashboard: React.FC = () => {
       }
 
       console.log('✅ Backend está online');
+      
+      // Verificar status do WhatsApp
+      const hasConnected = await checkWhatsAppStatus();
+      
+      if (hasConnected) {
+        // Buscar leads apenas se há WhatsApp conectado
+        const leads = await ApiService.getLeads();
+        setContacts(leads);
+      }
+      
       setRetryCount(0);
     } catch (err: any) {
       console.error('❌ Erro ao inicializar app:', err);
@@ -297,6 +334,16 @@ const WhatsAppDashboard: React.FC = () => {
     setContacts(newContacts);
   };
 
+  const handleGoToWhatsAppConfig = () => {
+    // Navegar para a página de configuração do WhatsApp
+    // Como o App.tsx usa views internas, vou usar um evento customizado
+    window.dispatchEvent(new CustomEvent('changeView', { detail: 'config' }));
+  };
+
+  const handleRefreshWhatsAppStatus = async () => {
+    await checkWhatsAppStatus();
+  };
+
   const selectedContact = contacts.find(c => c.id === selectedContactId);
   const contactMessages = messages.filter(m => m.contactId === selectedContactId);
 
@@ -346,6 +393,75 @@ const WhatsAppDashboard: React.FC = () => {
         </Button>
         <Typography variant="body2" color="text.secondary" textAlign="center">
           Certifique-se de que o backend está rodando na porta 4000
+        </Typography>
+      </Box>
+    );
+  }
+
+  // Verificar se há WhatsApp conectado
+  if (!hasConnectedWhatsApp && !loading) {
+    return (
+      <Box sx={{ 
+        height: '100vh', 
+        display: 'flex', 
+        flexDirection: 'column',
+        alignItems: 'center', 
+        justifyContent: 'center',
+        gap: 3,
+        p: 3,
+        textAlign: 'center'
+      }}>
+        {/* Ícone WhatsApp */}
+        <Box sx={{ 
+          width: 120, 
+          height: 120, 
+          borderRadius: '50%',
+          backgroundColor: '#25D36620',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          mb: 2
+        }}>
+          <Typography variant="h1" sx={{ color: '#25D366', fontSize: '4rem' }}>
+            📱
+          </Typography>
+        </Box>
+
+        <Typography variant="h4" sx={{ fontWeight: 600, mb: 1 }}>
+          Nenhum WhatsApp Conectado
+        </Typography>
+
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 3, maxWidth: 400 }}>
+          Para começar a usar o sistema, você precisa conectar pelo menos um número do WhatsApp.
+        </Typography>
+
+        <Box sx={{ display: 'flex', gap: 2, flexDirection: 'column', alignItems: 'center' }}>
+          <Button 
+            variant="contained" 
+            size="large"
+            onClick={handleGoToWhatsAppConfig}
+            sx={{ 
+              backgroundColor: '#25D366',
+              '&:hover': { backgroundColor: '#128C7E' },
+              px: 4,
+              py: 1.5,
+              fontSize: '1.1rem'
+            }}
+          >
+            Conectar WhatsApp
+          </Button>
+
+          <Button 
+            variant="outlined" 
+            onClick={handleRefreshWhatsAppStatus}
+            startIcon={<RefreshIcon />}
+          >
+            Verificar Novamente
+          </Button>
+        </Box>
+
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 3 }}>
+          Após conectar o WhatsApp, você poderá ver e gerenciar seus contatos aqui.
         </Typography>
       </Box>
     );

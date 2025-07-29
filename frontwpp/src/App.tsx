@@ -45,6 +45,19 @@ function App() {
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
+  // Escutar eventos de mudança de view
+  React.useEffect(() => {
+    const handleViewChange = (event: CustomEvent) => {
+      setCurrentView(event.detail as ViewType);
+    };
+
+    window.addEventListener('changeView', handleViewChange as EventListener);
+    
+    return () => {
+      window.removeEventListener('changeView', handleViewChange as EventListener);
+    };
+  }, []);
+
   const renderCurrentView = () => {
     switch (currentView) {
       case 'qr':
