@@ -1,9 +1,10 @@
-import { makeWASocket, DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
+import { makeWASocket, DisconnectReason, useMultiFileAuthState, AuthenticationState, SignalDataTypeMap, initAuthCreds, proto } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import axios from 'axios';
 import { buscarHistoricoCliente, salvarInteracaoHistorico } from '../services/historicoService';
 import { gerarPromptCerebro } from '../services/cerebroService';
 import { salvarMensagemLead, buscarLead } from '../services/leadService';
+import { supabase } from '../config/supabase';
 
 // Interface para múltiplos WhatsApp
 interface WhatsAppInstance {
@@ -28,6 +29,94 @@ export function setSocketIO(io: any) {
 // Histórico por usuário para cada instância
 const historicoPorUsuario: { [key: string]: any[] } = {};
 const timeoutsPorUsuario: { [key: string]: NodeJS.Timeout } = {};
+
+// Sistema de autenticação customizado para Supabase
+async function useSupabaseAuthState(instanceId: string) {
+  const writeData = async (data: any, file: string) => {
+    try {
+      const { error } = await supabase
+        .from('whatsapp_auth')
+        .upsert({
+          instance_id: instanceId,
+          file_name: file,
+          data: JSON.stringify(data),
+          updated_at: new Date().toISOString()
+        });
+      
+      if (error) {
+        console.error('Erro ao salvar dados de autenticação:', error);
+      }
+    } catch (error) {
+      console.error('Erro ao salvar dados de autenticação:', error);
+    }
+  };
+
+  const readData = async (file: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('whatsapp_auth')
+        .select('data')
+        .eq('instance_id', instanceId)
+        .eq('file_name', file)
+        .single();
+
+      if (error || !data) {
+        return null;
+      }
+
+      return JSON.parse(data.data);
+    } catch (error) {
+      console.error('Erro ao ler dados de autenticação:', error);
+      return null;
+    }
+  };
+
+  const removeData = async (file: string) => {
+    try {
+      const { error } = await supabase
+        .from('whatsapp_auth')
+        .delete()
+        .eq('instance_id', instanceId)
+        .eq('file_name', file);
+
+      if (error) {
+        console.error('Erro ao remover dados de autenticação:', error);
+      }
+    } catch (error) {
+      console.error('Erro ao remover dados de autenticação:', error);
+    }
+  };
+
+  const creds = (await readData('creds')) || initAuthCreds();
+
+  return {
+    state: {
+      creds,
+      keys: {
+        get: async (type: keyof SignalDataTypeMap, ids: string[]) => {
+          const data: { [key: string]: any } = {};
+          for (const id of ids) {
+            const value = await readData(`${type}-${id}`);
+            if (value) {
+              data[id] = value;
+            }
+          }
+          return data;
+        },
+        set: async (data: any) => {
+          const tasks: Promise<void>[] = [];
+          for (const [type, id, value] of data) {
+            tasks.push(writeData(value, `${type}-${id}`));
+          }
+          await Promise.all(tasks);
+        }
+      }
+    },
+    saveCreds: async () => {
+      await writeData(creds, 'creds');
+    }
+  };
+}
 
 export async function sendWhatsAppMessage(to: string, message: string, instanceId?: string): Promise<boolean> {
   try {
@@ -139,6 +228,22 @@ export async function removeWhatsApp(instanceId: string): Promise<boolean> {
         await instance.sock.logout();
       }
       whatsappInstances.delete(instanceId);
+      
+      // Limpar dados de autenticação do Supabase
+      try {
+        const { error } = await supabase
+          .from('whatsapp_auth')
+          .delete()
+          .eq('instance_id', instanceId);
+        
+        if (error) {
+          console.error('Erro ao limpar dados de autenticação:', error);
+        } else {
+          console.log(`Dados de autenticação limpos para ${instanceId}`);
+        }
+      } catch (error) {
+        console.error('Erro ao limpar dados de autenticação:', error);
+      }
     }
     return true;
   } catch (error) {
@@ -149,7 +254,7 @@ export async function removeWhatsApp(instanceId: string): Promise<boolean> {
 
 async function startBot(instanceId: string, number: string): Promise<void> {
   try {
-    const { state, saveCreds } = await useMultiFileAuthState(`auth_info_baileys_${instanceId}`);
+    const { state, saveCreds } = await useSupabaseAuthState(instanceId);
     
     const sock = makeWASocket({
       printQRInTerminal: false,
@@ -168,6 +273,16 @@ async function startBot(instanceId: string, number: string): Promise<void> {
     };
 
     whatsappInstances.set(instanceId, instance);
+
+    // Handler para salvar credenciais quando mudarem
+    sock.ev.on('creds.update', async () => {
+      try {
+        await saveCreds();
+        console.log(`Credenciais salvas para ${instanceId}`);
+      } catch (error) {
+        console.error('Erro ao salvar credenciais:', error);
+      }
+    });
 
     sock.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
@@ -217,6 +332,24 @@ async function startBot(instanceId: string, number: string): Promise<void> {
         if (instance.qrTimeout) {
           clearTimeout(instance.qrTimeout);
           instance.qrTimeout = undefined;
+        }
+        
+        // Se foi logout, limpar dados de autenticação
+        if (!shouldReconnect) {
+          try {
+            const { error } = await supabase
+              .from('whatsapp_auth')
+              .delete()
+              .eq('instance_id', instanceId);
+            
+            if (error) {
+              console.error('Erro ao limpar dados de autenticação após logout:', error);
+            } else {
+              console.log(`Dados de autenticação limpos após logout para ${instanceId}`);
+            }
+          } catch (error) {
+            console.error('Erro ao limpar dados de autenticação após logout:', error);
+          }
         }
         
         if (socketIO) {
