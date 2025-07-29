@@ -1,0 +1,23 @@
+{
+  "name": "resoluty",
+  "version": "1.0.0",
+  "description": "Sistema completo de Central de Atendimento WhatsApp com IA integrada",
+  "private": true,
+  "scripts": {
+    "build": "echo 'Build deve ser executado nos subdiretórios'",
+    "start": "echo 'Start deve ser executado nos subdiretórios'",
+    "install-backend": "cd backend && npm install",
+    "install-frontend": "cd frontwpp && npm install",
+    "build-backend": "cd backend && npm run build",
+    "build-frontend": "cd frontwpp && npm run build",
+    "start-backend": "cd backend && npm start",
+    "start-frontend": "cd frontwpp && npm run serve"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "workspaces": [
+    "backend",
+    "frontwpp"
+  ]
+}
