@@ -10,7 +10,16 @@ console.log('API_BASE_URL:', API_BASE_URL);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000, // Aumentar timeout para 30 segundos
+  timeout: 60000, // Aumentar timeout para 60 segundos
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Instância específica para operações que podem demorar mais (como configuração do WhatsApp)
+const apiLongTimeout = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 120000, // 2 minutos para operações complexas
   headers: {
     'Content-Type': 'application/json',
   },
@@ -304,14 +313,14 @@ export class ApiService {
   static async configureWhatsApp(instanceId: string, number: string, enabled: boolean): Promise<boolean> {
     try {
       return await this.retryOperation(async () => {
-        const response = await api.post('/api/whatsapp/configure', {
+        const response = await apiLongTimeout.post('/api/whatsapp/configure', {
           instanceId,
           number,
           enabled
         });
         
         return response.data.ok === true;
-      }, 3, 2000); // 3 tentativas com delay de 2 segundos
+      }, 2, 5000); // 2 tentativas com delay de 5 segundos
     } catch (error) {
       console.error('Erro ao configurar WhatsApp após todas as tentativas:', error);
       return false;

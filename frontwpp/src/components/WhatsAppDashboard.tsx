@@ -422,67 +422,143 @@ const WhatsAppDashboard: React.FC = () => {
   if (!hasConnectedWhatsApp && !loading) {
     return (
       <Box sx={{ 
-        height: '100vh', 
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         display: 'flex', 
         flexDirection: 'column',
         alignItems: 'center', 
         justifyContent: 'center',
-        gap: 3,
-        p: 3,
-        textAlign: 'center'
+        gap: 4,
+        p: 4,
+        textAlign: 'center',
+        position: 'relative',
+        overflow: 'hidden'
       }}>
-        {/* Ícone WhatsApp */}
-        <Box sx={{ 
-          width: 120, 
-          height: 120, 
+        {/* Background decoration */}
+        <Box sx={{
+          position: 'absolute',
+          top: -50,
+          right: -50,
+          width: 200,
+          height: 200,
           borderRadius: '50%',
-          backgroundColor: '#25D36620',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          mb: 2
+          background: 'rgba(255,255,255,0.1)',
+          zIndex: 0
+        }} />
+        <Box sx={{
+          position: 'absolute',
+          bottom: -30,
+          left: -30,
+          width: 150,
+          height: 150,
+          borderRadius: '50%',
+          background: 'rgba(255,255,255,0.1)',
+          zIndex: 0
+        }} />
+
+        {/* Main content */}
+        <Box sx={{ 
+          position: 'relative',
+          zIndex: 1,
+          background: 'rgba(255,255,255,0.95)',
+          borderRadius: 4,
+          p: 6,
+          boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(255,255,255,0.2)',
+          maxWidth: 500,
+          width: '100%'
         }}>
-          <Typography variant="h1" sx={{ color: '#25D366', fontSize: '4rem' }}>
-            📱
+          {/* Ícone WhatsApp */}
+          <Box sx={{ 
+            width: 100, 
+            height: 100, 
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            mb: 3,
+            mx: 'auto',
+            boxShadow: '0 10px 30px rgba(37, 211, 102, 0.3)'
+          }}>
+            <Typography variant="h1" sx={{ color: 'white', fontSize: '3rem' }}>
+              📱
+            </Typography>
+          </Box>
+
+          <Typography variant="h4" sx={{ 
+            fontWeight: 700, 
+            mb: 2,
+            background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent'
+          }}>
+            Nenhum WhatsApp Conectado
+          </Typography>
+
+          <Typography variant="body1" color="text.secondary" sx={{ 
+            mb: 4, 
+            maxWidth: 400,
+            lineHeight: 1.6,
+            fontSize: '1.1rem'
+          }}>
+            Para começar a usar o sistema, você precisa conectar pelo menos um número do WhatsApp.
+          </Typography>
+
+          <Box sx={{ display: 'flex', gap: 2, flexDirection: 'column', alignItems: 'center' }}>
+            <Button 
+              variant="contained" 
+              size="large"
+              onClick={handleGoToWhatsAppConfig}
+              sx={{ 
+                background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+                '&:hover': { 
+                  background: 'linear-gradient(135deg, #128C7E 0%, #075E54 100%)',
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 25px rgba(37, 211, 102, 0.4)'
+                },
+                px: 5,
+                py: 2,
+                fontSize: '1.1rem',
+                fontWeight: 600,
+                borderRadius: 3,
+                transition: 'all 0.3s ease',
+                minWidth: 200
+              }}
+            >
+              Conectar WhatsApp
+            </Button>
+
+            <Button 
+              variant="outlined" 
+              onClick={handleRefreshWhatsAppStatus}
+              startIcon={<RefreshIcon />}
+              sx={{
+                borderColor: '#25D366',
+                color: '#25D366',
+                '&:hover': {
+                  borderColor: '#128C7E',
+                  backgroundColor: 'rgba(37, 211, 102, 0.1)',
+                  transform: 'translateY(-1px)'
+                },
+                transition: 'all 0.3s ease',
+                borderRadius: 3
+              }}
+            >
+              Verificar Novamente
+            </Button>
+          </Box>
+
+          <Typography variant="body2" color="text.secondary" sx={{ 
+            mt: 4,
+            opacity: 0.8,
+            fontStyle: 'italic'
+          }}>
+            Após conectar o WhatsApp, você poderá ver e gerenciar seus contatos aqui.
           </Typography>
         </Box>
-
-        <Typography variant="h4" sx={{ fontWeight: 600, mb: 1 }}>
-          Nenhum WhatsApp Conectado
-        </Typography>
-
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 3, maxWidth: 400 }}>
-          Para começar a usar o sistema, você precisa conectar pelo menos um número do WhatsApp.
-        </Typography>
-
-        <Box sx={{ display: 'flex', gap: 2, flexDirection: 'column', alignItems: 'center' }}>
-          <Button 
-            variant="contained" 
-            size="large"
-            onClick={handleGoToWhatsAppConfig}
-            sx={{ 
-              backgroundColor: '#25D366',
-              '&:hover': { backgroundColor: '#128C7E' },
-              px: 4,
-              py: 1.5,
-              fontSize: '1.1rem'
-            }}
-          >
-            Conectar WhatsApp
-          </Button>
-
-          <Button 
-            variant="outlined" 
-            onClick={handleRefreshWhatsAppStatus}
-            startIcon={<RefreshIcon />}
-          >
-            Verificar Novamente
-          </Button>
-        </Box>
-
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 3 }}>
-          Após conectar o WhatsApp, você poderá ver e gerenciar seus contatos aqui.
-        </Typography>
       </Box>
     );
   }

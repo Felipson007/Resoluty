@@ -383,7 +383,7 @@ async function startBot(instanceId: string, number: string): Promise<void> {
       }),
       puppeteer: {
         headless: true,
-        timeout: 60000, // 60 segundos de timeout
+        timeout: 120000, // 120 segundos de timeout
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -396,7 +396,19 @@ async function startBot(instanceId: string, number: string): Promise<void> {
           '--disable-features=VizDisplayCompositor',
           '--disable-background-timer-throttling',
           '--disable-backgrounding-occluded-windows',
-          '--disable-renderer-backgrounding'
+          '--disable-renderer-backgrounding',
+          '--disable-extensions',
+          '--disable-plugins',
+          '--disable-images',
+          '--disable-javascript',
+          '--disable-default-apps',
+          '--disable-sync',
+          '--disable-translate',
+          '--hide-scrollbars',
+          '--mute-audio',
+          '--no-default-browser-check',
+          '--disable-component-extensions-with-background-pages',
+          '--disable-ipc-flooding-protection'
         ]
       }
     });
@@ -413,6 +425,11 @@ async function startBot(instanceId: string, number: string): Promise<void> {
 
     whatsappInstances.set(instanceId, instance);
 
+    // Evento de loading
+    client.on('loading_screen', (percent, message) => {
+      console.log(`📱 Loading WhatsApp ${instanceId}: ${percent}% - ${message}`);
+    });
+
     // Handler para salvar dados de autenticação quando disponíveis
     client.on('authenticated', async () => {
       try {
@@ -426,6 +443,7 @@ async function startBot(instanceId: string, number: string): Promise<void> {
     client.on('qr', (qr: string) => {
       console.log(`\n=== QR Code para ${number} (${instanceId}) ===`);
       console.log('QR Code disponível no frontend');
+      console.log(`Tamanho do QR: ${qr.length} caracteres`);
       instance.qrDisplayed = true;
       
       // Limpar timeout anterior se existir
@@ -433,7 +451,7 @@ async function startBot(instanceId: string, number: string): Promise<void> {
         clearTimeout(instance.qrTimeout);
       }
       
-      // Configurar timeout para detectar expiração do QR (45 segundos)
+      // Configurar timeout para detectar expiração do QR (60 segundos)
       instance.qrTimeout = setTimeout(() => {
         console.log(`QR Code para ${number} (${instanceId}) expirou. Regenerando...`);
         instance.qrDisplayed = false;
@@ -445,15 +463,18 @@ async function startBot(instanceId: string, number: string): Promise<void> {
             number 
           });
         }
-      }, 45000); // 45 segundos
+      }, 60000); // 60 segundos
       
       // Emitir QR para frontend
       if (socketIO) {
+        console.log(`Emitindo QR para frontend: ${instanceId}`);
         socketIO.emit('qr', { 
           qr, 
           instanceId, 
           number 
         });
+      } else {
+        console.error('SocketIO não está disponível para emitir QR');
       }
     });
 

@@ -6,6 +6,8 @@ module.exports = {
     client: {
       webSocketURL: 'ws://localhost:3000/ws',
     },
+    hot: true,
+    liveReload: true,
   },
   webpack: {
     configure: (webpackConfig) => {
@@ -16,6 +18,13 @@ module.exports = {
         "path": false,
         "os": false,
       };
+      
+      // Configurar hot reload corretamente
+      if (webpackConfig.devServer) {
+        webpackConfig.devServer.hot = true;
+        webpackConfig.devServer.liveReload = true;
+      }
+      
       return webpackConfig;
     },
   },
