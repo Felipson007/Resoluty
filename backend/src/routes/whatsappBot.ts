@@ -256,8 +256,24 @@ export async function removeWhatsApp(instanceId: string): Promise<boolean> {
       }
       whatsappInstances.delete(instanceId);
       
-      // Limpar dados de autenticação (implementação futura)
-      console.log(`WhatsApp removido para ${instanceId} - dados de autenticação serão limpos na próxima inicialização`);
+      // Limpar dados de autenticação
+      console.log(`WhatsApp removido para ${instanceId} - limpando dados de autenticação`);
+      if (process.env.NODE_ENV === 'production') {
+        try {
+          const { error } = await supabase
+            .from('whatsapp_auth')
+            .delete()
+            .eq('instance_id', instanceId);
+          
+          if (error) {
+            console.error('Erro ao limpar dados de autenticação:', error);
+          } else {
+            console.log(`Dados de autenticação limpos para ${instanceId}`);
+          }
+        } catch (error) {
+          console.error('Erro ao limpar dados de autenticação:', error);
+        }
+      }
     }
     return true;
   } catch (error) {
@@ -268,8 +284,10 @@ export async function removeWhatsApp(instanceId: string): Promise<boolean> {
 
 async function startBot(instanceId: string, number: string): Promise<void> {
   try {
-    // Usar sistema de arquivos local por enquanto
-    const { state, saveCreds } = await useMultiFileAuthState(`auth_info_baileys_${instanceId}`);
+    // Usar sistema híbrido de autenticação
+    const { state, saveCreds } = await useHybridAuthState(instanceId);
+    
+    console.log(`Iniciando WhatsApp ${instanceId} (${number}) - Modo: ${process.env.NODE_ENV === 'production' ? 'Produção (Supabase)' : 'Desenvolvimento (Arquivos Locais)'}`);
     
     const sock = makeWASocket({
       printQRInTerminal: false,
@@ -293,7 +311,7 @@ async function startBot(instanceId: string, number: string): Promise<void> {
     sock.ev.on('creds.update', async () => {
       try {
         await saveCreds();
-        console.log(`Credenciais salvas para ${instanceId}`);
+        console.log(`Credenciais salvas para ${instanceId} (${process.env.NODE_ENV === 'production' ? 'Supabase' : 'Arquivos Locais'})`);
       } catch (error) {
         console.error('Erro ao salvar credenciais:', error);
       }
@@ -349,9 +367,25 @@ async function startBot(instanceId: string, number: string): Promise<void> {
           instance.qrTimeout = undefined;
         }
         
-        // Se foi logout, limpar dados de autenticação (implementação futura)
+        // Se foi logout, limpar dados de autenticação
         if (!shouldReconnect) {
-          console.log(`Logout realizado para ${instanceId} - dados de autenticação serão limpos na próxima inicialização`);
+          console.log(`Logout realizado para ${instanceId} - limpando dados de autenticação`);
+          if (process.env.NODE_ENV === 'production') {
+            try {
+              const { error } = await supabase
+                .from('whatsapp_auth')
+                .delete()
+                .eq('instance_id', instanceId);
+              
+              if (error) {
+                console.error('Erro ao limpar dados de autenticação após logout:', error);
+              } else {
+                console.log(`Dados de autenticação limpos após logout para ${instanceId}`);
+              }
+            } catch (error) {
+              console.error('Erro ao limpar dados de autenticação após logout:', error);
+            }
+          }
         }
         
         if (socketIO) {
