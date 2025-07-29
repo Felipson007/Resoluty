@@ -156,7 +156,7 @@ const WhatsAppDashboard: React.FC = () => {
       
       if (hasConnectedInstances) {
         // Se há instâncias conectadas, carregar contatos
-        loadContacts();
+        initializeApp();
       }
     };
 
