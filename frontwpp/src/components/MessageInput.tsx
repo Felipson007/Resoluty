@@ -97,16 +97,16 @@ const MessageInput: React.FC<MessageInputProps> = ({
   ];
 
   return (
-    <Paper elevation={1} sx={{ p: 2 }}>
+    <Paper elevation={1} sx={{ p: 1.5 }}>
       {/* Controles de Status */}
-      <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Box sx={{ mb: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Button
             size="small"
             variant={contact.status === 'bot' ? 'contained' : 'outlined'}
             startIcon={<BotIcon />}
             onClick={() => handleStatusChange('bot')}
-            sx={{ borderRadius: 2, textTransform: 'none' }}
+            sx={{ borderRadius: 2, textTransform: 'none', fontSize: '0.75rem' }}
           >
             Bot Ativo
           </Button>
@@ -116,7 +116,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
             variant={contact.status === 'humano' ? 'contained' : 'outlined'}
             startIcon={<PersonIcon />}
             onClick={() => handleStatusChange('humano')}
-            sx={{ borderRadius: 2, textTransform: 'none' }}
+            sx={{ borderRadius: 2, textTransform: 'none', fontSize: '0.75rem' }}
           >
             Assumir SDR
           </Button>
@@ -126,7 +126,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
             variant={contact.status === 'finalizado' ? 'contained' : 'outlined'}
             startIcon={<CheckCircleIcon />}
             onClick={() => handleStatusChange('finalizado')}
-            sx={{ borderRadius: 2, textTransform: 'none' }}
+            sx={{ borderRadius: 2, textTransform: 'none', fontSize: '0.75rem' }}
           >
             Finalizar
           </Button>
@@ -139,10 +139,11 @@ const MessageInput: React.FC<MessageInputProps> = ({
               checked={sdrMode}
               onChange={handleSDRToggle}
               color="primary"
+              size="small"
             />
           }
           label={
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.75rem' }}>
               <SupportIcon fontSize="small" />
               SDR Ativo
             </Box>
@@ -152,7 +153,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
       </Box>
 
       {/* Respostas Rápidas */}
-      <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+      <Box sx={{ mb: 1.5, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
         {quickResponses.map((response, index) => (
           <Button
             key={index}
@@ -162,14 +163,16 @@ const MessageInput: React.FC<MessageInputProps> = ({
             sx={{
               borderRadius: 2,
               textTransform: 'none',
-              fontSize: '0.75rem',
+              fontSize: '0.7rem',
               backgroundColor: '#f8f9fa',
+              padding: '4px 8px',
+              minHeight: '28px',
               '&:hover': {
                 backgroundColor: '#e9ecef',
               },
             }}
           >
-            {response.length > 30 ? `${response.substring(0, 30)}...` : response}
+            {response.length > 25 ? `${response.substring(0, 25)}...` : response}
           </Button>
         ))}
       </Box>
@@ -183,7 +186,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         <TextField
           fullWidth
           multiline
-          maxRows={4}
+          maxRows={3}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyPress={handleKeyPress}
@@ -193,6 +196,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           sx={{
             '& .MuiOutlinedInput-root': {
               borderRadius: 3,
+              fontSize: '0.875rem',
             },
           }}
         />
@@ -216,7 +220,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           <SendIcon />
         </IconButton>
         
-        <IconButton onClick={handleActionsMenuOpen}>
+        <IconButton onClick={handleActionsMenuOpen} size="small">
           <MoreVertIcon />
         </IconButton>
       </Box>

@@ -88,11 +88,14 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Box sx={{ 
-        minHeight: '100vh',
+        height: '100vh',
+        width: '100vw',
+        overflow: 'hidden',
         backgroundColor: 'background.default',
         display: 'flex',
         flexDirection: 'column',
-        overflow: 'hidden',
+        margin: 0,
+        padding: 0,
       }}>
         {renderCurrentView()}
         

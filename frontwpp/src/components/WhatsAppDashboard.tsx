@@ -339,11 +339,29 @@ const WhatsAppDashboard: React.FC = () => {
   }
 
   return (
-    <Box sx={{ height: '100vh', display: 'flex' }}>
+    <Box sx={{ 
+      height: '100vh', 
+      width: '100vw',
+      display: 'flex',
+      overflow: 'hidden',
+      margin: 0,
+      padding: 0,
+    }}>
       {/* Sidebar de Conversas */}
-      <Box sx={{ width: '350px', borderRight: '1px solid #e0e0e0', display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ 
+        width: '350px', 
+        borderRight: '1px solid #e0e0e0', 
+        display: 'flex', 
+        flexDirection: 'column',
+        height: '100%',
+        overflow: 'hidden',
+      }}>
         {/* Filtros */}
-        <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0' }}>
+        <Box sx={{ 
+          p: 2, 
+          borderBottom: '1px solid #e0e0e0',
+          flexShrink: 0,
+        }}>
           <FilterTabs
             selectedFilter={selectedFilter}
             onFilterChange={handleFilterChange}
@@ -352,7 +370,10 @@ const WhatsAppDashboard: React.FC = () => {
         </Box>
         
         {/* Lista de Contatos */}
-        <Box sx={{ flex: 1 }}>
+        <Box sx={{ 
+          flex: 1,
+          overflow: 'hidden',
+        }}>
           <ConversationSidebar
             contacts={contacts}
             selectedContactId={selectedContactId}
@@ -362,11 +383,21 @@ const WhatsAppDashboard: React.FC = () => {
       </Box>
 
       {/* Área Principal */}
-      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ 
+        flex: 1, 
+        display: 'flex', 
+        flexDirection: 'column',
+        height: '100%',
+        overflow: 'hidden',
+      }}>
         {selectedContact ? (
           <>
             {/* Área de Chat */}
-            <Box sx={{ flex: 1, overflow: 'hidden' }}>
+            <Box sx={{ 
+              flex: 1, 
+              overflow: 'hidden',
+              minHeight: 0,
+            }}>
               {loadingMessages ? (
                 <Box sx={{ 
                   display: 'flex', 
@@ -386,7 +417,10 @@ const WhatsAppDashboard: React.FC = () => {
             </Box>
 
             {/* Campo de Digitação */}
-            <Box sx={{ borderTop: '1px solid #e0e0e0' }}>
+            <Box sx={{ 
+              borderTop: '1px solid #e0e0e0',
+              flexShrink: 0,
+            }}>
               <MessageInput
                 onSendMessage={handleSendMessage}
                 contact={selectedContact}
@@ -405,6 +439,7 @@ const WhatsAppDashboard: React.FC = () => {
               justifyContent: 'center',
               color: 'text.secondary',
               gap: 2,
+              height: '100%',
             }}
           >
             <Typography variant="h5">

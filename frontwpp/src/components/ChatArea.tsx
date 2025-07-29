@@ -69,7 +69,12 @@ const ChatArea: React.FC<ChatAreaProps> = ({ contact, messages, onStatusChange }
   const StatusIcon = statusConfig[contact.status].icon;
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ 
+      height: '100%', 
+      display: 'flex', 
+      flexDirection: 'column',
+      overflow: 'hidden',
+    }}>
       {/* Header do Chat */}
       <Box
         sx={{
@@ -79,6 +84,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ contact, messages, onStatusChange }
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          flexShrink: 0,
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -150,6 +156,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ contact, messages, onStatusChange }
           p: 2,
           backgroundColor: '#e5ddd5',
           backgroundImage: 'url("data:image/svg+xml,%3Csvg width="100" height="100" xmlns="http://www.w3.org/2000/svg"%3E%3Cdefs%3E%3Cpattern id="a" patternUnits="userSpaceOnUse" width="100" height="100"%3E%3Cpath d="M0 0h100v100H0z" fill="%23e5ddd5"/%3E%3C/pattern%3E%3C/defs%3E%3Crect width="100%25" height="100%25" fill="url(%23a)"/%3E%3C/svg%3E")',
+          minHeight: 0,
         }}
       >
         {messages.length === 0 ? (
