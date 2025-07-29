@@ -1,4 +1,5 @@
-import { getSupabase } from '../config/supabase';
+import { supabase } from '../config/supabase';
+import logger from '../config/logger';
 
 export type LeadStatus = 'lead_novo' | 'lead_avancado' | 'lead_sem_interesse';
 
@@ -35,7 +36,6 @@ export interface MensagemLead {
 // Criar ou atualizar lead
 export async function criarOuAtualizarLead(numero: string, metadata?: Partial<LeadMetadata>): Promise<Lead | null> {
   try {
-    const supabase = getSupabase();
     const numeroLimpo = numero.replace('@s.whatsapp.net', '');
     
     // Verificar se o lead já existe
@@ -94,7 +94,6 @@ export async function criarOuAtualizarLead(numero: string, metadata?: Partial<Le
 // Atualizar status do lead
 export async function atualizarStatusLead(numero: string, status: LeadStatus): Promise<boolean> {
   try {
-    const supabase = getSupabase();
     const numeroLimpo = numero.replace('@s.whatsapp.net', '');
     
     const { error } = await supabase
@@ -118,7 +117,6 @@ export async function atualizarStatusLead(numero: string, status: LeadStatus): P
 // Buscar lead por número
 export async function buscarLead(numero: string): Promise<Lead | null> {
   try {
-    const supabase = getSupabase();
     const numeroLimpo = numero.replace('@s.whatsapp.net', '');
     
     const { data, error } = await supabase
@@ -128,7 +126,7 @@ export async function buscarLead(numero: string): Promise<Lead | null> {
       .single();
 
     if (error) {
-      console.log('Erro ao buscar lead:', error);
+      logger.error(`Erro ao buscar lead: ${error.message}`);
       return null;
     }
     
@@ -140,19 +138,22 @@ export async function buscarLead(numero: string): Promise<Lead | null> {
 }
 
 // Listar todos os leads
-export async function listarLeads(limit: number = 50): Promise<Lead[]> {
+export async function listarLeads(limite: number = 50) {
   try {
-    const supabase = getSupabase();
     const { data, error } = await supabase
       .from('leads')
       .select('*')
-      .order('updated_at', { ascending: false })
-      .limit(limit);
+      .order('created_at', { ascending: false })
+      .limit(limite);
 
-    if (error) throw error;
+    if (error) {
+      logger.error(`Erro ao listar leads: ${error.message}`);
+      return [];
+    }
+
     return data || [];
-  } catch (error) {
-    console.error('Erro ao listar leads:', error);
+  } catch (error: any) {
+    logger.error(`Erro ao listar leads: ${error.message}`);
     return [];
   }
 }
@@ -160,7 +161,6 @@ export async function listarLeads(limit: number = 50): Promise<Lead[]> {
 // Buscar leads por status
 export async function buscarLeadsPorStatus(status: LeadStatus): Promise<Lead[]> {
   try {
-    const supabase = getSupabase();
     const { data, error } = await supabase
       .from('leads')
       .select('*')
@@ -183,7 +183,6 @@ export async function salvarMensagemLead(
   instanceId?: string
 ): Promise<boolean> {
   try {
-    const supabase = getSupabase();
     const numeroLimpo = numero.replace('@s.whatsapp.net', '');
     
     // Buscar ou criar lead
@@ -231,9 +230,8 @@ export async function salvarMensagemLead(
 }
 
 // Buscar mensagens do lead
-export async function buscarMensagensLead(numero: string, limit: number = 50): Promise<MensagemLead[]> {
+export async function buscarMensagensLead(numero: string, limite: number = 50) {
   try {
-    const supabase = getSupabase();
     const numeroLimpo = numero.replace('@s.whatsapp.net', '');
     
     const { data, error } = await supabase
@@ -241,12 +239,16 @@ export async function buscarMensagensLead(numero: string, limit: number = 50): P
       .select('*')
       .eq('numero', numeroLimpo)
       .order('timestamp', { ascending: true })
-      .limit(limit);
+      .limit(limite);
 
-    if (error) throw error;
+    if (error) {
+      logger.error(`Erro ao buscar mensagens: ${error.message}`);
+      return [];
+    }
+
     return data || [];
-  } catch (error) {
-    console.error('Erro ao buscar mensagens do lead:', error);
+  } catch (error: any) {
+    logger.error(`Erro ao buscar mensagens: ${error.message}`);
     return [];
   }
 } 

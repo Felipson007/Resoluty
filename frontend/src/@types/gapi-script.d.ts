@@ -1,1 +1,0 @@
-// (Arquivo vazio, pois não é mais necessário tipagem customizada para gapi-script) 

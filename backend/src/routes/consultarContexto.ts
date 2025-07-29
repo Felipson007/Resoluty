@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { consultarContextoController } from '../services/consultarContextoService';
+import { consultarContexto } from '../services/consultarContextoService';
 
 const router = Router();
 
-router.post('/', consultarContextoController);
+router.post('/consultar-contexto', consultarContexto);
 
 export default router; 

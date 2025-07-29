@@ -1,0 +1,46 @@
+services:
+  # Backend Service
+  - type: web
+    name: resoluty-backend
+    env: node
+    plan: starter
+    buildCommand: cd backend && npm install && npm run build
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_ASSISTANT_ID
+        sync: false
+      - key: GHL_API_KEY
+        sync: false
+      - key: GHL_API_BASE
+        value: https://api.gohighlevel.com/v1
+      - key: WHATSAPP_API_BASE
+        sync: false
+      - key: WHATSAPP_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: GOOGLE_SHEETS_CREDENTIALS
+        sync: false
+    healthCheckPath: /health
+    autoDeploy: true
+
+  # Frontend Service
+  - type: web
+    name: resoluty-frontend
+    env: static
+    plan: starter
+    buildCommand: cd frontwpp && npm install && npm run build
+    startCommand: cd frontwpp && npm run serve
+    envVars:
+      - key: REACT_APP_API_URL
+        value: https://resoluty-backend.onrender.com
+    autoDeploy: true
+    staticPublishPath: ./frontwpp/build

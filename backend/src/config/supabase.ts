@@ -1,62 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
+import { Database } from '../types/supabase';
 import crypto from 'crypto';
 
-// Cliente Supabase lazy
-let supabaseClient: any = null;
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// Função para obter cliente Supabase com verificação lazy
-function getSupabaseClient() {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl) {
-    throw new Error('SUPABASE_URL não definida nas variáveis de ambiente');
-  }
-  if (!supabaseKey) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY não definida nas variáveis de ambiente');
-  }
-
-  return createClient(supabaseUrl, supabaseKey as string);
+if (!supabaseUrl) {
+  throw new Error('SUPABASE_URL não definida nas variáveis de ambiente');
 }
 
-// Função para inicializar Supabase apenas quando necessário
-let isInitialized = false;
-function ensureInitialized() {
-  if (!isInitialized) {
-    // Verificar se as variáveis de ambiente estão disponíveis
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    
-    if (!supabaseUrl || !supabaseKey) {
-      console.warn('Variáveis de ambiente do Supabase não encontradas. Algumas funcionalidades podem não funcionar.');
-      return false;
-    }
-    isInitialized = true;
-  }
-  return true;
+if (!supabaseKey) {
+  throw new Error('SUPABASE_SERVICE_ROLE_KEY não definida nas variáveis de ambiente');
 }
 
-export function getSupabase() {
-  if (!ensureInitialized()) {
-    throw new Error('Supabase não pode ser inicializado. Verifique as variáveis de ambiente.');
-  }
-  
-  if (!supabaseClient) {
-    supabaseClient = getSupabaseClient();
-  }
-  return supabaseClient;
-}
-
-// Para compatibilidade com código existente - não executar na importação
-export const supabase = {
-  // Métodos que serão implementados quando necessário
-  from: () => {
-    throw new Error('Supabase não inicializado. Chame getSupabase() primeiro.');
-  },
-  rpc: () => {
-    throw new Error('Supabase não inicializado. Chame getSupabase() primeiro.');
-  }
-};
+export const supabase = createClient<Database>(supabaseUrl, supabaseKey);
 
 export async function salvarConversaWhatsApp(
   conversationText: string, 
@@ -69,12 +26,11 @@ export async function salvarConversaWhatsApp(
     .digest('hex');
 
   try {
-    const supabaseClient = getSupabase();
     // Tentar usar RPC primeiro, se falhar, usar insert direto
     let result;
     
     try {
-      const { data, error } = await supabaseClient.rpc('insert_whatsapp_conversation', {
+      const { data, error } = await supabase.rpc('insert_whatsapp_conversation', {
         p_conversation_text: conversationText,
         p_conversation_hash: conversationHash,
         p_metadata: {
@@ -91,7 +47,7 @@ export async function salvarConversaWhatsApp(
       console.log('RPC não disponível, usando insert direto:', rpcError);
       
       // Fallback para insert direto
-      const { data, error } = await supabaseClient
+      const { data, error } = await supabase
         .from('whatsapp_conversations')
         .insert({
           conversation_text: conversationText,
@@ -122,8 +78,7 @@ export async function recuperarConversasCliente(
   limite: number = 10
 ) {
   try {
-    const supabaseClient = getSupabase();
-    const { data, error } = await supabaseClient
+    const { data, error } = await supabase
       .from('whatsapp_conversations')
       .select('*')
       .or(`metadata->>cliente_id.eq.${clienteId}`)
@@ -144,8 +99,7 @@ export async function recuperarConversasCliente(
 
 export async function listarContatosRecentes(limite: number = 50) {
   try {
-    const supabaseClient = getSupabase();
-    const { data, error } = await supabaseClient
+    const { data, error } = await supabase
       .from('whatsapp_conversations')
       .select('metadata, created_at')
       .order('created_at', { ascending: false });

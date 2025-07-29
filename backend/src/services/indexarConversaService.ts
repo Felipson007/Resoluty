@@ -1,52 +1,57 @@
-import { Request, Response } from 'express';
-import { supabase } from '../config/supabase';
-import { chunkText } from '../utils/chunking';
 import { OpenAIEmbeddings } from '@langchain/openai';
+import { supabase } from '../config/supabase';
 import logger from '../config/logger';
 
-export const indexarConversaController = async (req: Request, res: Response) => {
+interface RegistroMemoria {
+  cliente_id: string;
+  chunk: string;
+  embedding: number[];
+  metadata: any;
+  data: string;
+}
+
+export async function indexarConversa(
+  clienteId: string,
+  mensagens: Array<{ texto: string; autor: 'usuario' | 'sistema'; timestamp: string }>
+) {
   try {
-    const { clienteId, mensagens, etapa, tipo_interacao } = req.body;
-    if (!clienteId || !mensagens || !Array.isArray(mensagens)) {
-      return res.status(400).json({ error: 'Payload inválido.' });
-    }
-
-    // Junta todas as mensagens em um texto único
-    const rawConversa = mensagens.map((m: any) => m.texto).join(' ');
-    // Chunking real
-    const chunks = await chunkText(rawConversa, 500);
-
-    // Gera embeddings para cada chunk
     const embeddingsModel = new OpenAIEmbeddings({
       apiKey: process.env.OPENAI_API_KEY,
       modelName: 'text-embedding-3-small',
     });
-    const embeddings = await embeddingsModel.embedDocuments(chunks);
 
-    // Monta os registros para o Supabase
-    const registros = chunks.map((chunk, i) => ({
-      cliente_id: clienteId,
-      chunk,
-      embedding: embeddings[i],
-      etapa: etapa || null,
-      tipo_interacao: tipo_interacao || null,
-      historico_raw: rawConversa,
-      data: new Date().toISOString(),
-    }));
+    const registros: RegistroMemoria[] = [];
 
-    const { data, error } = await supabase
+    for (const mensagem of mensagens) {
+      // Gerar embedding para cada mensagem
+      const [embedding] = await embeddingsModel.embedDocuments([mensagem.texto]);
+
+      registros.push({
+        cliente_id: clienteId,
+        chunk: mensagem.texto,
+        embedding,
+        metadata: {
+          autor: mensagem.autor,
+          timestamp: mensagem.timestamp,
+        },
+        data: new Date().toISOString(),
+      });
+    }
+
+    // Inserir registros no Supabase
+    const { error } = await supabase
       .from('memoria_vetorial')
-      .insert(registros);
-
-    logger.info(`Indexação: cliente ${clienteId}, chunks: ${chunks.length}`);
+      .insert(registros as any);
 
     if (error) {
-      logger.error(`Erro ao indexar: ${error.message}`);
-      return res.status(500).json({ error: error.message });
+      logger.error(`Erro ao indexar conversa: ${(error as any).message}`);
+      throw new Error('Erro ao indexar conversa');
     }
-    return res.status(201).json({ data });
-  } catch (err: any) {
-    logger.error(`Erro interno: ${err.message}`);
-    return res.status(500).json({ error: 'Erro interno do servidor.' });
+
+    logger.info(`Conversa indexada para cliente ${clienteId}: ${registros.length} registros`);
+    return true;
+  } catch (error: any) {
+    logger.error(`Erro ao indexar conversa: ${error.message}`);
+    throw error;
   }
-}; 
+} 
