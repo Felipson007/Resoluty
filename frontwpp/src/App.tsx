@@ -91,7 +91,8 @@ function App() {
         minHeight: '100vh',
         backgroundColor: 'background.default',
         display: 'flex',
-        flexDirection: 'column'
+        flexDirection: 'column',
+        overflow: 'hidden',
       }}>
         {renderCurrentView()}
         
