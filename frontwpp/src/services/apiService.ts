@@ -1,7 +1,12 @@
 import axios from 'axios';
+import { API_CONFIG } from '../config/api';
 
 // Configuração da URL da API
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://resoluty.onrender.com';
+// Forçar uso da URL correta do backend
+const API_BASE_URL = API_CONFIG.BASE_URL;
+
+// Log para debug
+console.log('API_BASE_URL:', API_BASE_URL);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
