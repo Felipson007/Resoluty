@@ -119,9 +119,26 @@ export default function WhatsAppConfig() {
       }
     });
 
+    // Escutar QR expirado
+    socket.on('qr-expired', (data: { instanceId: string; number: string }) => {
+      console.log('⏰ QR Code expirado para:', data.instanceId);
+      // Remover QR expirado e aguardar novo
+      setQrCodes(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(data.instanceId);
+        return newMap;
+      });
+      // Fechar modal se estiver aberto para este QR
+      if (selectedQR && selectedQR.instanceId === data.instanceId) {
+        setQrModalOpen(false);
+        setSelectedQR(null);
+      }
+    });
+
     return () => {
       socket.off('qr');
       socket.off('wpp-status');
+      socket.off('qr-expired');
     };
   }, []);
 

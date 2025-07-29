@@ -14,6 +14,7 @@ interface WhatsAppInstance {
   isConnected: boolean;
   sdrMode: Set<string>; // Números em modo SDR (IA desligada)
   enabled: boolean; // Se o WhatsApp está habilitado
+  qrTimeout?: NodeJS.Timeout; // Timeout para detectar expiração do QR
 }
 
 // Armazenar múltiplas instâncias
@@ -176,6 +177,25 @@ async function startBot(instanceId: string, number: string): Promise<void> {
         console.log('QR Code disponível no frontend');
         instance.qrDisplayed = true;
         
+        // Limpar timeout anterior se existir
+        if (instance.qrTimeout) {
+          clearTimeout(instance.qrTimeout);
+        }
+        
+        // Configurar timeout para detectar expiração do QR (45 segundos)
+        instance.qrTimeout = setTimeout(() => {
+          console.log(`QR Code para ${number} (${instanceId}) expirou. Regenerando...`);
+          instance.qrDisplayed = false;
+          
+          // Emitir evento de QR expirado
+          if (socketIO) {
+            socketIO.emit('qr-expired', { 
+              instanceId, 
+              number 
+            });
+          }
+        }, 45000); // 45 segundos (tempo típico de expiração do QR)
+        
         // Emitir QR para frontend
         if (socketIO) {
           socketIO.emit('qr', { 
@@ -193,6 +213,12 @@ async function startBot(instanceId: string, number: string): Promise<void> {
         instance.isConnected = false;
         instance.qrDisplayed = false;
         
+        // Limpar timeout do QR quando desconectar
+        if (instance.qrTimeout) {
+          clearTimeout(instance.qrTimeout);
+          instance.qrTimeout = undefined;
+        }
+        
         if (socketIO) {
           socketIO.emit('wpp-status', { 
             status: 'close', 
@@ -208,6 +234,12 @@ async function startBot(instanceId: string, number: string): Promise<void> {
         console.log(`WhatsApp ${number} conectado!`);
         instance.isConnected = true;
         instance.qrDisplayed = false;
+        
+        // Limpar timeout do QR quando conectar
+        if (instance.qrTimeout) {
+          clearTimeout(instance.qrTimeout);
+          instance.qrTimeout = undefined;
+        }
         
         if (socketIO) {
           socketIO.emit('wpp-status', { 

@@ -143,11 +143,17 @@ const WhatsAppDashboard: React.FC = () => {
       }
     };
 
+    const handleQRExpired = (data: { instanceId: string; number: string }) => {
+      console.log('⏰ QR Code expirado, aguardando novo QR...');
+      // O backend irá automaticamente gerar um novo QR Code
+    };
+
     socketService.on('socket-connected', handleSocketConnected);
     socketService.on('socket-disconnected', handleSocketDisconnected);
     socketService.on('new-message', handleNewMessage);
     socketService.on('status-updated', handleStatusUpdated);
     socketService.on('wpp-status', handleWhatsAppStatusUpdate);
+    socketService.on('qr-expired', handleQRExpired);
 
     return () => {
       socketService.off('socket-connected', handleSocketConnected);
@@ -155,6 +161,7 @@ const WhatsAppDashboard: React.FC = () => {
       socketService.off('new-message', handleNewMessage);
       socketService.off('status-updated', handleStatusUpdated);
       socketService.off('wpp-status', handleWhatsAppStatusUpdate);
+      socketService.off('qr-expired', handleQRExpired);
     };
   }, [selectedContactId]);
 

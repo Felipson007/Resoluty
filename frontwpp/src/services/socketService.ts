@@ -61,6 +61,11 @@ class SocketService {
       this.emit('qr', data);
     });
 
+    this.socket.on('qr-expired', (data: { instanceId: string; number: string }) => {
+      console.log('⏰ QR Code expirado para instância:', data.instanceId);
+      this.emit('qr-expired', data);
+    });
+
     this.socket.on('wpp-status', (data: { status: string; instanceId: string; number: string }) => {
       console.log('📱 Status WhatsApp:', data);
       this.emit('wpp-status', data);
