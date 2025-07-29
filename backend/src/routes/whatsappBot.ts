@@ -34,12 +34,15 @@ const timeoutsPorUsuario: { [key: string]: NodeJS.Timeout } = {};
 async function useSupabaseAuthState(instanceId: string) {
   const writeData = async (data: any, file: string) => {
     try {
+      // Garantir que data seja uma string JSON válida
+      const jsonData = typeof data === 'string' ? data : JSON.stringify(data);
+      
       const { error } = await supabase
         .from('whatsapp_auth')
         .upsert({
           instance_id: instanceId,
           file_name: file,
-          data: JSON.stringify(data),
+          data: jsonData,
           updated_at: new Date().toISOString()
         });
       
@@ -64,7 +67,18 @@ async function useSupabaseAuthState(instanceId: string) {
         return null;
       }
 
-      return JSON.parse(data.data);
+      // Verificar se data.data é uma string válida
+      if (typeof data.data !== 'string') {
+        console.error('Dados de autenticação inválidos para', file);
+        return null;
+      }
+
+      try {
+        return JSON.parse(data.data);
+      } catch (parseError) {
+        console.error('Erro ao fazer parse dos dados de autenticação para', file, parseError);
+        return null;
+      }
     } catch (error) {
       console.error('Erro ao ler dados de autenticação:', error);
       return null;
@@ -254,7 +268,19 @@ export async function removeWhatsApp(instanceId: string): Promise<boolean> {
 
 async function startBot(instanceId: string, number: string): Promise<void> {
   try {
-    const { state, saveCreds } = await useSupabaseAuthState(instanceId);
+    let authState;
+    
+    try {
+      // Tentar usar Supabase primeiro
+      authState = await useSupabaseAuthState(instanceId);
+      console.log(`Usando autenticação Supabase para ${instanceId}`);
+    } catch (error) {
+      console.error('Erro ao usar autenticação Supabase, usando sistema de arquivos local:', error);
+      // Fallback para sistema de arquivos local
+      authState = await useMultiFileAuthState(`auth_info_baileys_${instanceId}`);
+    }
+    
+    const { state, saveCreds } = authState;
     
     const sock = makeWASocket({
       printQRInTerminal: false,
