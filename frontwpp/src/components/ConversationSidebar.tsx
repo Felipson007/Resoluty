@@ -162,9 +162,23 @@ const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
                               }}
                             />
                             
-                            <Typography variant="caption" color="text.secondary">
-                              {contact.phone}
-                            </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Typography variant="caption" color="text.secondary">
+                                {contact.phone}
+                              </Typography>
+                              {contact.number && (
+                                <Chip
+                                  label={`📱 ${contact.number}`}
+                                  size="small"
+                                  sx={{
+                                    backgroundColor: '#25D36620',
+                                    color: '#25D366',
+                                    fontSize: '0.6rem',
+                                    height: '16px',
+                                  }}
+                                />
+                              )}
+                            </Box>
                           </Box>
                         </Box>
                       }

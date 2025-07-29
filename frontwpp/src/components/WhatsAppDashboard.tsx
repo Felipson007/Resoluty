@@ -17,6 +17,8 @@ export interface Contact {
   avatar?: string;
   status: 'bot' | 'humano' | 'aguardando' | 'finalizado';
   unreadCount?: number;
+  instanceId?: string;
+  number?: string;
 }
 
 export interface Message {
@@ -25,6 +27,8 @@ export interface Message {
   timestamp: string;
   autor: 'usuario' | 'sistema';
   contactId: string;
+  instanceId?: string;
+  number?: string;
 }
 
 const WhatsAppDashboard: React.FC = () => {
@@ -61,14 +65,19 @@ const WhatsAppDashboard: React.FC = () => {
       console.log('❌ Socket.IO desconectado');
     };
 
-    const handleNewMessage = (data: { contactId: string; message: Message; lead?: any }) => {
+    const handleNewMessage = (data: { contactId: string; message: Message; lead?: any; instanceId?: string; number?: string }) => {
       console.log('📨 Nova mensagem recebida:', data);
       
       // Adicionar mensagem à lista
       setMessages(prev => {
         const messageExists = prev.some(msg => msg.id === data.message.id);
         if (messageExists) return prev;
-        return [...prev, { ...data.message, contactId: data.contactId }];
+        return [...prev, { 
+          ...data.message, 
+          contactId: data.contactId,
+          instanceId: data.instanceId,
+          number: data.number
+        }];
       });
 
       // Atualizar ou criar contato com informações do lead
@@ -83,6 +92,8 @@ const WhatsAppDashboard: React.FC = () => {
             lastMessage: data.message.texto,
             lastMessageTime: new Date(data.message.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
             unreadCount: data.contactId === selectedContactId ? 0 : (updatedContacts[existingContactIndex].unreadCount || 0) + 1,
+            instanceId: data.instanceId,
+            number: data.number,
             // Atualizar com dados do lead se disponível
             ...(data.lead && {
               name: `Cliente ${data.lead.numero}`,

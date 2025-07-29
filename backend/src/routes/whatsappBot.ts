@@ -1,6 +1,6 @@
 import { makeWASocket, DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
-const qrcode = require('qrcode-terminal');
+import qrcode from 'qrcode-terminal';
 import axios from 'axios';
 import { buscarHistoricoCliente, salvarInteracaoHistorico } from '../services/historicoService';
 import { gerarPromptCerebro } from '../services/cerebroService';
@@ -112,6 +112,11 @@ export async function configureWhatsApp(instanceId: string, number: string, enab
         await startBot(instanceId, number);
       }
     } else {
+      // Verificar limite de 4 WhatsApp
+      if (whatsappInstances.size >= 4) {
+        throw new Error('Limite máximo de 4 WhatsApp atingido. Remova uma instância antes de adicionar outra.');
+      }
+      
       // Criar nova instância
       if (enabled) {
         await startBot(instanceId, number);

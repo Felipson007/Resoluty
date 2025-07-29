@@ -104,9 +104,23 @@ const ChatArea: React.FC<ChatAreaProps> = ({ contact, messages, onStatusChange }
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
               {contact.name}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {contact.phone}
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                {contact.phone}
+              </Typography>
+              {contact.number && (
+                <Chip
+                  label={`📱 ${contact.number}`}
+                  size="small"
+                  sx={{
+                    backgroundColor: '#25D36620',
+                    color: '#25D366',
+                    fontSize: '0.7rem',
+                    height: '20px',
+                  }}
+                />
+              )}
+            </Box>
           </Box>
         </Box>
 
