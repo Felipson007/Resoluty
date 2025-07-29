@@ -1,7 +1,10 @@
 import axios from 'axios';
 
+// Configuração da URL da API
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://resoluty.onrender.com';
+
 const api = axios.create({
-  baseURL: 'http://localhost:4000/api',
+  baseURL: `${API_BASE_URL}/api`,
   timeout: 10000,
 });
 

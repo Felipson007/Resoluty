@@ -33,7 +33,11 @@ import { QRCodeSVG } from 'qrcode.react';
 import io from 'socket.io-client';
 import { ApiService } from '../services/apiService';
 
-const socket = io('http://localhost:4000');
+// Configuração da URL do Socket e API
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'https://resoluty.onrender.com';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://resoluty.onrender.com';
+
+const socket = io(SOCKET_URL);
 
 interface WhatsAppInstance {
   id: string;
@@ -96,7 +100,7 @@ export default function WhatsAppConfig() {
 
   const fetchInstances = async () => {
     try {
-      const response = await fetch('http://localhost:4000/api/whatsapp/instances');
+      const response = await fetch(`${API_BASE_URL}/api/whatsapp/instances`);
       const data = await response.json();
       if (data.ok) {
         setInstances(data.data);

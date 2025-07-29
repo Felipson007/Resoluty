@@ -2,7 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import io from 'socket.io-client';
 
-const socket = io('http://localhost:4000'); // ajuste a URL se necessário
+// Configuração da URL do Socket
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'https://resoluty.onrender.com';
+
+const socket = io(SOCKET_URL);
 
 export default function WhatsAppQR() {
   const [qr, setQr] = useState('');

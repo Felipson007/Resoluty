@@ -298,8 +298,13 @@ async function startBot(instanceId: string, number: string): Promise<void> {
             const promptCerebro = gerarPromptCerebro(historicoFinal);
             let resposta = 'Desculpe, não consegui responder.';
             try {
-              console.log('Chamando IA em http://localhost:4000/webhook/ia com:', promptCerebro);
-              const iaResp = await axios.post('http://localhost:4000/webhook/ia', { message: promptCerebro });
+              // Usar URL de produção ou localhost baseado no ambiente
+              const baseUrl = process.env.NODE_ENV === 'production' 
+                ? 'https://resoluty.onrender.com' 
+                : 'http://localhost:4000';
+              
+              console.log(`Chamando IA em ${baseUrl}/webhook/ia com:`, promptCerebro);
+              const iaResp = await axios.post(`${baseUrl}/webhook/ia`, { message: promptCerebro });
               console.log('Resposta recebida da IA:', iaResp.data);
               resposta = iaResp.data.resposta || resposta;
               // Adiciona resposta ao histórico em memória
