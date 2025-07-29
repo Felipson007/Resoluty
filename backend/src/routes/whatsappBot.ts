@@ -1,16 +1,18 @@
-import { makeWASocket, DisconnectReason, useMultiFileAuthState, AuthenticationState, SignalDataTypeMap, initAuthCreds, proto } from '@whiskeysockets/baileys';
+import { Client, LocalAuth, Message } from 'whatsapp-web.js';
 import { Boom } from '@hapi/boom';
 import axios from 'axios';
 import { buscarHistoricoCliente, salvarInteracaoHistorico } from '../services/historicoService';
 import { gerarPromptCerebro } from '../services/cerebroService';
 import { salvarMensagemLead, buscarLead } from '../services/leadService';
 import { supabase } from '../config/supabase';
+import fs from 'fs';
+import path from 'path';
 
 // Interface para múltiplos WhatsApp
 interface WhatsAppInstance {
   id: string;
   number: string;
-  sock: any;
+  client: Client;
   qrDisplayed: boolean;
   isConnected: boolean;
   sdrMode: Set<string>; // Números em modo SDR (IA desligada)
@@ -30,119 +32,209 @@ export function setSocketIO(io: any) {
 const historicoPorUsuario: { [key: string]: any[] } = {};
 const timeoutsPorUsuario: { [key: string]: NodeJS.Timeout } = {};
 
-// Sistema de autenticação híbrido (Supabase em produção, arquivos locais em desenvolvimento)
-async function useHybridAuthState(instanceId: string) {
-  const isProduction = process.env.NODE_ENV === 'production';
-  
-  if (isProduction) {
-    // Usar Supabase em produção
-    return await useSupabaseAuthState(instanceId);
-  } else {
-    // Usar sistema de arquivos local em desenvolvimento
-    return await useMultiFileAuthState(`auth_info_baileys_${instanceId}`);
-  }
-}
-
 // Sistema de autenticação customizado para Supabase
-async function useSupabaseAuthState(instanceId: string) {
-  const writeData = async (data: any, file: string) => {
-    try {
-      // Garantir que data seja uma string JSON válida
-      const jsonData = typeof data === 'string' ? data : JSON.stringify(data);
-      
-      const { error } = await supabase
-        .from('whatsapp_auth')
-        .upsert({
-          instance_id: instanceId,
-          file_name: file,
-          data: jsonData,
-          updated_at: new Date().toISOString()
-        });
-      
-      if (error) {
-        console.error('Erro ao salvar dados de autenticação:', error);
-      }
-    } catch (error) {
-      console.error('Erro ao salvar dados de autenticação:', error);
-    }
-  };
+class SupabaseAuthStrategy {
+  private instanceId: string;
 
-  const readData = async (file: string) => {
+  constructor(instanceId: string) {
+    this.instanceId = instanceId;
+  }
+
+  async beforeBrowserLaunch() {
+    // Não precisa fazer nada antes do launch
+  }
+
+  async afterBrowserLaunch() {
+    // Não precisa fazer nada após o launch
+  }
+
+  async onAuthenticationNeeded() {
+    // QR code será gerado automaticamente
+  }
+
+  async getAuthInfo() {
     try {
       const { data, error } = await supabase
         .from('whatsapp_auth')
         .select('data')
-        .eq('instance_id', instanceId)
-        .eq('file_name', file)
+        .eq('instance_id', this.instanceId)
+        .eq('file_name', 'session')
         .single();
 
       if (error || !data) {
         return null;
       }
 
-      // Verificar se data.data é uma string válida
-      if (typeof data.data !== 'string') {
-        console.error('Dados de autenticação inválidos para', file);
-        return null;
-      }
-
-      try {
-        return JSON.parse(data.data);
-      } catch (parseError) {
-        console.error('Erro ao fazer parse dos dados de autenticação para', file, parseError);
-        return null;
-      }
+      return JSON.parse(data.data);
     } catch (error) {
       console.error('Erro ao ler dados de autenticação:', error);
       return null;
     }
-  };
+  }
 
-  const removeData = async (file: string) => {
+  async setAuthInfo(authInfo: any) {
+    try {
+      const { error } = await supabase
+        .from('whatsapp_auth')
+        .upsert({
+          instance_id: this.instanceId,
+          file_name: 'session',
+          data: JSON.stringify(authInfo),
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) {
+        console.error('Erro ao salvar dados de autenticação:', error);
+      } else {
+        console.log(`Dados de autenticação salvos para ${this.instanceId}`);
+      }
+    } catch (error) {
+      console.error('Erro ao salvar dados de autenticação:', error);
+    }
+  }
+
+  async deleteAuthInfo() {
     try {
       const { error } = await supabase
         .from('whatsapp_auth')
         .delete()
-        .eq('instance_id', instanceId)
-        .eq('file_name', file);
+        .eq('instance_id', this.instanceId);
 
       if (error) {
-        console.error('Erro ao remover dados de autenticação:', error);
+        console.error('Erro ao deletar dados de autenticação:', error);
+      } else {
+        console.log(`Dados de autenticação deletados para ${this.instanceId}`);
       }
     } catch (error) {
-      console.error('Erro ao remover dados de autenticação:', error);
+      console.error('Erro ao deletar dados de autenticação:', error);
     }
-  };
+  }
+}
 
-  const creds = (await readData('creds')) || initAuthCreds();
+// Sistema de autenticação híbrido
+class HybridAuthStrategy {
+  private instanceId: string;
+  private isProduction: boolean;
 
-  return {
-    state: {
-      creds,
-      keys: {
-        get: async (type: keyof SignalDataTypeMap, ids: string[]) => {
-          const data: { [key: string]: any } = {};
-          for (const id of ids) {
-            const value = await readData(`${type}-${id}`);
-            if (value) {
-              data[id] = value;
-            }
-          }
-          return data;
-        },
-        set: async (data: any) => {
-          const tasks: Promise<void>[] = [];
-          for (const [type, id, value] of data) {
-            tasks.push(writeData(value, `${type}-${id}`));
-          }
-          await Promise.all(tasks);
+  constructor(instanceId: string) {
+    this.instanceId = instanceId;
+    this.isProduction = process.env.NODE_ENV === 'production';
+  }
+
+  async beforeBrowserLaunch() {
+    // Não precisa fazer nada antes do launch
+  }
+
+  async afterBrowserLaunch() {
+    // Não precisa fazer nada após o launch
+  }
+
+  async onAuthenticationNeeded() {
+    // QR code será gerado automaticamente
+  }
+
+  async getAuthInfo() {
+    if (this.isProduction) {
+      // Usar Supabase em produção
+      try {
+        const { data, error } = await supabase
+          .from('whatsapp_auth')
+          .select('data')
+          .eq('instance_id', this.instanceId)
+          .eq('file_name', 'session')
+          .single();
+
+        if (error || !data) {
+          return null;
         }
+
+        return JSON.parse(data.data);
+      } catch (error) {
+        console.error('Erro ao ler dados de autenticação do Supabase:', error);
+        return null;
       }
-    },
-    saveCreds: async () => {
-      await writeData(creds, 'creds');
+    } else {
+      // Usar arquivos locais em desenvolvimento
+      try {
+        const sessionPath = path.join(process.cwd(), '.wwebjs_auth', this.instanceId, 'session.json');
+        if (fs.existsSync(sessionPath)) {
+          const data = fs.readFileSync(sessionPath, 'utf8');
+          return JSON.parse(data);
+        }
+      } catch (error) {
+        console.error('Erro ao ler dados de autenticação local:', error);
+      }
+      return null;
     }
-  };
+  }
+
+  async setAuthInfo(authInfo: any) {
+    if (this.isProduction) {
+      // Salvar no Supabase em produção
+      try {
+        const { error } = await supabase
+          .from('whatsapp_auth')
+          .upsert({
+            instance_id: this.instanceId,
+            file_name: 'session',
+            data: JSON.stringify(authInfo),
+            updated_at: new Date().toISOString()
+          });
+
+        if (error) {
+          console.error('Erro ao salvar dados de autenticação no Supabase:', error);
+        } else {
+          console.log(`Dados de autenticação salvos no Supabase para ${this.instanceId}`);
+        }
+      } catch (error) {
+        console.error('Erro ao salvar dados de autenticação no Supabase:', error);
+      }
+    } else {
+      // Salvar em arquivo local em desenvolvimento
+      try {
+        const authDir = path.join(process.cwd(), '.wwebjs_auth', this.instanceId);
+        if (!fs.existsSync(authDir)) {
+          fs.mkdirSync(authDir, { recursive: true });
+        }
+        const sessionPath = path.join(authDir, 'session.json');
+        fs.writeFileSync(sessionPath, JSON.stringify(authInfo, null, 2));
+        console.log(`Dados de autenticação salvos localmente para ${this.instanceId}`);
+      } catch (error) {
+        console.error('Erro ao salvar dados de autenticação local:', error);
+      }
+    }
+  }
+
+  async deleteAuthInfo() {
+    if (this.isProduction) {
+      // Deletar do Supabase em produção
+      try {
+        const { error } = await supabase
+          .from('whatsapp_auth')
+          .delete()
+          .eq('instance_id', this.instanceId);
+
+        if (error) {
+          console.error('Erro ao deletar dados de autenticação do Supabase:', error);
+        } else {
+          console.log(`Dados de autenticação deletados do Supabase para ${this.instanceId}`);
+        }
+      } catch (error) {
+        console.error('Erro ao deletar dados de autenticação do Supabase:', error);
+      }
+    } else {
+      // Deletar arquivo local em desenvolvimento
+      try {
+        const authDir = path.join(process.cwd(), '.wwebjs_auth', this.instanceId);
+        if (fs.existsSync(authDir)) {
+          fs.rmSync(authDir, { recursive: true, force: true });
+          console.log(`Dados de autenticação deletados localmente para ${this.instanceId}`);
+        }
+      } catch (error) {
+        console.error('Erro ao deletar dados de autenticação local:', error);
+      }
+    }
+  }
 }
 
 export async function sendWhatsAppMessage(to: string, message: string, instanceId?: string): Promise<boolean> {
@@ -150,19 +242,16 @@ export async function sendWhatsAppMessage(to: string, message: string, instanceI
     // Se não especificar instância, usar a primeira disponível
     const instance = instanceId ? whatsappInstances.get(instanceId) : Array.from(whatsappInstances.values()).find(i => i.enabled && i.isConnected);
     
-    if (!instance || !instance.sock.user || !instance.sock.user.id) {
+    if (!instance || !instance.isConnected) {
       console.log('WhatsApp não está conectado ou instância não encontrada');
       return false;
     }
 
-    await instance.sock.sendMessage(to, { text: message });
+    await instance.client.sendMessage(to, message);
     console.log(`Mensagem enviada via ${instance.number}: ${message}`);
     return true;
   } catch (error: any) {
     console.error('Erro ao enviar mensagem WhatsApp:', error.message);
-    if (error.message.includes('Connection Closed')) {
-      console.log('Conexão fechada durante envio. Aguardando reconexão...');
-    }
     return false;
   }
 }
@@ -173,7 +262,7 @@ export async function toggleSDRMode(contactId: string, instanceId: string): Prom
     const instance = whatsappInstances.get(instanceId);
     if (!instance) return false;
 
-    const numero = contactId.replace('@s.whatsapp.net', '');
+    const numero = contactId.replace('@c.us', '');
     
     if (instance.sdrMode.has(numero)) {
       instance.sdrMode.delete(numero);
@@ -219,9 +308,9 @@ export async function configureWhatsApp(instanceId: string, number: string, enab
       existingInstance.number = number;
       existingInstance.enabled = enabled;
       
-      if (!enabled && existingInstance.sock) {
+      if (!enabled && existingInstance.client) {
         // Desconectar se foi desabilitado
-        await existingInstance.sock.logout();
+        await existingInstance.client.destroy();
         existingInstance.isConnected = false;
       } else if (enabled && !existingInstance.isConnected) {
         // Reconectar se foi habilitado
@@ -251,29 +340,15 @@ export async function removeWhatsApp(instanceId: string): Promise<boolean> {
   try {
     const instance = whatsappInstances.get(instanceId);
     if (instance) {
-      if (instance.sock) {
-        await instance.sock.logout();
+      if (instance.client) {
+        await instance.client.destroy();
       }
       whatsappInstances.delete(instanceId);
       
       // Limpar dados de autenticação
       console.log(`WhatsApp removido para ${instanceId} - limpando dados de autenticação`);
-      if (process.env.NODE_ENV === 'production') {
-        try {
-          const { error } = await supabase
-            .from('whatsapp_auth')
-            .delete()
-            .eq('instance_id', instanceId);
-          
-          if (error) {
-            console.error('Erro ao limpar dados de autenticação:', error);
-          } else {
-            console.log(`Dados de autenticação limpos para ${instanceId}`);
-          }
-        } catch (error) {
-          console.error('Erro ao limpar dados de autenticação:', error);
-        }
-      }
+      const authStrategy = new HybridAuthStrategy(instanceId);
+      await authStrategy.deleteAuthInfo();
     }
     return true;
   } catch (error) {
@@ -284,21 +359,36 @@ export async function removeWhatsApp(instanceId: string): Promise<boolean> {
 
 async function startBot(instanceId: string, number: string): Promise<void> {
   try {
-    // Usar sistema híbrido de autenticação
-    const { state, saveCreds } = await useHybridAuthState(instanceId);
+    console.log(`Iniciando WhatsApp ${instanceId} (${number}) usando WhatsApp Web JS`);
     
-    console.log(`Iniciando WhatsApp ${instanceId} (${number}) - Modo: ${process.env.NODE_ENV === 'production' ? 'Produção (Supabase)' : 'Desenvolvimento (Arquivos Locais)'}`);
+    // Criar estratégia de autenticação híbrida
+    const authStrategy = new HybridAuthStrategy(instanceId);
     
-    const sock = makeWASocket({
-      printQRInTerminal: false,
-      auth: state,
-      logger: require('pino')({ level: 'silent' })
+    const client = new Client({
+      authStrategy: new LocalAuth({ 
+        clientId: instanceId,
+        dataPath: process.env.NODE_ENV === 'production' ? undefined : path.join(process.cwd(), '.wwebjs_auth')
+      }),
+      puppeteer: {
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--disable-gpu',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor'
+        ]
+      }
     });
 
     const instance: WhatsAppInstance = {
       id: instanceId,
       number: number,
-      sock,
+      client,
       qrDisplayed: false,
       isConnected: false,
       sdrMode: new Set(),
@@ -307,273 +397,252 @@ async function startBot(instanceId: string, number: string): Promise<void> {
 
     whatsappInstances.set(instanceId, instance);
 
-    // Handler para salvar credenciais quando mudarem
-    sock.ev.on('creds.update', async () => {
+    // Handler para salvar dados de autenticação quando disponíveis
+    client.on('authenticated', async () => {
       try {
-        await saveCreds();
-        console.log(`Credenciais salvas para ${instanceId} (${process.env.NODE_ENV === 'production' ? 'Supabase' : 'Arquivos Locais'})`);
+        console.log(`WhatsApp ${instanceId} autenticado - dados salvos automaticamente`);
       } catch (error) {
-        console.error('Erro ao salvar credenciais:', error);
+        console.error('Erro ao processar autenticação:', error);
       }
     });
 
-    sock.ev.on('connection.update', async (update) => {
-      const { connection, lastDisconnect, qr } = update;
-
-      if (qr && !instance.qrDisplayed) {
-        console.log(`\n=== QR Code para ${number} (${instanceId}) ===`);
-        console.log('QR Code disponível no frontend');
-        instance.qrDisplayed = true;
-        
-        // Limpar timeout anterior se existir
-        if (instance.qrTimeout) {
-          clearTimeout(instance.qrTimeout);
-        }
-        
-        // Configurar timeout para detectar expiração do QR (45 segundos)
-        instance.qrTimeout = setTimeout(() => {
-          console.log(`QR Code para ${number} (${instanceId}) expirou. Regenerando...`);
-          instance.qrDisplayed = false;
-          
-          // Emitir evento de QR expirado
-          if (socketIO) {
-            socketIO.emit('qr-expired', { 
-              instanceId, 
-              number 
-            });
-          }
-        }, 45000); // 45 segundos (tempo típico de expiração do QR)
-        
-        // Emitir QR para frontend
-        if (socketIO) {
-          socketIO.emit('qr', { 
-            qr, 
-            instanceId, 
-            number 
-          });
-        }
+    // Evento QR Code
+    client.on('qr', (qr: string) => {
+      console.log(`\n=== QR Code para ${number} (${instanceId}) ===`);
+      console.log('QR Code disponível no frontend');
+      instance.qrDisplayed = true;
+      
+      // Limpar timeout anterior se existir
+      if (instance.qrTimeout) {
+        clearTimeout(instance.qrTimeout);
       }
-
-      if (connection === 'close') {
-        const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-        console.log(`Conexão ${number} fechada devido a ${lastDisconnect?.error}, reconectando: ${shouldReconnect}`);
-        
-        instance.isConnected = false;
+      
+      // Configurar timeout para detectar expiração do QR (45 segundos)
+      instance.qrTimeout = setTimeout(() => {
+        console.log(`QR Code para ${number} (${instanceId}) expirou. Regenerando...`);
         instance.qrDisplayed = false;
         
-        // Limpar timeout do QR quando desconectar
-        if (instance.qrTimeout) {
-          clearTimeout(instance.qrTimeout);
-          instance.qrTimeout = undefined;
-        }
-        
-        // Se foi logout, limpar dados de autenticação
-        if (!shouldReconnect) {
-          console.log(`Logout realizado para ${instanceId} - limpando dados de autenticação`);
-          if (process.env.NODE_ENV === 'production') {
-            try {
-              const { error } = await supabase
-                .from('whatsapp_auth')
-                .delete()
-                .eq('instance_id', instanceId);
-              
-              if (error) {
-                console.error('Erro ao limpar dados de autenticação após logout:', error);
-              } else {
-                console.log(`Dados de autenticação limpos após logout para ${instanceId}`);
-              }
-            } catch (error) {
-              console.error('Erro ao limpar dados de autenticação após logout:', error);
-            }
-          }
-        }
-        
+        // Emitir evento de QR expirado
         if (socketIO) {
-          socketIO.emit('wpp-status', { 
-            status: 'close', 
+          socketIO.emit('qr-expired', { 
             instanceId, 
             number 
           });
         }
-
-        if (shouldReconnect && instance.enabled) {
-          setTimeout(() => startBot(instanceId, number), 3000);
-        }
-      } else if (connection === 'open') {
-        console.log(`WhatsApp ${number} conectado!`);
-        instance.isConnected = true;
-        instance.qrDisplayed = false;
-        
-        // Limpar timeout do QR quando conectar
-        if (instance.qrTimeout) {
-          clearTimeout(instance.qrTimeout);
-          instance.qrTimeout = undefined;
-        }
-        
-        if (socketIO) {
-          socketIO.emit('wpp-status', { 
-            status: 'open', 
-            instanceId, 
-            number 
-          });
-        }
+      }, 45000); // 45 segundos
+      
+      // Emitir QR para frontend
+      if (socketIO) {
+        socketIO.emit('qr', { 
+          qr, 
+          instanceId, 
+          number 
+        });
       }
     });
 
-    sock.ev.on('messages.upsert', async (m) => {
-      const msg = m.messages[0];
-      if (!msg.key.fromMe && msg.message) {
-        const from = msg.key.remoteJid;
-        const text = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
+    // Evento Ready (conectado)
+    client.on('ready', () => {
+      console.log(`WhatsApp ${number} conectado!`);
+      instance.isConnected = true;
+      instance.qrDisplayed = false;
+      
+      // Limpar timeout do QR quando conectar
+      if (instance.qrTimeout) {
+        clearTimeout(instance.qrTimeout);
+        instance.qrTimeout = undefined;
+      }
+      
+      if (socketIO) {
+        socketIO.emit('wpp-status', { 
+          status: 'open', 
+          instanceId, 
+          number 
+        });
+      }
+    });
 
-        if (!from || !text) return;
+    // Evento Disconnected
+    client.on('disconnected', (reason: string) => {
+      console.log(`WhatsApp ${number} desconectado: ${reason}`);
+      instance.isConnected = false;
+      instance.qrDisplayed = false;
+      
+      // Limpar timeout do QR quando desconectar
+      if (instance.qrTimeout) {
+        clearTimeout(instance.qrTimeout);
+        instance.qrTimeout = undefined;
+      }
+      
+             // Se foi logout, limpar dados de autenticação
+       if (reason === 'NAVIGATION') {
+         console.log(`Logout realizado para ${instanceId} - limpando dados de autenticação`);
+         const authStrategy = new HybridAuthStrategy(instanceId);
+         (async () => {
+           try {
+             await authStrategy.deleteAuthInfo();
+           } catch (error) {
+             console.error('Erro ao limpar dados de autenticação após logout:', error);
+           }
+         })();
+       }
+      
+      if (socketIO) {
+        socketIO.emit('wpp-status', { 
+          status: 'close', 
+          instanceId, 
+          number 
+        });
+      }
 
-        console.log(`Mensagem recebida de ${from} via ${number}: ${text}`);
+      // Tentar reconectar se ainda estiver habilitado
+      if (instance.enabled) {
+        setTimeout(() => startBot(instanceId, number), 3000);
+      }
+    });
 
-        // Buscar informações do lead
-        const lead = await buscarLead(from);
+    // Evento de mensagem recebida
+    client.on('message', async (message: Message) => {
+      if (message.fromMe) return;
 
-        // Salvar mensagem do usuário no sistema de leads
-        await salvarMensagemLead(from, text, 'usuario');
+      const from = message.from;
+      const text = message.body;
 
-        // Emitir evento via Socket.IO para mensagem do usuário
-        if (socketIO) {
-          socketIO.emit('new-message', {
-            contactId: from,
-            message: {
-              texto: text,
+      if (!from || !text) return;
+
+      console.log(`Mensagem recebida de ${from} via ${number}: ${text}`);
+
+      // Buscar informações do lead
+      const lead = await buscarLead(from);
+
+      // Salvar mensagem do usuário no sistema de leads
+      await salvarMensagemLead(from, text, 'usuario');
+
+      // Emitir evento via Socket.IO para mensagem do usuário
+      if (socketIO) {
+        socketIO.emit('new-message', {
+          contactId: from,
+          message: {
+            texto: text,
+            timestamp: new Date().toISOString(),
+            autor: 'usuario'
+          },
+          lead: lead ? {
+            id: lead.id,
+            numero: lead.numero,
+            status: lead.metadata.status,
+            total_mensagens: (lead.metadata as any).total_mensagens,
+            ultima_interacao: (lead.metadata as any).ultima_interacao
+          } : null,
+          instanceId,
+          number
+        });
+      }
+
+      // Acumula histórico estruturado por usuário
+      if (!historicoPorUsuario[from]) historicoPorUsuario[from] = [];
+      historicoPorUsuario[from].push({
+        texto: text,
+        timestamp: new Date().toISOString(),
+        autor: 'usuario',
+      });
+
+      // Salva mensagem do usuário no banco
+      await salvarInteracaoHistorico({
+        cliente_id: from,
+        mensagem_usuario: text,
+        resposta_ia: '',
+        data: new Date().toISOString(),
+        canal: 'whatsapp',
+      });
+
+      // Verificar se está em modo SDR
+      if (instance.sdrMode.has(from.replace('@c.us', ''))) {
+        console.log(`Conversa ${from} está em modo SDR - IA desligada`);
+        return;
+      }
+
+      // Se já existe um timeout, limpa para reiniciar a contagem
+      if (timeoutsPorUsuario[from]) clearTimeout(timeoutsPorUsuario[from]);
+
+      // Inicia/reinicia o timeout de 15 segundos
+      timeoutsPorUsuario[from] = setTimeout(() => {
+        (async () => {
+          // Buscar histórico do banco antes de montar o prompt
+          const { data: historicoDB } = await buscarHistoricoCliente(from, 10);
+          // Montar histórico estruturado para o cérebro
+          const historicoEstruturado = (historicoDB || []).flatMap((item: any) => [
+            { texto: item.mensagem_usuario, timestamp: item.data, autor: 'usuario' },
+            item.resposta_ia ? { texto: item.resposta_ia, timestamp: item.data, autor: 'sistema' } : null
+          ]).filter(Boolean);
+          // Acrescenta mensagens não salvas ainda (caso existam)
+          // Remove possíveis valores nulos do histórico estruturado antes de concatenar
+          const historicoFinal = [
+            ...historicoEstruturado.filter((msg: any) => msg !== null),
+            ...(historicoPorUsuario[from] || [])
+          ];
+          // Gera prompt usando o cérebro
+          const promptCerebro = gerarPromptCerebro(historicoFinal);
+          let resposta = 'Desculpe, não consegui responder.';
+          try {
+            // Usar URL de produção ou localhost baseado no ambiente
+            const baseUrl = process.env.NODE_ENV === 'production' 
+              ? 'https://resoluty.onrender.com' 
+              : 'http://localhost:4000';
+            
+            console.log(`Chamando IA em ${baseUrl}/webhook/ia com:`, promptCerebro);
+            const iaResp = await axios.post(`${baseUrl}/webhook/ia`, { message: promptCerebro });
+            console.log('Resposta recebida da IA:', iaResp.data);
+            resposta = iaResp.data.resposta || resposta;
+            // Adiciona resposta ao histórico em memória
+            historicoPorUsuario[from].push({
+              texto: resposta,
               timestamp: new Date().toISOString(),
-              autor: 'usuario'
-            },
-            lead: lead ? {
-              id: lead.id,
-              numero: lead.numero,
-              status: lead.metadata.status,
-              total_mensagens: (lead.metadata as any).total_mensagens,
-              ultima_interacao: (lead.metadata as any).ultima_interacao
-            } : null,
-            instanceId,
-            number
-          });
-        }
+              autor: 'sistema',
+            });
 
-        // Acumula histórico estruturado por usuário
-        if (!historicoPorUsuario[from]) historicoPorUsuario[from] = [];
-        historicoPorUsuario[from].push({
-          texto: text,
-          timestamp: new Date().toISOString(),
-          autor: 'usuario',
-        });
+            // Salva resposta da IA no banco
+            await salvarInteracaoHistorico({
+              cliente_id: from,
+              mensagem_usuario: '',
+              resposta_ia: resposta,
+              data: new Date().toISOString(),
+              canal: 'whatsapp',
+            });
 
-        // Salva mensagem do usuário no banco
-        await salvarInteracaoHistorico({
-          cliente_id: from,
-          mensagem_usuario: text,
-          resposta_ia: '',
-          data: new Date().toISOString(),
-          canal: 'whatsapp',
-        });
+            // Envia resposta via WhatsApp
+            await instance.client.sendMessage(from, resposta);
 
-        // Verificar se está em modo SDR
-        if (instance.sdrMode.has(from.replace('@s.whatsapp.net', ''))) {
-          console.log(`Conversa ${from} está em modo SDR - IA desligada`);
-          return;
-        }
-
-        // Se já existe um timeout, limpa para reiniciar a contagem
-        if (timeoutsPorUsuario[from]) clearTimeout(timeoutsPorUsuario[from]);
-
-        // Inicia/reinicia o timeout de 15 segundos
-        timeoutsPorUsuario[from] = setTimeout(() => {
-          (async () => {
-            // Buscar histórico do banco antes de montar o prompt
-            const { data: historicoDB } = await buscarHistoricoCliente(from, 10);
-            // Montar histórico estruturado para o cérebro
-            const historicoEstruturado = (historicoDB || []).flatMap((item: any) => [
-              { texto: item.mensagem_usuario, timestamp: item.data, autor: 'usuario' },
-              item.resposta_ia ? { texto: item.resposta_ia, timestamp: item.data, autor: 'sistema' } : null
-            ]).filter(Boolean);
-            // Acrescenta mensagens não salvas ainda (caso existam)
-            // Remove possíveis valores nulos do histórico estruturado antes de concatenar
-            const historicoFinal = [
-              ...historicoEstruturado.filter((msg: any) => msg !== null),
-              ...(historicoPorUsuario[from] || [])
-            ];
-            // Gera prompt usando o cérebro
-            const promptCerebro = gerarPromptCerebro(historicoFinal);
-            let resposta = 'Desculpe, não consegui responder.';
-            try {
-              // Usar URL de produção ou localhost baseado no ambiente
-              const baseUrl = process.env.NODE_ENV === 'production' 
-                ? 'https://resoluty.onrender.com' 
-                : 'http://localhost:4000';
-              
-              console.log(`Chamando IA em ${baseUrl}/webhook/ia com:`, promptCerebro);
-              const iaResp = await axios.post(`${baseUrl}/webhook/ia`, { message: promptCerebro });
-              console.log('Resposta recebida da IA:', iaResp.data);
-              resposta = iaResp.data.resposta || resposta;
-              // Adiciona resposta ao histórico em memória
-              historicoPorUsuario[from].push({
-                texto: resposta,
-                timestamp: new Date().toISOString(),
-                autor: 'sistema',
+            // Emitir evento via Socket.IO para resposta da IA
+            if (socketIO) {
+              socketIO.emit('new-message', {
+                contactId: from,
+                message: {
+                  texto: resposta,
+                  timestamp: new Date().toISOString(),
+                  autor: 'sistema'
+                },
+                instanceId,
+                number
               });
-              // Salva resposta da IA no banco
-              await salvarInteracaoHistorico({
-                cliente_id: from,
-                mensagem_usuario: '',
-                resposta_ia: resposta,
-                data: new Date().toISOString(),
-                canal: 'whatsapp',
-              });
-            } catch (e: any) {
-              console.error('Erro ao chamar IA:', e.message);
             }
-            
-            // Verificar se ainda está conectado antes de enviar
-            if (sock.user && sock.user.id) {
-              try {
-                await sock.sendMessage(from, { text: resposta });
-                
-                // Salvar resposta da IA no sistema de leads
-                await salvarMensagemLead(from, resposta, 'ai');
-                
-                // Emitir evento via Socket.IO para resposta do bot
-                if (socketIO) {
-                  socketIO.emit('new-message', {
-                    contactId: from,
-                    message: {
-                      texto: resposta,
-                      timestamp: new Date().toISOString(),
-                      autor: 'sistema'
-                    },
-                    instanceId,
-                    number
-                  });
-                }
-              } catch (sendError: any) {
-                console.error('Erro ao enviar mensagem WhatsApp:', sendError.message);
-                if (sendError.message.includes('Connection Closed')) {
-                  console.log('Conexão fechada durante envio. Aguardando reconexão...');
-                }
-              }
-            } else {
-              console.log('WhatsApp não está conectado. Mensagem não enviada.');
-            }
-            
-            // Limpa o contexto textual após responder, mas mantém o histórico estruturado
-            // Se quiser limpar tudo, use: historicoPorUsuario[from] = [];
-            delete timeoutsPorUsuario[from];
-          })();
-        }, 15000); // 15 segundos
-      }
+
+            console.log(`Resposta enviada via ${number}: ${resposta}`);
+          } catch (error) {
+            console.error('Erro ao processar mensagem:', error);
+          }
+        })();
+      }, 15000);
     });
+
+    // Inicializar o cliente
+    await client.initialize();
   } catch (error) {
-    console.error(`Erro ao iniciar bot ${instanceId}:`, error);
+    console.error('Erro ao iniciar WhatsApp:', error);
   }
 }
 
-// Inicializar com configuração padrão (vazia)
 export async function initializeWhatsApp(): Promise<void> {
-  console.log('Sistema WhatsApp inicializado. Use a página de configuração para adicionar números.');
+  console.log('Inicializando WhatsApp Web JS...');
+  // Implementar inicialização se necessário
 } 
