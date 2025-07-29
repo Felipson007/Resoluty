@@ -11,7 +11,9 @@
     "build-backend": "cd backend && npm run build",
     "build-frontend": "cd frontwpp && npm run build",
     "start-backend": "cd backend && npm start",
-    "start-frontend": "cd frontwpp && npm run serve"
+    "start-frontend": "cd frontwpp && npm run serve",
+    "dev-backend": "cd backend && npm run dev",
+    "dev-frontend": "cd frontwpp && npm start"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -4,8 +4,8 @@ services:
     name: resoluty-backend
     env: node
     plan: starter
-    buildCommand: npm run install-backend && npm run build-backend
-    startCommand: npm run start-backend
+    buildCommand: cd backend && npm install && npm run build
+    startCommand: cd backend && npm start
     envVars:
       - key: NODE_ENV
         value: production
@@ -37,8 +37,8 @@ services:
     name: resoluty-frontend
     env: static
     plan: starter
-    buildCommand: npm run install-frontend && npm run build-frontend
-    startCommand: npm run start-frontend
+    buildCommand: cd frontwpp && npm install && npm run build
+    startCommand: cd frontwpp && npm run serve
     envVars:
       - key: REACT_APP_API_URL
         value: https://resoluty-backend.onrender.com
