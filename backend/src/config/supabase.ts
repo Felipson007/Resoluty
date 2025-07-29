@@ -5,15 +5,15 @@ import crypto from 'crypto';
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl) {
-  throw new Error('SUPABASE_URL não definida nas variáveis de ambiente');
+// Para desenvolvimento, usar valores padrão se não estiverem definidos
+const finalSupabaseUrl = supabaseUrl || 'https://placeholder.supabase.co';
+const finalSupabaseKey = supabaseKey || 'placeholder-key';
+
+if (!supabaseUrl || !supabaseKey) {
+  console.warn('⚠️ Variáveis de ambiente do Supabase não definidas. Usando valores padrão para desenvolvimento.');
 }
 
-if (!supabaseKey) {
-  throw new Error('SUPABASE_SERVICE_ROLE_KEY não definida nas variáveis de ambiente');
-}
-
-export const supabase = createClient<Database>(supabaseUrl, supabaseKey);
+export const supabase = createClient<Database>(finalSupabaseUrl, finalSupabaseKey);
 
 export async function salvarConversaWhatsApp(
   conversationText: string, 

@@ -1,67 +1,33 @@
 import express from 'express';
+import cors from 'cors';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import path from 'path';
 import { setSocketIO } from './routes/whatsappBot';
-import { updateSessionStatus, getSessionStatus, getAllSessionStatuses } from './services/historicoService';
-import { buscarMensagensLead, buscarLeadsPorStatus, listarLeads, buscarLead, atualizarStatusLead, salvarMensagemLead } from './services/leadService';
-import { getWhatsAppInstances, toggleSDRMode, configureWhatsApp, removeWhatsApp, initializeWhatsApp, sendWhatsAppMessage } from './routes/whatsappBot';
-
-// Configurar dotenv com o caminho correto
-dotenv.config({ path: path.join(__dirname, '..', '.env') });
+import apiRoutes from './routes/api';
 
 const app = express();
 const server = createServer(app);
 
-// Configurar CORS para permitir tanto desenvolvimento quanto produção
+// Configuração CORS mais robusta
 const allowedOrigins = [
   'http://localhost:3000',
   'https://resoluty-frontend.onrender.com',
   'https://resoluty.onrender.com',
   'https://resoluty-frontend.onrender.com/',
-  'https://resoluty.onrender.com/'
+  'https://resoluty.onrender.com/',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173'
 ];
 
-// Configurar Socket.IO com CORS mais permissivo
-const io = new Server(server, {
-  cors: {
-    origin: allowedOrigins,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-    credentials: true,
-    preflightContinue: false,
-    optionsSuccessStatus: 204
-  },
-  transports: ['websocket', 'polling'],
-  allowEIO3: true,
-  pingTimeout: 60000,
-  pingInterval: 25000
-});
-
-// Configurar Socket.IO no WhatsApp Bot
-setSocketIO(io);
-
-// Configurar CORS para Express
-app.use(cors({
-  origin: allowedOrigins,
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"]
-}));
-
-// Middleware adicional para CORS
+// Middleware CORS dinâmico
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  
   if (origin && allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Origin', origin);
   }
-  
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.header('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   
   if (req.method === 'OPTIONS') {
     res.sendStatus(200);
@@ -72,211 +38,122 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
-// Endpoint de saúde
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// Log de inicialização com timestamp
+const startTime = new Date();
+console.log(`🚀 Backend Resoluty iniciando em: ${startTime.toISOString()}`);
+console.log(`📊 Memória inicial: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
+
+// Monitoramento de saúde do processo
+process.on('uncaughtException', (error) => {
+  console.error('❌ Erro não capturado:', error);
+  console.error('📊 Memória no erro:', Math.round(process.memoryUsage().heapUsed / 1024 / 1024), 'MB');
 });
 
-// Endpoint para buscar mensagens de leads
-app.get('/api/leads/:numero/messages', async (req, res) => {
-  const { numero } = req.params;
-  const { limit } = req.query;
-  try {
-    const mensagens = await buscarMensagensLead(numero, limit ? parseInt(limit as string) : 50);
-    res.json({ ok: true, data: mensagens });
-  } catch (error: any) {
-    res.status(500).json({ ok: false, error: error.message });
-  }
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Promise rejeitada não tratada:', reason);
+  console.error('📊 Memória no erro:', Math.round(process.memoryUsage().heapUsed / 1024 / 1024), 'MB');
 });
 
-// Endpoint para listar todos os leads
-app.get('/api/leads', async (req, res) => {
-  try {
-    const leads = await listarLeads(50);
-    res.json({ ok: true, data: leads });
-  } catch (error: any) {
-    res.status(500).json({ ok: false, error: error.message });
-  }
-});
-
-// Endpoint para buscar leads por status
-app.get('/api/leads/status/:status', async (req, res) => {
-  const { status } = req.params;
-  try {
-    const leads = await buscarLeadsPorStatus(status as any);
-    res.json({ ok: true, data: leads });
-  } catch (error: any) {
-    res.status(500).json({ ok: false, error: error.message });
-  }
-});
-
-// Endpoint para atualizar status do lead
-app.put('/api/leads/:numero/status', async (req, res) => {
-  const { numero } = req.params;
-  const { status } = req.body;
-  try {
-    const success = await atualizarStatusLead(numero, status);
-    res.json({ ok: success });
-  } catch (error: any) {
-    res.status(500).json({ ok: false, error: error.message });
-  }
-});
-
-// Endpoint para obter status de todas as instâncias WhatsApp
-app.get('/api/whatsapp/instances', async (req, res) => {
-  try {
-    const instances = await getWhatsAppInstances();
-    res.json({ ok: true, data: instances });
-  } catch (error: any) {
-    res.status(500).json({ ok: false, error: error.message });
-  }
-});
-
-// Endpoint para alternar modo SDR
-app.post('/api/whatsapp/toggle-sdr', async (req, res) => {
-  const { contactId, instanceId } = req.body;
-  try {
-    const success = await toggleSDRMode(contactId, instanceId);
-    res.json({ ok: success });
-  } catch (error: any) {
-    res.status(500).json({ ok: false, error: error.message });
-  }
-});
-
-// Endpoint para configurar WhatsApp
-app.post('/api/whatsapp/configure', async (req, res) => {
-  const { instanceId, number, enabled } = req.body;
+// Monitoramento de memória
+setInterval(() => {
+  const memUsage = process.memoryUsage();
+  const heapUsed = Math.round(memUsage.heapUsed / 1024 / 1024);
+  const heapTotal = Math.round(memUsage.heapTotal / 1024 / 1024);
   
-  console.log(`📱 Configurando WhatsApp: ${instanceId} - ${number} - ${enabled}`);
-  
-  try {
-    const success = await configureWhatsApp(instanceId, number, enabled);
-    console.log(`✅ Configuração WhatsApp ${instanceId}: ${success ? 'sucesso' : 'falha'}`);
-    res.json({ ok: success });
-  } catch (error: any) {
-    console.error(`❌ Erro ao configurar WhatsApp ${instanceId}:`, error);
-    res.status(500).json({ ok: false, error: error.message });
+  if (heapUsed > 500) { // Alertar se usar mais de 500MB
+    console.warn(`⚠️ Alto uso de memória: ${heapUsed}MB / ${heapTotal}MB`);
   }
+}, 30000); // Verificar a cada 30 segundos
+
+// Socket.IO com configuração otimizada
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ['GET', 'POST'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    credentials: true
+  },
+  transports: ['websocket', 'polling'],
+  allowEIO3: true,
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  maxHttpBufferSize: 1e8,
+  connectTimeout: 45000
 });
 
-// Endpoint para remover WhatsApp
-app.delete('/api/whatsapp/:instanceId', async (req, res) => {
-  const { instanceId } = req.params;
-  try {
-    const success = await removeWhatsApp(instanceId);
-    res.json({ ok: success });
-  } catch (error: any) {
-    res.status(500).json({ ok: false, error: error.message });
-  }
-});
-
-// Endpoint para listar contatos (alias para leads)
-app.get('/api/contacts', async (req, res) => {
-  try {
-    const leads = await listarLeads(50);
-    // Converter leads para formato de contatos
-    const contacts = leads.map((lead: any) => ({
-      id: lead.numero,
-      name: lead.nome || `Cliente ${lead.numero}`,
-      phone: lead.numero,
-      lastMessage: lead.ultima_mensagem || 'Última mensagem...',
-      lastMessageTime: lead.ultima_atualizacao || 'Agora',
-      status: lead.status === 'lead_novo' ? 'bot' : 
-              lead.status === 'lead_avancado' ? 'humano' : 
-              lead.status === 'lead_sem_interesse' ? 'finalizado' : 'aguardando',
-      unreadCount: 0
-    }));
-    res.json({ ok: true, data: contacts });
-  } catch (error: any) {
-    res.status(500).json({ ok: false, error: error.message });
-  }
-});
-
-// Endpoint para buscar mensagens de contatos (alias para leads)
-app.get('/api/contacts/:numero/messages', async (req, res) => {
-  const { numero } = req.params;
-  const { limit } = req.query;
-  try {
-    const mensagens = await buscarMensagensLead(numero, limit ? parseInt(limit as string) : 50);
-    res.json({ ok: true, data: mensagens });
-  } catch (error: any) {
-    res.status(500).json({ ok: false, error: error.message });
-  }
-});
-
-// Endpoint para enviar mensagem para contato
-app.post('/api/contacts/:numero/send', async (req, res) => {
-  const { numero } = req.params;
-  const { message } = req.body;
-  try {
-    const success = await sendWhatsAppMessage(numero, message);
-    if (success) {
-      // Salvar mensagem no sistema
-      await salvarMensagemLead(numero, message, 'ai');
-      res.json({ ok: true });
-    } else {
-      res.status(500).json({ ok: false, error: 'Falha ao enviar mensagem' });
-    }
-  } catch (error: any) {
-    res.status(500).json({ ok: false, error: error.message });
-  }
-});
-
-// Socket.IO connection handling
+// Log de conexões Socket.IO
 io.on('connection', (socket) => {
-  console.log('Cliente conectado:', socket.id);
-
-  socket.on('disconnect', () => {
-    console.log('Cliente desconectado:', socket.id);
+  const clientId = socket.id;
+  const timestamp = new Date().toISOString();
+  
+  console.log(`🔌 Cliente conectado: ${clientId} - ${timestamp}`);
+  console.log(`📊 Total de clientes conectados: ${io.engine.clientsCount}`);
+  
+  // Monitorar desconexões
+  socket.on('disconnect', (reason) => {
+    console.log(`🔌 Cliente desconectado: ${clientId} - Motivo: ${reason} - ${new Date().toISOString()}`);
+    console.log(`📊 Total de clientes conectados: ${io.engine.clientsCount}`);
   });
-
-  socket.on('join-room', (room) => {
-    socket.join(room);
-    console.log(`Cliente ${socket.id} entrou na sala: ${room}`);
-  });
-
-  socket.on('leave-room', (room) => {
-    socket.leave(room);
-    console.log(`Cliente ${socket.id} saiu da sala: ${room}`);
+  
+  // Monitorar erros de socket
+  socket.on('error', (error) => {
+    console.error(`❌ Erro no socket ${clientId}:`, error);
   });
 });
 
-// Cleanup on exit
-process.on('SIGINT', () => {
-  console.log('Desligando servidor...');
+// Rota de saúde melhorada
+app.get('/health', (req, res) => {
+  const uptime = process.uptime();
+  const memUsage = process.memoryUsage();
+  const health = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m ${Math.floor(uptime % 60)}s`,
+    memory: {
+      heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024) + 'MB',
+      heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024) + 'MB',
+      external: Math.round(memUsage.external / 1024 / 1024) + 'MB'
+    },
+    clients: io.engine.clientsCount,
+    startTime: startTime.toISOString()
+  };
   
-  // Deletar diretórios auth_info_baileys
-  const fs = require('fs');
-  const path = require('path');
-  
-  try {
-    const authDir = path.join(__dirname, '..', 'auth_info_baileys');
-    if (fs.existsSync(authDir)) {
-      fs.rmSync(authDir, { recursive: true, force: true });
-      console.log('Diretório auth_info_baileys removido');
-    }
-    
-    // Remover diretórios específicos de instâncias
-    for (let i = 1; i <= 3; i++) {
-      const instanceDir = path.join(__dirname, '..', `auth_info_baileys_${i}`);
-      if (fs.existsSync(instanceDir)) {
-        fs.rmSync(instanceDir, { recursive: true, force: true });
-        console.log(`Diretório auth_info_baileys_${i} removido`);
-      }
-    }
-  } catch (error) {
-    console.error('Erro ao remover diretórios:', error);
-  }
-  
-  process.exit(0);
+  res.json(health);
 });
+
+// Rota de teste de conectividade
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    message: 'Backend funcionando!',
+    timestamp: new Date().toISOString(),
+    clients: io.engine.clientsCount
+  });
+});
+
+// Rota de diagnósticos
+app.get('/api/diagnostics', (req, res) => {
+  const { Diagnostics } = require('./utils/diagnostics');
+  const diagnostics = Diagnostics.getInstance();
+  
+  res.json({
+    health: diagnostics.getDiagnosticsReport(),
+    connectivity: diagnostics.testConnectivity()
+  });
+});
+
+// Registrar rotas da API
+app.use('/api', apiRoutes);
 
 const PORT = process.env.PORT || 4000;
 
 server.listen(PORT, () => {
-  console.log(`Backend Resoluty rodando na porta ${PORT}`);
-  
-  // Inicializar WhatsApp
-  initializeWhatsApp();
-}); 
+  console.log(`✅ Backend Resoluty rodando na porta ${PORT}`);
+  console.log(`🌐 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`📊 Memória inicial: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
+});
 
+export { io }; 
+
+
+// Configurar Socket.IO no WhatsApp Bot
+setSocketIO(io);

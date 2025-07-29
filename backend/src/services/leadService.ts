@@ -43,7 +43,7 @@ export async function criarOuAtualizarLead(numero: string, metadata?: Partial<Le
       .from('leads')
       .select('*')
       .eq('numero', numeroLimpo)
-      .single();
+      .maybeSingle();
 
     if (existingLead) {
       // Atualizar lead existente
@@ -58,7 +58,7 @@ export async function criarOuAtualizarLead(numero: string, metadata?: Partial<Le
         })
         .eq('numero', numeroLimpo)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       return data;
@@ -76,11 +76,12 @@ export async function criarOuAtualizarLead(numero: string, metadata?: Partial<Le
       const { data, error } = await supabase
         .from('leads')
         .insert({
+          id: novoMetadata.id,
           numero: numeroLimpo,
           metadata: novoMetadata
         })
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       return data;
@@ -123,7 +124,7 @@ export async function buscarLead(numero: string): Promise<Lead | null> {
       .from('leads')
       .select('*')
       .eq('numero', numeroLimpo)
-      .single();
+      .maybeSingle();
 
     if (error) {
       logger.error(`Erro ao buscar lead: ${error.message}`);

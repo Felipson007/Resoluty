@@ -371,7 +371,21 @@ export async function removeWhatsApp(instanceId: string): Promise<boolean> {
 
 async function startBot(instanceId: string, number: string): Promise<void> {
   try {
-    console.log(`Iniciando WhatsApp ${instanceId} (${number}) usando WhatsApp Web JS`);
+    console.log(`🚀 Iniciando WhatsApp ${instanceId} (${number}) usando WhatsApp Web JS`);
+    
+    // Verificar se já existe uma instância e destruí-la
+    if (whatsappInstances.has(instanceId)) {
+      console.log(`🔌 Reconectando WhatsApp ${instanceId}`);
+      const existingInstance = whatsappInstances.get(instanceId);
+      if (existingInstance?.client) {
+        try {
+          await existingInstance.client.destroy();
+          console.log(`✅ Cliente anterior ${instanceId} destruído com sucesso`);
+        } catch (error) {
+          console.warn(`⚠️ Erro ao destruir cliente anterior ${instanceId}:`, error);
+        }
+      }
+    }
     
     // Criar estratégia de autenticação híbrida
     const authStrategy = new HybridAuthStrategy(instanceId);
@@ -383,7 +397,7 @@ async function startBot(instanceId: string, number: string): Promise<void> {
       }),
       puppeteer: {
         headless: true,
-        timeout: 120000, // 120 segundos de timeout
+        timeout: 180000, // 3 minutos para dar mais tempo
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -408,8 +422,21 @@ async function startBot(instanceId: string, number: string): Promise<void> {
           '--mute-audio',
           '--no-default-browser-check',
           '--disable-component-extensions-with-background-pages',
-          '--disable-ipc-flooding-protection'
-        ]
+          '--disable-ipc-flooding-protection',
+          '--ignore-certificate-errors',
+          '--ignore-ssl-errors',
+          '--ignore-certificate-errors-spki-list',
+          '--metrics-recording-only',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
+          '--disable-ipc-flooding-protection',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor',
+          '--disable-software-rasterizer',
+          '--disable-background-networking'
+        ],
+        ignoreHTTPSErrors: true
       }
     });
 

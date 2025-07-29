@@ -5,6 +5,7 @@ import ConversationSidebar from './ConversationSidebar';
 import ChatArea from './ChatArea';
 import MessageInput from './MessageInput';
 import FilterTabs from './FilterTabs';
+import ConnectivityStatus from './ConnectivityStatus';
 import socketService from '../services/socketService';
 import { ApiService } from '../services/apiService';
 
@@ -572,6 +573,17 @@ const WhatsAppDashboard: React.FC = () => {
       margin: 0,
       padding: 0,
     }}>
+      {/* Status de Conectividade */}
+      <Box sx={{ 
+        position: 'fixed',
+        top: 10,
+        right: 10,
+        zIndex: 1000,
+        width: 300
+      }}>
+        <ConnectivityStatus showDetails={false} />
+      </Box>
+
       {/* Sidebar de Conversas */}
       <Box sx={{ 
         width: '350px', 
