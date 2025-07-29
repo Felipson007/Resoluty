@@ -1,6 +1,7 @@
-import { ChatOpenAI } from "@langchain/openai";
+import OpenAI from 'openai';
 
-const model = new ChatOpenAI({
+const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-  modelName: "gpt-4-1106-preview",
 });
+
+export default openai;
