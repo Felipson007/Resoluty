@@ -26,7 +26,7 @@ async function askAssistant(message: string) {
   let runStatus = run.status;
   while (runStatus !== 'completed' && runStatus !== 'failed') {
     await new Promise((r) => setTimeout(r, 2000));
-    const updatedRun = await openai.beta.threads.runs.retrieve(run.id, { thread_id: thread.id });
+    const updatedRun = await openai.beta.threads.runs.retrieve(thread.id, run.id);
     runStatus = updatedRun.status;
   }
 
