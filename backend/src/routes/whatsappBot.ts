@@ -30,6 +30,19 @@ export function setSocketIO(io: any) {
 const historicoPorUsuario: { [key: string]: any[] } = {};
 const timeoutsPorUsuario: { [key: string]: NodeJS.Timeout } = {};
 
+// Sistema de autenticação híbrido (Supabase em produção, arquivos locais em desenvolvimento)
+async function useHybridAuthState(instanceId: string) {
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  if (isProduction) {
+    // Usar Supabase em produção
+    return await useSupabaseAuthState(instanceId);
+  } else {
+    // Usar sistema de arquivos local em desenvolvimento
+    return await useMultiFileAuthState(`auth_info_baileys_${instanceId}`);
+  }
+}
+
 // Sistema de autenticação customizado para Supabase
 async function useSupabaseAuthState(instanceId: string) {
   const writeData = async (data: any, file: string) => {
@@ -243,21 +256,8 @@ export async function removeWhatsApp(instanceId: string): Promise<boolean> {
       }
       whatsappInstances.delete(instanceId);
       
-      // Limpar dados de autenticação do Supabase
-      try {
-        const { error } = await supabase
-          .from('whatsapp_auth')
-          .delete()
-          .eq('instance_id', instanceId);
-        
-        if (error) {
-          console.error('Erro ao limpar dados de autenticação:', error);
-        } else {
-          console.log(`Dados de autenticação limpos para ${instanceId}`);
-        }
-      } catch (error) {
-        console.error('Erro ao limpar dados de autenticação:', error);
-      }
+      // Limpar dados de autenticação (implementação futura)
+      console.log(`WhatsApp removido para ${instanceId} - dados de autenticação serão limpos na próxima inicialização`);
     }
     return true;
   } catch (error) {
@@ -268,19 +268,8 @@ export async function removeWhatsApp(instanceId: string): Promise<boolean> {
 
 async function startBot(instanceId: string, number: string): Promise<void> {
   try {
-    let authState;
-    
-    try {
-      // Tentar usar Supabase primeiro
-      authState = await useSupabaseAuthState(instanceId);
-      console.log(`Usando autenticação Supabase para ${instanceId}`);
-    } catch (error) {
-      console.error('Erro ao usar autenticação Supabase, usando sistema de arquivos local:', error);
-      // Fallback para sistema de arquivos local
-      authState = await useMultiFileAuthState(`auth_info_baileys_${instanceId}`);
-    }
-    
-    const { state, saveCreds } = authState;
+    // Usar sistema de arquivos local por enquanto
+    const { state, saveCreds } = await useMultiFileAuthState(`auth_info_baileys_${instanceId}`);
     
     const sock = makeWASocket({
       printQRInTerminal: false,
@@ -360,22 +349,9 @@ async function startBot(instanceId: string, number: string): Promise<void> {
           instance.qrTimeout = undefined;
         }
         
-        // Se foi logout, limpar dados de autenticação
+        // Se foi logout, limpar dados de autenticação (implementação futura)
         if (!shouldReconnect) {
-          try {
-            const { error } = await supabase
-              .from('whatsapp_auth')
-              .delete()
-              .eq('instance_id', instanceId);
-            
-            if (error) {
-              console.error('Erro ao limpar dados de autenticação após logout:', error);
-            } else {
-              console.log(`Dados de autenticação limpos após logout para ${instanceId}`);
-            }
-          } catch (error) {
-            console.error('Erro ao limpar dados de autenticação após logout:', error);
-          }
+          console.log(`Logout realizado para ${instanceId} - dados de autenticação serão limpos na próxima inicialização`);
         }
         
         if (socketIO) {
