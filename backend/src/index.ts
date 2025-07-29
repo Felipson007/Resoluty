@@ -21,12 +21,18 @@ const allowedOrigins = [
   'https://resoluty-frontend.onrender.com'
 ];
 
+// Configurar Socket.IO com CORS mais permissivo
 const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true
-  }
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+    preflightContinue: false,
+    optionsSuccessStatus: 204
+  },
+  transports: ['websocket', 'polling'],
+  allowEIO3: true
 });
 
 // Configurar Socket.IO no WhatsApp Bot
@@ -35,7 +41,9 @@ setSocketIO(io);
 // Configurar CORS para Express
 app.use(cors({
   origin: allowedOrigins,
-  credentials: true
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
 app.use(express.json());

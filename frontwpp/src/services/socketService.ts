@@ -13,33 +13,57 @@ class SocketService {
       return;
     }
 
+    console.log('Tentando conectar ao Socket.IO em:', url);
+
     this.socket = io(url, {
       transports: ['websocket', 'polling'],
+      withCredentials: true,
+      timeout: 20000,
+      forceNew: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     });
 
     this.socket.on('connect', () => {
-      console.log('Conectado ao servidor Socket.IO');
+      console.log('✅ Conectado ao servidor Socket.IO');
       this.emit('socket-connected');
     });
 
-    this.socket.on('disconnect', () => {
-      console.log('Desconectado do servidor Socket.IO');
+    this.socket.on('disconnect', (reason) => {
+      console.log('❌ Desconectado do servidor Socket.IO:', reason);
       this.emit('socket-disconnected');
     });
 
+    this.socket.on('connect_error', (error) => {
+      console.error('❌ Erro de conexão Socket.IO:', error);
+      this.emit('socket-error', error);
+    });
+
     this.socket.on('new-message', (data: { contactId: string; message: Message }) => {
-      console.log('Nova mensagem recebida:', data);
+      console.log('📨 Nova mensagem recebida:', data);
       this.emit('new-message', data);
     });
 
     this.socket.on('status-updated', (data: { contactId: string; status: string; attendantId?: string; timestamp: string }) => {
-      console.log('Status atualizado:', data);
+      console.log('🔄 Status atualizado:', data);
       this.emit('status-updated', data);
     });
 
     this.socket.on('contact-typing', (data: { contactId: string; isTyping: boolean }) => {
-      console.log('Status de digitação:', data);
+      console.log('⌨️ Status de digitação:', data);
       this.emit('contact-typing', data);
+    });
+
+    this.socket.on('qr', (data: { qr: string; instanceId: string; number: string }) => {
+      console.log('📱 QR Code recebido para instância:', data.instanceId);
+      this.emit('qr', data);
+    });
+
+    this.socket.on('wpp-status', (data: { status: string; instanceId: string; number: string }) => {
+      console.log('📱 Status WhatsApp:', data);
+      this.emit('wpp-status', data);
     });
   }
 
