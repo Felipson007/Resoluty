@@ -146,10 +146,15 @@ app.post('/api/whatsapp/toggle-sdr', async (req, res) => {
 // Endpoint para configurar WhatsApp
 app.post('/api/whatsapp/configure', async (req, res) => {
   const { instanceId, number, enabled } = req.body;
+  
+  console.log(`📱 Configurando WhatsApp: ${instanceId} - ${number} - ${enabled}`);
+  
   try {
     const success = await configureWhatsApp(instanceId, number, enabled);
+    console.log(`✅ Configuração WhatsApp ${instanceId}: ${success ? 'sucesso' : 'falha'}`);
     res.json({ ok: success });
   } catch (error: any) {
+    console.error(`❌ Erro ao configurar WhatsApp ${instanceId}:`, error);
     res.status(500).json({ ok: false, error: error.message });
   }
 });

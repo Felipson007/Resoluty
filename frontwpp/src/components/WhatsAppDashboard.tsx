@@ -148,12 +148,25 @@ const WhatsAppDashboard: React.FC = () => {
       // O backend irá automaticamente gerar um novo QR Code
     };
 
+    const handleWhatsAppInstancesUpdated = (instances: any[]) => {
+      console.log('📱 Instâncias WhatsApp atualizadas:', instances);
+      
+      // Verificar se há instâncias conectadas
+      const hasConnectedInstances = instances.some(instance => instance.isConnected && instance.enabled);
+      
+      if (hasConnectedInstances) {
+        // Se há instâncias conectadas, carregar contatos
+        loadContacts();
+      }
+    };
+
     socketService.on('socket-connected', handleSocketConnected);
     socketService.on('socket-disconnected', handleSocketDisconnected);
     socketService.on('new-message', handleNewMessage);
     socketService.on('status-updated', handleStatusUpdated);
     socketService.on('wpp-status', handleWhatsAppStatusUpdate);
     socketService.on('qr-expired', handleQRExpired);
+    socketService.on('whatsapp-instances-updated', handleWhatsAppInstancesUpdated);
 
     return () => {
       socketService.off('socket-connected', handleSocketConnected);

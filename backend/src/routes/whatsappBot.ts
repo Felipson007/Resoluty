@@ -301,6 +301,8 @@ export function getWhatsAppInstances(): Array<{id: string, number: string, isCon
 // Função para configurar WhatsApp
 export async function configureWhatsApp(instanceId: string, number: string, enabled: boolean): Promise<boolean> {
   try {
+    console.log(`🔧 Configurando WhatsApp ${instanceId}: ${number} - ${enabled ? 'habilitado' : 'desabilitado'}`);
+    
     const existingInstance = whatsappInstances.get(instanceId);
     
     if (existingInstance) {
@@ -310,10 +312,12 @@ export async function configureWhatsApp(instanceId: string, number: string, enab
       
       if (!enabled && existingInstance.client) {
         // Desconectar se foi desabilitado
+        console.log(`🔌 Desconectando WhatsApp ${instanceId}`);
         await existingInstance.client.destroy();
         existingInstance.isConnected = false;
       } else if (enabled && !existingInstance.isConnected) {
         // Reconectar se foi habilitado
+        console.log(`🔌 Reconectando WhatsApp ${instanceId}`);
         await startBot(instanceId, number);
       }
     } else {
@@ -324,13 +328,21 @@ export async function configureWhatsApp(instanceId: string, number: string, enab
       
       // Criar nova instância
       if (enabled) {
+        console.log(`🆕 Criando nova instância WhatsApp ${instanceId}`);
         await startBot(instanceId, number);
       }
     }
     
+    console.log(`✅ WhatsApp ${instanceId} configurado com sucesso`);
+    
+    // Emitir atualização das instâncias
+    if (socketIO) {
+      socketIO.emit('whatsapp-instances-updated', getWhatsAppInstances());
+    }
+    
     return true;
   } catch (error) {
-    console.error('Erro ao configurar WhatsApp:', error);
+    console.error(`❌ Erro ao configurar WhatsApp ${instanceId}:`, error);
     return false;
   }
 }
@@ -371,6 +383,7 @@ async function startBot(instanceId: string, number: string): Promise<void> {
       }),
       puppeteer: {
         headless: true,
+        timeout: 60000, // 60 segundos de timeout
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -380,7 +393,10 @@ async function startBot(instanceId: string, number: string): Promise<void> {
           '--no-zygote',
           '--disable-gpu',
           '--disable-web-security',
-          '--disable-features=VizDisplayCompositor'
+          '--disable-features=VizDisplayCompositor',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding'
         ]
       }
     });
@@ -459,6 +475,9 @@ async function startBot(instanceId: string, number: string): Promise<void> {
           instanceId, 
           number 
         });
+        
+        // Emitir atualização das instâncias
+        socketIO.emit('whatsapp-instances-updated', getWhatsAppInstances());
       }
     });
 
@@ -474,18 +493,29 @@ async function startBot(instanceId: string, number: string): Promise<void> {
         instance.qrTimeout = undefined;
       }
       
-             // Se foi logout, limpar dados de autenticação
-       if (reason === 'NAVIGATION') {
-         console.log(`Logout realizado para ${instanceId} - limpando dados de autenticação`);
-         const authStrategy = new HybridAuthStrategy(instanceId);
-         (async () => {
-           try {
-             await authStrategy.deleteAuthInfo();
-           } catch (error) {
-             console.error('Erro ao limpar dados de autenticação após logout:', error);
-           }
-         })();
-       }
+      if (socketIO) {
+        socketIO.emit('wpp-status', { 
+          status: 'disconnected', 
+          instanceId, 
+          number 
+        });
+        
+        // Emitir atualização das instâncias
+        socketIO.emit('whatsapp-instances-updated', getWhatsAppInstances());
+      }
+      
+      // Se foi logout, limpar dados de autenticação
+      if (reason === 'NAVIGATION') {
+        console.log(`Logout realizado para ${instanceId} - limpando dados de autenticação`);
+        const authStrategy = new HybridAuthStrategy(instanceId);
+        (async () => {
+          try {
+            await authStrategy.deleteAuthInfo();
+          } catch (error) {
+            console.error('Erro ao limpar dados de autenticação após logout:', error);
+          }
+        })();
+      }
       
       if (socketIO) {
         socketIO.emit('wpp-status', { 

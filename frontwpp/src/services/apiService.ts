@@ -10,7 +10,10 @@ console.log('API_BASE_URL:', API_BASE_URL);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 30000, // Aumentar timeout para 30 segundos
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
 export interface Contact {
@@ -33,6 +36,29 @@ export interface Message {
 }
 
 export class ApiService {
+  // Função de retry para operações que podem falhar
+  private static async retryOperation<T>(
+    operation: () => Promise<T>,
+    maxRetries: number = 3,
+    delay: number = 1000
+  ): Promise<T> {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await operation();
+      } catch (error: any) {
+        console.warn(`Tentativa ${attempt} falhou:`, error.message);
+        
+        if (attempt === maxRetries) {
+          throw error;
+        }
+        
+        // Aguardar antes da próxima tentativa
+        await new Promise(resolve => setTimeout(resolve, delay * attempt));
+      }
+    }
+    throw new Error('Todas as tentativas falharam');
+  }
+
   // Buscar todos os contatos
   static async getContacts(): Promise<Contact[]> {
     try {
@@ -277,15 +303,17 @@ export class ApiService {
   // Configurar WhatsApp
   static async configureWhatsApp(instanceId: string, number: string, enabled: boolean): Promise<boolean> {
     try {
-      const response = await api.post('/api/whatsapp/configure', {
-        instanceId,
-        number,
-        enabled
-      });
-      
-      return response.data.ok === true;
+      return await this.retryOperation(async () => {
+        const response = await api.post('/api/whatsapp/configure', {
+          instanceId,
+          number,
+          enabled
+        });
+        
+        return response.data.ok === true;
+      }, 3, 2000); // 3 tentativas com delay de 2 segundos
     } catch (error) {
-      console.error('Erro ao configurar WhatsApp:', error);
+      console.error('Erro ao configurar WhatsApp após todas as tentativas:', error);
       return false;
     }
   }

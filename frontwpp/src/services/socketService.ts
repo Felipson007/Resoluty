@@ -70,6 +70,11 @@ class SocketService {
       console.log('📱 Status WhatsApp:', data);
       this.emit('wpp-status', data);
     });
+
+    this.socket.on('whatsapp-instances-updated', (data: any[]) => {
+      console.log('📱 Instâncias WhatsApp atualizadas:', data);
+      this.emit('whatsapp-instances-updated', data);
+    });
   }
 
   disconnect() {
