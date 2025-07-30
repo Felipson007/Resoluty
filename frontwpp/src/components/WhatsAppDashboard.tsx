@@ -196,7 +196,7 @@ const WhatsAppDashboard: React.FC = () => {
       if (status.connected) {
         setIsConnecting(false);
         setQrCode('');
-        // Recarregar dados quando WhatsApp conectar
+        // Recarregar dados quando WhatsApp conectar e redirecionar para dashboard
         setTimeout(() => {
           initializeApp();
         }, 1000);
@@ -212,12 +212,12 @@ const WhatsAppDashboard: React.FC = () => {
       console.log('📱 Carregando WhatsApp:', data.percent, data.message);
       setLoadingProgress(data);
       
-      // Se chegou a 100%, marcar como sincronizado
+      // Se chegou a 100%, marcar como sincronizado e redirecionar
       if (data.percent === 100) {
         setTimeout(() => {
           setIsSynchronized(true);
           setLoadingProgress(null);
-          // Recarregar dados após sincronização
+          // Recarregar dados após sincronização e redirecionar para dashboard
           initializeApp();
         }, 2000);
       }
@@ -518,8 +518,8 @@ const WhatsAppDashboard: React.FC = () => {
     );
   }
 
-  // Verificar se há WhatsApp conectado
-  if (!whatsappStatus.connected && !loading) {
+  // Verificar se há WhatsApp conectado - mostrar dashboard se conectado ou sincronizado
+  if (!whatsappStatus.connected && !loading && !isSynchronized && !loadingProgress) {
     return (
       <Box sx={{ 
         minHeight: '100vh',
