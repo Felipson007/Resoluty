@@ -52,6 +52,8 @@ const WhatsAppDashboard: React.FC = () => {
   });
   const [aiStatus, setAiStatus] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState<{ percent: number; message: string } | null>(null);
+  const [isSynchronized, setIsSynchronized] = useState(false);
 
   // Inicialização
   useEffect(() => {
@@ -202,7 +204,17 @@ const WhatsAppDashboard: React.FC = () => {
 
     const handleWhatsAppLoading = (data: { percent: number; message: string }) => {
       console.log('📱 Carregando WhatsApp:', data.percent, data.message);
-      // Você pode adicionar um estado para mostrar o progresso se quiser
+      setLoadingProgress(data);
+      
+      // Se chegou a 100%, marcar como sincronizado
+      if (data.percent === 100) {
+        setTimeout(() => {
+          setIsSynchronized(true);
+          setLoadingProgress(null);
+          // Recarregar dados após sincronização
+          initializeApp();
+        }, 2000);
+      }
     };
 
     socketService.on('socket-connected', handleSocketConnected);
@@ -567,6 +579,49 @@ const WhatsAppDashboard: React.FC = () => {
               <CircularProgress size={40} sx={{ mb: 2 }} />
               <Typography variant="body1" color="text.secondary">
                 Conectando WhatsApp...
+              </Typography>
+            </Box>
+          )}
+
+          {/* Progresso de carregamento */}
+          {loadingProgress && (
+            <Box sx={{ textAlign: 'center', mb: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
+                <CircularProgress 
+                  variant="determinate" 
+                  value={loadingProgress.percent} 
+                  size={60}
+                  sx={{ mr: 2 }}
+                />
+                <Typography variant="h6" color="primary">
+                  {loadingProgress.percent}%
+                </Typography>
+              </Box>
+              <Typography variant="body2" color="text.secondary">
+                {loadingProgress.message}
+              </Typography>
+            </Box>
+          )}
+
+          {/* Sincronizado */}
+          {isSynchronized && (
+            <Box sx={{ textAlign: 'center', mb: 3 }}>
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                mb: 2,
+                color: 'success.main'
+              }}>
+                <Typography variant="h6" sx={{ mr: 1 }}>
+                  ✅
+                </Typography>
+                <Typography variant="h6" color="success.main">
+                  Sincronizado!
+                </Typography>
+              </Box>
+              <Typography variant="body2" color="text.secondary">
+                Número: {whatsappStatus.number}
               </Typography>
             </Box>
           )}

@@ -6,6 +6,7 @@ import { Client, LocalAuth } from 'whatsapp-web.js';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import { gerarPromptCerebro } from './services/cerebroService';
+import { listarLeads, buscarLeadsPorStatus } from './services/leadService';
 
 dotenv.config();
 
@@ -374,15 +375,26 @@ app.get('/api/conversations/:contact/messages', (req, res) => {
   res.json(messages);
 });
 
-// Leads endpoints (simulados)
-app.get('/api/leads', (req, res) => {
-  res.json(mockLeads);
+// Leads endpoints (do banco de dados)
+app.get('/api/leads', async (req, res) => {
+  try {
+    const leads = await listarLeads(50);
+    res.json(leads);
+  } catch (error) {
+    console.error('❌ Erro ao buscar leads:', error);
+    res.status(500).json({ error: 'Erro ao buscar leads' });
+  }
 });
 
-app.get('/api/leads/status/:status', (req, res) => {
-  const { status } = req.params;
-  const filteredLeads = mockLeads.filter(lead => lead.status === status);
-  res.json(filteredLeads);
+app.get('/api/leads/status/:status', async (req, res) => {
+  try {
+    const { status } = req.params;
+    const leads = await buscarLeadsPorStatus(status as any);
+    res.json(leads);
+  } catch (error) {
+    console.error('❌ Erro ao buscar leads por status:', error);
+    res.status(500).json({ error: 'Erro ao buscar leads por status' });
+  }
 });
 
 // Health check
