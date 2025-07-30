@@ -6,7 +6,7 @@ import { Client, LocalAuth } from 'whatsapp-web.js';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import { gerarPromptCerebro } from './services/cerebroService';
-import { listarLeads, buscarLeadsPorStatus, atualizarStatusLead } from './services/leadService';
+import { listarLeads, buscarLeadsPorStatus, atualizarStatusLead, buscarLead } from './services/leadService';
 import { supabase } from './config/supabase';
 
 dotenv.config();
@@ -179,15 +179,26 @@ async function initializeWhatsApp() {
       timestamp: message.timestamp
     });
 
-    // IA responder automaticamente (com debounce de 30s)
+    // IA responder automaticamente (com debounce de 30s) - apenas se status permitir
     if (isAIActive && !msg.fromMe) {
-      if (aiReplyTimeouts[msg.from]) {
-        clearTimeout(aiReplyTimeouts[msg.from]);
+      // Verificar status do lead antes de responder
+      const numeroCliente = msg.from.replace('@c.us', '');
+      const lead = await buscarLead(numeroCliente);
+      
+      // Só responder se o lead não existir (novo) ou se o status for 'lead_novo'
+      const podeResponder = !lead || lead.metadata.status === 'lead_novo';
+      
+      if (podeResponder) {
+        if (aiReplyTimeouts[msg.from]) {
+          clearTimeout(aiReplyTimeouts[msg.from]);
+        }
+        aiReplyTimeouts[msg.from] = setTimeout(async () => {
+          await handleAIAutoReply(msg);
+          delete aiReplyTimeouts[msg.from];
+        }, 30000);
+      } else {
+        console.log(`🤖 IA não responderá para ${numeroCliente} - status: ${lead.metadata.status}`);
       }
-      aiReplyTimeouts[msg.from] = setTimeout(async () => {
-        await handleAIAutoReply(msg);
-        delete aiReplyTimeouts[msg.from];
-      }, 30000);
     }
   });
 

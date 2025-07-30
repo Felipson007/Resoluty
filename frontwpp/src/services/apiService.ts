@@ -89,7 +89,10 @@ class ApiService {
   // Update lead status
   async updateLeadStatus(numero: string, status: string) {
     try {
-      const response = await this.api.put(`/api/leads/${numero}/status`, { status });
+      // Remover @c.us se presente para o endpoint de leads
+      const cleanNumero = numero.replace('@c.us', '');
+      
+      const response = await this.api.put(`/api/leads/${cleanNumero}/status`, { status });
       return response.data;
     } catch (error) {
       console.error('❌ Erro ao atualizar status do lead:', error);
