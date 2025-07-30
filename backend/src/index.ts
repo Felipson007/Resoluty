@@ -8,6 +8,8 @@ import dotenv from 'dotenv';
 import { gerarPromptCerebro } from './services/cerebroService';
 import { listarLeads, buscarLeadsPorStatus, atualizarStatusLead, buscarLead } from './services/leadService';
 import { supabase } from './config/supabase';
+import fs from 'fs';
+import path from 'path';
 
 dotenv.config();
 
@@ -46,6 +48,63 @@ let lastEmittedStatus = { connected: false, number: '' };
 // Controle de debounce para IA por número
 const aiReplyTimeouts: { [key: string]: NodeJS.Timeout } = {};
 
+// Funções para persistência da sessão WhatsApp
+async function salvarSessaoWhatsApp() {
+  try {
+    const authPath = './.wwebjs_auth';
+    if (fs.existsSync(authPath)) {
+      const authData = fs.readdirSync(authPath);
+      const sessionData = authData.map(file => ({
+        filename: file,
+        content: fs.readFileSync(path.join(authPath, file)).toString('base64')
+      }));
+      
+      // Salvar no Supabase
+      await supabase.from('whatsapp_sessions').upsert({
+        id: 'resoluty-ai',
+        session_data: sessionData,
+        updated_at: new Date().toISOString()
+      });
+      
+      console.log('💾 Sessão WhatsApp salva no banco');
+    }
+  } catch (error) {
+    console.error('❌ Erro ao salvar sessão WhatsApp:', error);
+  }
+}
+
+async function carregarSessaoWhatsApp() {
+  try {
+    const { data, error } = await supabase
+      .from('whatsapp_sessions')
+      .select('*')
+      .eq('id', 'resoluty-ai')
+      .single();
+    
+    if (data && data.session_data) {
+      const authPath = './.wwebjs_auth';
+      
+      // Criar diretório se não existir
+      if (!fs.existsSync(authPath)) {
+        fs.mkdirSync(authPath, { recursive: true });
+      }
+      
+      // Restaurar arquivos da sessão
+      data.session_data.forEach((file: any) => {
+        const filePath = path.join(authPath, file.filename);
+        const content = Buffer.from(file.content, 'base64');
+        fs.writeFileSync(filePath, content);
+      });
+      
+      console.log('📱 Sessão WhatsApp carregada do banco');
+      return true;
+    }
+  } catch (error) {
+    console.error('❌ Erro ao carregar sessão WhatsApp:', error);
+  }
+  return false;
+}
+
 // Simular dados de leads para compatibilidade
 const mockLeads = [
   {
@@ -59,6 +118,9 @@ const mockLeads = [
 // Inicializar WhatsApp
 async function initializeWhatsApp() {
   console.log('🚀 Iniciando WhatsApp...');
+  
+  // Tentar carregar sessão salva
+  await carregarSessaoWhatsApp();
   
   whatsappClient = new Client({
     authStrategy: new LocalAuth({ 
@@ -91,6 +153,8 @@ async function initializeWhatsApp() {
 
   whatsappClient.on('authenticated', () => {
     console.log('🔐 WhatsApp autenticado!');
+    // Salvar sessão no banco
+    salvarSessaoWhatsApp();
     // Aguardar um pouco para o WhatsApp carregar completamente
     setTimeout(() => {
       const status = { 
@@ -104,6 +168,8 @@ async function initializeWhatsApp() {
 
   whatsappClient.on('ready', () => {
     console.log('✅ WhatsApp conectado!');
+    // Salvar sessão novamente quando estiver pronto
+    salvarSessaoWhatsApp();
     const status = { 
       connected: true, 
       number: whatsappClient?.info?.wid?.user || 'Número não disponível' 
@@ -558,6 +624,17 @@ app.get('/api/whatsapp/status', async (req, res) => {
   } catch (error: any) {
     console.error('❌ Erro ao verificar status do WhatsApp:', error?.message || error);
     res.status(500).json({ error: 'Erro ao verificar status do WhatsApp' });
+  }
+});
+
+// Salvar sessão WhatsApp manualmente
+app.post('/api/whatsapp/save-session', async (req, res) => {
+  try {
+    await salvarSessaoWhatsApp();
+    res.json({ success: true, message: 'Sessão salva com sucesso' });
+  } catch (error: any) {
+    console.error('❌ Erro ao salvar sessão:', error?.message || error);
+    res.status(500).json({ error: 'Erro ao salvar sessão' });
   }
 });
 
