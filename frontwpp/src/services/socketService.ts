@@ -2,7 +2,7 @@ import { io, Socket } from 'socket.io-client';
 import { Message, Contact } from '../components/WhatsAppDashboard';
 
 // Configuração da URL do Socket
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:4000';
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'https://resoluty.onrender.com';
 
 class SocketService {
   private socket: Socket | null = null;

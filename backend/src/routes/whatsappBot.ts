@@ -666,7 +666,7 @@ async function startBot(instanceId: string, number: string): Promise<void> {
             // Usar URL de produção ou localhost baseado no ambiente
             const baseUrl = process.env.NODE_ENV === 'production' 
               ? 'https://resoluty.onrender.com' 
-              : 'http://localhost:4000';
+              : 'https://resoluty.onrender.com';
             
             console.log(`Chamando IA em ${baseUrl}/webhook/ia com:`, promptCerebro);
             const iaResp = await axios.post(`${baseUrl}/webhook/ia`, { message: promptCerebro });

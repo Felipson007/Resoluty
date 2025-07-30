@@ -654,7 +654,7 @@ const WhatsAppDashboard: React.FC = () => {
                   checked={aiStatus}
                   onChange={() => {
                     // Toggle IA via API
-                                         fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:4000'}/api/ai/toggle`, {
+                                         fetch(`${process.env.REACT_APP_API_URL || 'https://resoluty.onrender.com'}/api/ai/toggle`, {
                       method: 'POST'
                     });
                   }}
