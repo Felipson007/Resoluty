@@ -169,7 +169,7 @@ async function initializeWhatsApp() {
   }
 }
 
-// IA responder automaticamente
+// IA responder automaticamente usando OpenAI Assistant
 async function handleAIAutoReply(msg: any) {
   try {
     console.log('🤖 IA processando mensagem...');
@@ -181,25 +181,38 @@ async function handleAIAutoReply(msg: any) {
       `${m.isFromMe ? 'IA' : 'Cliente'}: ${m.body}`
     ).join('\n');
 
-    const prompt = `Você é uma assistente virtual profissional e amigável. 
-    
-Contexto da conversa:
-${context}
+    const userMessage = `${context}\n\nCliente: ${msg.body}`;
 
-Responda de forma natural, profissional e útil. Seja concisa mas completa. 
-Use emojis ocasionalmente para ser mais amigável.`;
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        { role: "system", content: "Você é uma assistente virtual profissional e amigável." },
-        { role: "user", content: prompt }
-      ],
-      max_tokens: 200,
-      temperature: 0.7
+    // Criar um novo thread para cada conversa
+    const thread = await openai.beta.threads.create();
+    await openai.beta.threads.messages.create(thread.id, {
+      role: 'user',
+      content: userMessage,
     });
 
-    const aiResponse = completion.choices[0]?.message?.content || 'Desculpe, não consegui processar sua mensagem.';
+    const run = await openai.beta.threads.runs.create(thread.id, {
+      assistant_id: process.env.OPENAI_ASSISTANT_ID!,
+    });
+
+    // Poll até o run ser completado
+    let runStatus = run.status;
+    while (runStatus !== 'completed' && runStatus !== 'failed') {
+      await new Promise((r) => setTimeout(r, 2000));
+      const updatedRun = await openai.beta.threads.runs.retrieve(thread.id, run.id);
+      runStatus = updatedRun.status;
+    }
+
+    const messages = await openai.beta.threads.messages.list(thread.id);
+    const lastMessage = messages.data.find((msg) => msg.role === 'assistant');
+    
+    // Busca o primeiro bloco de texto do conteúdo
+    let aiResponse = 'Desculpe, não consegui responder.';
+    if (lastMessage && Array.isArray(lastMessage.content)) {
+      const textBlock = (lastMessage.content as any[]).find((c) => c.type === 'text' && c.text && typeof c.text.value === 'string');
+      if (textBlock) {
+        aiResponse = textBlock.text.value;
+      }
+    }
 
     await msg.reply(aiResponse);
     console.log(`🤖 IA respondeu: ${aiResponse}`);
