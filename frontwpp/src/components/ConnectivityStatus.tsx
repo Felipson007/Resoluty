@@ -37,25 +37,36 @@ export default function ConnectivityStatus({ showDetails = false }: Connectivity
 
   const connectivityTest = ConnectivityTest.getInstance();
 
-  const runTest = async () => {
-    setTesting(true);
+  const runConnectivityTest = async () => {
     try {
+      setStatus('loading');
       const result = await connectivityTest.runAllTests();
       setLastTest(result);
-      setStatus(result.summary.overallStatus as 'healthy' | 'warning' | 'critical' | 'loading');
+      
+      // Determinar status baseado no successRate
+      const successRate = result.summary.successRate;
+      let overallStatus: 'healthy' | 'warning' | 'critical';
+      
+      if (successRate >= 75) {
+        overallStatus = 'healthy';
+      } else if (successRate >= 50) {
+        overallStatus = 'warning';
+      } else {
+        overallStatus = 'critical';
+      }
+      
+      setStatus(overallStatus);
     } catch (error) {
       console.error('Erro ao testar conectividade:', error);
       setStatus('critical');
-    } finally {
-      setTesting(false);
     }
   };
 
   useEffect(() => {
-    runTest();
+    runConnectivityTest();
     
     // Testar a cada 2 minutos
-    const interval = setInterval(runTest, 120000);
+    const interval = setInterval(runConnectivityTest, 120000);
     
     return () => clearInterval(interval);
   }, []);
@@ -120,7 +131,7 @@ export default function ConnectivityStatus({ showDetails = false }: Connectivity
             <Tooltip title="Testar conectividade">
               <IconButton
                 size="small"
-                onClick={runTest}
+                onClick={runConnectivityTest}
                 disabled={testing}
                 sx={{ color: 'primary.main' }}
               >

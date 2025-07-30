@@ -47,7 +47,7 @@ export class ConnectivityTest {
 
   private async testBackendHealth() {
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'https://resoluty.onrender.com'}/health`);
+      const response = await fetch('https://resoluty.onrender.com/health');
       const data = await response.json();
       
       return {
@@ -68,7 +68,7 @@ export class ConnectivityTest {
   private async testSocketConnection() {
     return new Promise((resolve, reject) => {
       const socket = require('socket.io-client');
-      const io = socket(process.env.REACT_APP_SOCKET_URL || 'https://resoluty.onrender.com');
+      const io = socket('https://resoluty.onrender.com');
       
       const timeout = setTimeout(() => {
         io.disconnect();
@@ -103,13 +103,13 @@ export class ConnectivityTest {
 
   private async testWhatsAppInstances() {
     try {
-      const instances = await ApiService.getWhatsAppInstances();
+      const response = await fetch('https://resoluty.onrender.com/api/whatsapp/instances');
+      const data = await response.json();
       
       return {
         status: 'success',
-        instances: instances.length,
-        connected: instances.filter((i: any) => i.isConnected).length,
-        details: instances
+        instances: data,
+        count: data.length
       };
     } catch (error: any) {
       throw {
@@ -122,85 +122,69 @@ export class ConnectivityTest {
 
   private async testApiEndpoints() {
     const endpoints = [
-      '/api/test',
-      '/api/whatsapp/instances',
-      '/api/leads'
+      'https://resoluty.onrender.com/api/test',
+      'https://resoluty.onrender.com/api/leads',
+      'https://resoluty.onrender.com/api/whatsapp/status'
     ];
 
     const results = await Promise.allSettled(
-      endpoints.map(async (endpoint) => {
-        try {
-          const response = await fetch(`${process.env.REACT_APP_API_URL || 'https://resoluty.onrender.com'}${endpoint}`);
-          const data = await response.json();
-          
-          return {
-            endpoint,
-            status: response.ok ? 'success' : 'error',
-            data
-          };
-        } catch (error: any) {
-          return {
-            endpoint,
-            status: 'error',
-            error: error.message
-          };
-        }
+      endpoints.map(async (url) => {
+        const response = await fetch(url);
+        return {
+          url,
+          status: response.status,
+          ok: response.ok
+        };
       })
     );
 
+    const endpointResults = results.map((result, index) => {
+      const url = endpoints[index];
+      const success = result.status === 'fulfilled' && result.value.ok;
+      
+      return {
+        url,
+        success,
+        details: result.status === 'fulfilled' ? result.value : result.reason
+      };
+    });
+
     return {
       status: 'success',
-      endpoints: results.map((result, index) => ({
-        endpoint: endpoints[index],
-        status: result.status,
-        value: result.status === 'fulfilled' ? result.value : result.reason
-      }))
+      endpoints: endpointResults,
+      working: endpointResults.filter(r => r.success).length
     };
   }
 
   private generateSummary(results: Array<{test: string, success: boolean, details: any}>) {
-    const totalTests = results.length;
-    const successfulTests = results.filter(r => r.success).length;
-    const successRate = (successfulTests / totalTests) * 100;
-
-    const issues = results
-      .filter(r => !r.success)
-      .map(r => ({ test: r.test, details: r.details }));
+    const total = results.length;
+    const passed = results.filter(r => r.success).length;
+    const failed = total - passed;
 
     return {
-      totalTests,
-      successfulTests,
-      successRate: Math.round(successRate),
-      issues,
-      overallStatus: successRate >= 75 ? 'healthy' : successRate >= 50 ? 'warning' : 'critical'
+      total,
+      passed,
+      failed,
+      successRate: (passed / total) * 100
     };
   }
 
   getTestHistory() {
-    return this.testResults.slice(-20); // Últimos 20 testes
+    return this.testResults;
   }
 
   getLastTestResult() {
     return this.testResults[this.testResults.length - 1];
   }
 
-  // Função para monitorar conectividade em tempo real
   startContinuousMonitoring() {
-    console.log('🔍 Iniciando monitoramento contínuo de conectividade...');
-    
-    setInterval(async () => {
-      try {
-        const result = await this.runAllTests();
+    // Executar testes a cada minuto
+    setInterval(() => {
+      this.runAllTests().then(result => {
         console.log('📊 Resultado do monitoramento:', result.summary);
-        
-        if (result.summary.overallStatus === 'critical') {
-          console.error('🚨 Problemas críticos de conectividade detectados!');
-        } else if (result.summary.overallStatus === 'warning') {
-          console.warn('⚠️ Problemas de conectividade detectados');
-        }
-      } catch (error) {
-        console.error('❌ Erro no monitoramento de conectividade:', error);
-      }
+      }).catch(error => {
+        console.error('❌ Erro no monitoramento:', error);
+      });
     }, 60000); // Testar a cada minuto
   }
 } 

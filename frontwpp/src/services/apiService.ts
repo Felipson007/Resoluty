@@ -5,7 +5,7 @@ const API_BASE_URL = 'https://resoluty.onrender.com';
 class ApiService {
   private api = axios.create({
     baseURL: API_BASE_URL,
-    timeout: 1000,
+    timeout: 60000,
     headers: {
       'Content-Type': 'application/json',
     },
