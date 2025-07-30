@@ -76,6 +76,23 @@ async function initializeWhatsApp() {
     io.emit('qr-code', { qr });
   });
 
+  whatsappClient.on('loading_screen', (percent, message) => {
+    console.log('📱 Carregando WhatsApp:', percent, message);
+  });
+
+  whatsappClient.on('authenticated', () => {
+    console.log('🔐 WhatsApp autenticado!');
+    // Aguardar um pouco para o WhatsApp carregar completamente
+    setTimeout(() => {
+      const status = { 
+        connected: true, 
+        number: whatsappClient?.info?.wid?.user || 'Número não disponível' 
+      };
+      io.emit('whatsapp-status', status);
+      console.log('📱 Status emitido após autenticação:', status);
+    }, 2000);
+  });
+
   whatsappClient.on('ready', () => {
     console.log('✅ WhatsApp conectado!');
     const status = { 
@@ -83,18 +100,7 @@ async function initializeWhatsApp() {
       number: whatsappClient?.info?.wid?.user || 'Número não disponível' 
     };
     io.emit('whatsapp-status', status);
-    console.log('📱 Status emitido:', status);
-  });
-
-  whatsappClient.on('authenticated', () => {
-    console.log('🔐 WhatsApp autenticado!');
-    // Emitir status quando autenticado também
-    const status = { 
-      connected: true, 
-      number: whatsappClient?.info?.wid?.user || 'Número não disponível' 
-    };
-    io.emit('whatsapp-status', status);
-    console.log('📱 Status emitido após autenticação:', status);
+    console.log('📱 Status emitido no ready:', status);
   });
 
   whatsappClient.on('auth_failure', (msg) => {
@@ -355,6 +361,18 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// Verificação periódica do status do WhatsApp
+setInterval(() => {
+  if (whatsappClient && whatsappClient.info) {
+    const status = {
+      connected: true,
+      number: whatsappClient.info.wid?.user || 'Número não disponível'
+    };
+    io.emit('whatsapp-status', status);
+    console.log('📱 Status periódico emitido:', status);
+  }
+}, 10000); // Verificar a cada 10 segundos
 
 const PORT = process.env.PORT || 4000;
 
