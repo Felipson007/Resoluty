@@ -81,11 +81,17 @@ const WhatsAppDashboard: React.FC = () => {
     const handleNewMessage = (data: { contactId: string; message: any; lead?: any; instanceId?: string; number?: string }) => {
       console.log('📨 Nova mensagem recebida:', data);
       
+      // Verificar se a mensagem tem dados válidos
+      if (!data.message || !data.message.id) {
+        console.warn('⚠️ Mensagem inválida recebida:', data);
+        return;
+      }
+
       // Converter mensagem do backend para formato do frontend
       const frontendMessage: Message = {
         id: data.message.id,
         texto: data.message.body || data.message.texto || 'Mensagem sem texto',
-        timestamp: data.message.timestamp,
+        timestamp: data.message.timestamp || new Date().toISOString(),
         autor: data.message.isFromMe ? 'sistema' : 'usuario',
         contactId: data.contactId,
         instanceId: data.instanceId,

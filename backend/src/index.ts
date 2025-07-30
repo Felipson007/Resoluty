@@ -6,7 +6,7 @@ import { Client, LocalAuth } from 'whatsapp-web.js';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import { gerarPromptCerebro } from './services/cerebroService';
-import { listarLeads, buscarLeadsPorStatus } from './services/leadService';
+import { listarLeads, buscarLeadsPorStatus, atualizarStatusLead } from './services/leadService';
 
 dotenv.config();
 
@@ -394,6 +394,29 @@ app.get('/api/leads/status/:status', async (req, res) => {
   } catch (error) {
     console.error('❌ Erro ao buscar leads por status:', error);
     res.status(500).json({ error: 'Erro ao buscar leads por status' });
+  }
+});
+
+// Atualizar status do lead
+app.put('/api/leads/:numero/status', async (req, res) => {
+  try {
+    const { numero } = req.params;
+    const { status } = req.body;
+    
+    if (!status) {
+      return res.status(400).json({ error: 'Status é obrigatório' });
+    }
+
+    const success = await atualizarStatusLead(numero, status);
+    
+    if (success) {
+      res.json({ success: true, message: 'Status atualizado com sucesso' });
+    } else {
+      res.status(404).json({ error: 'Lead não encontrado' });
+    }
+  } catch (error) {
+    console.error('❌ Erro ao atualizar status do lead:', error);
+    res.status(500).json({ error: 'Erro ao atualizar status do lead' });
   }
 });
 
