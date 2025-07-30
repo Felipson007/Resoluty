@@ -5,7 +5,6 @@ import ConversationSidebar from './ConversationSidebar';
 import ChatArea from './ChatArea';
 import MessageInput from './MessageInput';
 import FilterTabs from './FilterTabs';
-import ConnectivityStatus from './ConnectivityStatus';
 import socketService from '../services/socketService';
 import ApiService from '../services/apiService';
 
