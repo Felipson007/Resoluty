@@ -7,6 +7,7 @@ import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import { gerarPromptCerebro } from './services/cerebroService';
 import { listarLeads, buscarLeadsPorStatus, atualizarStatusLead } from './services/leadService';
+import { supabase } from './config/supabase';
 
 dotenv.config();
 
@@ -170,6 +171,14 @@ async function initializeWhatsApp() {
       number: numeroCliente
     });
 
+    // Salvar no Supabase
+    await supabase.from('mensagens_leads').insert({
+      mensagem: msg.body,
+      autor: 'usuario',
+      numero: msg.from,
+      timestamp: message.timestamp
+    });
+
     // IA responder automaticamente (com debounce de 30s)
     if (isAIActive && !msg.fromMe) {
       if (aiReplyTimeouts[msg.from]) {
@@ -212,6 +221,14 @@ async function initializeWhatsApp() {
         lead: leadData,
         instanceId: 'default',
         number: numeroCliente
+      });
+
+      // Salvar no Supabase
+      await supabase.from('mensagens_leads').insert({
+        mensagem: msg.body,
+        autor: 'sistema',
+        numero: msg.to,
+        timestamp: message.timestamp
       });
     }
   });
@@ -422,22 +439,26 @@ app.get('/api/conversations', (req, res) => {
 });
 
 // Buscar mensagens de um contato
-app.get('/api/conversations/:contact/messages', (req, res) => {
+app.get('/api/conversations/:contact/messages', async (req, res) => {
   const { contact } = req.params;
-  const messages = messageHistory[contact] || [];
-  
-  console.log(`📨 Buscando mensagens para ${contact}:`, messages.length, 'mensagens');
-  
-  // Converter para formato do frontend
-  const formattedMessages = messages.map(msg => ({
-    id: msg.id,
-    texto: msg.body,
-    timestamp: msg.timestamp,
-    autor: msg.isFromMe ? 'sistema' : 'usuario',
-    contactId: contact
-  }));
-  
-  res.json(formattedMessages);
+  try {
+    const { data, error } = await supabase
+      .from('mensagens_leads')
+      .select('*')
+      .eq('numero', contact)
+      .order('timestamp', { ascending: true });
+    if (error) return res.status(500).json({ error: error.message });
+    const messages = (data || []).map(msg => ({
+      id: msg.id,
+      texto: msg.mensagem,
+      timestamp: msg.timestamp,
+      autor: msg.autor,
+      contactId: msg.numero
+    }));
+    res.json(messages);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao buscar mensagens do banco' });
+  }
 });
 
 // Leads endpoints (do banco de dados)
