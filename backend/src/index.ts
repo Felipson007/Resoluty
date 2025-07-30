@@ -40,6 +40,7 @@ let isAIActive = true;
 
 // Histórico de mensagens
 const messageHistory: { [key: string]: any[] } = {};
+let lastEmittedStatus = { connected: false, number: '' };
 
 // Simular dados de leads para compatibilidade
 const mockLeads = [
@@ -136,6 +137,8 @@ async function initializeWhatsApp() {
 
   // Processar mensagens
   whatsappClient.on('message', async (msg) => {
+    console.log(`📨 Nova mensagem recebida de ${msg.from}: ${msg.body}`);
+    
     const message = {
       id: msg.id._serialized,
       from: msg.from,
@@ -150,9 +153,19 @@ async function initializeWhatsApp() {
     }
     messageHistory[msg.from].push(message);
 
-    // Emitir para frontend
-    io.emit('new-message', message);
-    console.log(`📨 Mensagem de ${msg.from}: ${msg.body}`);
+    console.log(`💾 Mensagem salva no histórico. Total para ${msg.from}: ${messageHistory[msg.from].length}`);
+
+    // Emitir para frontend com dados do lead
+    const numeroCliente = msg.from.replace('@c.us', '');
+    const leadData = mockLeads.find(lead => lead.numero === numeroCliente);
+    
+    io.emit('new-message', {
+      contactId: msg.from,
+      message: message,
+      lead: leadData,
+      instanceId: 'default',
+      number: numeroCliente
+    });
 
     // IA responder automaticamente
     if (isAIActive && !msg.fromMe) {
@@ -163,6 +176,8 @@ async function initializeWhatsApp() {
   // Mensagens enviadas
   whatsappClient.on('message_create', async (msg) => {
     if (msg.fromMe) {
+      console.log(`📤 Mensagem enviada para ${msg.to}: ${msg.body}`);
+      
       const message = {
         id: msg.id._serialized,
         from: msg.to,
@@ -176,8 +191,19 @@ async function initializeWhatsApp() {
       }
       messageHistory[msg.to].push(message);
 
-      io.emit('new-message', message);
-      console.log(`📤 Mensagem enviada para ${msg.to}: ${msg.body}`);
+      console.log(`💾 Mensagem enviada salva no histórico. Total para ${msg.to}: ${messageHistory[msg.to].length}`);
+
+      // Emitir para frontend com dados do lead
+      const numeroCliente = msg.to.replace('@c.us', '');
+      const leadData = mockLeads.find(lead => lead.numero === numeroCliente);
+      
+      io.emit('new-message', {
+        contactId: msg.to,
+        message: message,
+        lead: leadData,
+        instanceId: 'default',
+        number: numeroCliente
+      });
     }
   });
 
@@ -389,7 +415,19 @@ app.get('/api/conversations', (req, res) => {
 app.get('/api/conversations/:contact/messages', (req, res) => {
   const { contact } = req.params;
   const messages = messageHistory[contact] || [];
-  res.json(messages);
+  
+  console.log(`📨 Buscando mensagens para ${contact}:`, messages.length, 'mensagens');
+  
+  // Converter para formato do frontend
+  const formattedMessages = messages.map(msg => ({
+    id: msg.id,
+    texto: msg.body,
+    timestamp: msg.timestamp,
+    autor: msg.isFromMe ? 'sistema' : 'usuario',
+    contactId: contact
+  }));
+  
+  res.json(formattedMessages);
 });
 
 // Leads endpoints (do banco de dados)
@@ -472,7 +510,7 @@ app.get('/api/whatsapp/status', async (req, res) => {
   }
 });
 
-// Verificação periódica do status do WhatsApp
+// Verificação periódica do status do WhatsApp (silenciosa)
 setInterval(async () => {
   try {
     let isConnected = false;
@@ -485,21 +523,31 @@ setInterval(async () => {
         const state = await whatsappClient.getState();
         isConnected = state === 'CONNECTED';
         number = whatsappClient?.info?.wid?.user || '';
-              } catch (error: any) {
-          console.log('⚠️ WhatsApp não está realmente conectado:', error?.message || error);
-          isConnected = false;
-          number = '';
+        
+        // Só emitir se houve mudança de status
+        const currentStatus = { connected: isConnected, number };
+        if (JSON.stringify(currentStatus) !== JSON.stringify(lastEmittedStatus)) {
+          io.emit('whatsapp-status', currentStatus);
+          lastEmittedStatus = currentStatus;
+          console.log('📱 Status atualizado:', currentStatus);
         }
+      } catch (error: any) {
+        console.log('⚠️ WhatsApp não está realmente conectado:', error?.message || error);
+        isConnected = false;
+        number = '';
+        
+        const disconnectedStatus = { connected: false, number: '' };
+        if (JSON.stringify(disconnectedStatus) !== JSON.stringify(lastEmittedStatus)) {
+          io.emit('whatsapp-status', disconnectedStatus);
+          lastEmittedStatus = disconnectedStatus;
+          console.log('📱 WhatsApp desconectado detectado');
+        }
+      }
     }
-    
-    const status = { connected: isConnected, number };
-    io.emit('whatsapp-status', status);
-    console.log('📱 Status periódico emitido:', status);
   } catch (error: any) {
     console.error('❌ Erro ao verificar status do WhatsApp:', error?.message || error);
-    io.emit('whatsapp-status', { connected: false, number: '' });
   }
-}, 10000); // Verificar a cada 10 segundos
+}, 30000); // Verificar a cada 30 segundos (menos frequente)
 
 const PORT = process.env.PORT || 4000;
 
