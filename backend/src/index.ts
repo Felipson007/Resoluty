@@ -42,6 +42,9 @@ let isAIActive = true;
 const messageHistory: { [key: string]: any[] } = {};
 let lastEmittedStatus = { connected: false, number: '' };
 
+// Controle de debounce para IA por número
+const aiReplyTimeouts: { [key: string]: NodeJS.Timeout } = {};
+
 // Simular dados de leads para compatibilidade
 const mockLeads = [
   {
@@ -167,9 +170,15 @@ async function initializeWhatsApp() {
       number: numeroCliente
     });
 
-    // IA responder automaticamente
+    // IA responder automaticamente (com debounce de 30s)
     if (isAIActive && !msg.fromMe) {
-      await handleAIAutoReply(msg);
+      if (aiReplyTimeouts[msg.from]) {
+        clearTimeout(aiReplyTimeouts[msg.from]);
+      }
+      aiReplyTimeouts[msg.from] = setTimeout(async () => {
+        await handleAIAutoReply(msg);
+        delete aiReplyTimeouts[msg.from];
+      }, 30000);
     }
   });
 
@@ -218,11 +227,7 @@ async function initializeWhatsApp() {
 async function handleAIAutoReply(msg: any) {
   try {
     console.log('🤖 IA processando mensagem...');
-
-    // Delay de 30 segundos para entender o contexto
-    console.log('⏰ Aguardando 30 segundos para processar contexto...');
-    await new Promise((resolve) => setTimeout(resolve, 30000));
-    console.log('✅ Delay concluído, processando resposta...');
+    // (Removido delay aqui, pois agora o debounce está no evento message)
 
     const conversationHistory = messageHistory[msg.from] || [];
     
