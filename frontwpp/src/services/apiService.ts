@@ -100,12 +100,15 @@ class ApiService {
   // Get contact messages
   async getContactMessages(contactId: string) {
     try {
-      const response = await this.api.get(`/api/conversations/${contactId}/messages`);
+      // Garantir que o contactId tenha o formato correto para WhatsApp
+      const formattedContactId = contactId.includes('@c.us') ? contactId : `${contactId}@c.us`;
+      
+      const response = await this.api.get(`/api/conversations/${formattedContactId}/messages`);
       return response.data.map((msg: any) => ({
         id: msg.id,
-        texto: msg.body,
+        texto: msg.texto || msg.body || 'Mensagem sem texto',
         timestamp: msg.timestamp,
-        autor: msg.isFromMe ? 'sistema' : 'usuario',
+        autor: msg.autor || (msg.isFromMe ? 'sistema' : 'usuario'),
         contactId: contactId
       }));
     } catch (error) {
@@ -117,8 +120,11 @@ class ApiService {
   // Send message
   async sendMessage(contactId: string, message: string) {
     try {
+      // Garantir que o contactId tenha o formato correto para WhatsApp
+      const formattedContactId = contactId.includes('@c.us') ? contactId : `${contactId}@c.us`;
+      
       const response = await this.api.post('/api/whatsapp/send', {
-        to: contactId,
+        to: formattedContactId,
         message: message
       });
       return response.data.success;

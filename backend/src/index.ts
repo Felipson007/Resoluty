@@ -442,12 +442,18 @@ app.get('/api/conversations', (req, res) => {
 app.get('/api/conversations/:contact/messages', async (req, res) => {
   const { contact } = req.params;
   try {
+    // Tentar buscar com e sem @c.us
+    const contactWithSuffix = contact.includes('@c.us') ? contact : `${contact}@c.us`;
+    const contactWithoutSuffix = contact.replace('@c.us', '');
+    
     const { data, error } = await supabase
       .from('mensagens_leads')
       .select('*')
-      .eq('numero', contact)
+      .or(`numero.eq.${contactWithSuffix},numero.eq.${contactWithoutSuffix}`)
       .order('timestamp', { ascending: true });
+    
     if (error) return res.status(500).json({ error: error.message });
+    
     const messages = (data || []).map(msg => ({
       id: msg.id,
       texto: msg.mensagem,
@@ -455,8 +461,11 @@ app.get('/api/conversations/:contact/messages', async (req, res) => {
       autor: msg.autor,
       contactId: msg.numero
     }));
+    
+    console.log(`📨 Buscando mensagens para ${contact}. Encontradas: ${messages.length}`);
     res.json(messages);
   } catch (err) {
+    console.error('❌ Erro ao buscar mensagens:', err);
     res.status(500).json({ error: 'Erro ao buscar mensagens do banco' });
   }
 });
