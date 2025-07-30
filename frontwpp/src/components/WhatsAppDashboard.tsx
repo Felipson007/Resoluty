@@ -76,19 +76,25 @@ const WhatsAppDashboard: React.FC = () => {
       console.log('❌ Socket.IO desconectado');
     };
 
-    const handleNewMessage = (data: { contactId: string; message: Message; lead?: any; instanceId?: string; number?: string }) => {
+    const handleNewMessage = (data: { contactId: string; message: any; lead?: any; instanceId?: string; number?: string }) => {
       console.log('📨 Nova mensagem recebida:', data);
+      
+      // Converter mensagem do backend para formato do frontend
+      const frontendMessage: Message = {
+        id: data.message.id,
+        texto: data.message.body || data.message.texto || 'Mensagem sem texto',
+        timestamp: data.message.timestamp,
+        autor: data.message.isFromMe ? 'sistema' : 'usuario',
+        contactId: data.contactId,
+        instanceId: data.instanceId,
+        number: data.number
+      };
       
       // Adicionar mensagem à lista
       setMessages(prev => {
-        const messageExists = prev.some(msg => msg.id === data.message.id);
+        const messageExists = prev.some(msg => msg.id === frontendMessage.id);
         if (messageExists) return prev;
-        return [...prev, { 
-          ...data.message, 
-          contactId: data.contactId,
-          instanceId: data.instanceId,
-          number: data.number
-        }];
+        return [...prev, frontendMessage];
       });
 
       // Atualizar ou criar contato com informações do lead
@@ -100,8 +106,8 @@ const WhatsAppDashboard: React.FC = () => {
           const updatedContacts = [...prev];
           updatedContacts[existingContactIndex] = {
             ...updatedContacts[existingContactIndex],
-            lastMessage: data.message.texto,
-            lastMessageTime: new Date(data.message.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+            lastMessage: frontendMessage.texto,
+            lastMessageTime: new Date(frontendMessage.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
             unreadCount: data.contactId === selectedContactId ? 0 : (updatedContacts[existingContactIndex].unreadCount || 0) + 1,
             instanceId: data.instanceId,
             number: data.number,
@@ -121,8 +127,8 @@ const WhatsAppDashboard: React.FC = () => {
             id: data.contactId,
             name: data.lead ? `Cliente ${data.lead.numero}` : `Cliente ${data.contactId}`,
             phone: data.lead ? data.lead.numero : data.contactId,
-            lastMessage: data.message.texto,
-            lastMessageTime: new Date(data.message.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+            lastMessage: frontendMessage.texto,
+            lastMessageTime: new Date(frontendMessage.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
             status: data.lead ? 
               (data.lead.status === 'lead_novo' ? 'bot' : 
                data.lead.status === 'lead_avancado' ? 'humano' : 
@@ -194,6 +200,11 @@ const WhatsAppDashboard: React.FC = () => {
       setAiStatus(status.active);
     };
 
+    const handleWhatsAppLoading = (data: { percent: number; message: string }) => {
+      console.log('📱 Carregando WhatsApp:', data.percent, data.message);
+      // Você pode adicionar um estado para mostrar o progresso se quiser
+    };
+
     socketService.on('socket-connected', handleSocketConnected);
     socketService.on('socket-disconnected', handleSocketDisconnected);
     socketService.on('new-message', handleNewMessage);
@@ -206,6 +217,7 @@ const WhatsAppDashboard: React.FC = () => {
     socketService.on('qr-code', handleQRCode);
     socketService.on('whatsapp-status', handleWhatsAppStatus);
     socketService.on('ai-status', handleAIStatus);
+    socketService.on('whatsapp-loading', handleWhatsAppLoading);
 
     return () => {
       socketService.off('socket-connected', handleSocketConnected);
@@ -220,6 +232,7 @@ const WhatsAppDashboard: React.FC = () => {
       socketService.off('qr-code', handleQRCode);
       socketService.off('whatsapp-status', handleWhatsAppStatus);
       socketService.off('ai-status', handleAIStatus);
+      socketService.off('whatsapp-loading', handleWhatsAppLoading);
     };
   }, [selectedContactId]);
 

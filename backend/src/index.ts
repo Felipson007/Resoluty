@@ -78,6 +78,8 @@ async function initializeWhatsApp() {
 
   whatsappClient.on('loading_screen', (percent, message) => {
     console.log('📱 Carregando WhatsApp:', percent, message);
+    // Emitir status de carregamento para o frontend
+    io.emit('whatsapp-loading', { percent, message });
   });
 
   whatsappClient.on('authenticated', () => {
