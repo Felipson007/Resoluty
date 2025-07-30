@@ -233,6 +233,54 @@ app.get('/api/whatsapp/instances', (req, res) => {
   }]);
 });
 
+// Remove WhatsApp instance
+app.delete('/api/whatsapp/instances/:instanceId', (req, res) => {
+  const { instanceId } = req.params;
+  
+  try {
+    // Simular remoção da instância
+    console.log(`🗑️ Removendo instância WhatsApp: ${instanceId}`);
+    
+    // Emitir evento para frontend
+    io.emit('whatsapp-instance-removed', { instanceId });
+    
+    res.json({ 
+      success: true, 
+      message: 'WhatsApp removido com sucesso' 
+    });
+  } catch (error) {
+    console.error('❌ Erro ao remover WhatsApp:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Erro ao remover WhatsApp' 
+    });
+  }
+});
+
+// Configure WhatsApp instance
+app.post('/api/whatsapp/instances/:instanceId', (req, res) => {
+  const { instanceId } = req.params;
+  const { number, enabled } = req.body;
+  
+  try {
+    console.log(`⚙️ Configurando instância WhatsApp: ${instanceId}`, { number, enabled });
+    
+    // Emitir evento para frontend
+    io.emit('whatsapp-instance-configured', { instanceId, number, enabled });
+    
+    res.json({ 
+      success: true, 
+      message: 'WhatsApp configurado com sucesso' 
+    });
+  } catch (error) {
+    console.error('❌ Erro ao configurar WhatsApp:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Erro ao configurar WhatsApp' 
+    });
+  }
+});
+
 // Controle da IA
 app.post('/api/ai/toggle', (req, res) => {
   isAIActive = !isAIActive;
