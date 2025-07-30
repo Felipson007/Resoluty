@@ -5,6 +5,7 @@ import { Server } from 'socket.io';
 import { Client, LocalAuth } from 'whatsapp-web.js';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
+import { gerarPromptCerebro } from './services/cerebroService';
 
 dotenv.config();
 
@@ -169,25 +170,42 @@ async function initializeWhatsApp() {
   }
 }
 
-// IA responder automaticamente usando OpenAI Assistant
+// IA responder automaticamente usando OpenAI Assistant com cérebro
 async function handleAIAutoReply(msg: any) {
   try {
     console.log('🤖 IA processando mensagem...');
 
     const conversationHistory = messageHistory[msg.from] || [];
-    const recentMessages = conversationHistory.slice(-10);
+    
+    // Converter histórico para formato do cérebro
+    const historicoFormatado = conversationHistory.map(m => ({
+      texto: m.body,
+      autor: m.isFromMe ? 'sistema' as const : 'usuario' as const,
+      timestamp: m.timestamp
+    }));
 
-    const context = recentMessages.map(m => 
-      `${m.isFromMe ? 'IA' : 'Cliente'}: ${m.body}`
-    ).join('\n');
+    // Informações do cliente (extrair do número)
+    const numeroCliente = msg.from.replace('@c.us', '');
+    const clienteInfo = {
+      numero: numeroCliente,
+      nome: `Cliente ${numeroCliente}`,
+      status: 'ativo'
+    };
 
-    const userMessage = `${context}\n\nCliente: ${msg.body}`;
+    // Gerar prompt usando o cérebro
+    const promptCerebro = gerarPromptCerebro(
+      historicoFormatado,
+      clienteInfo,
+      msg.body
+    );
+
+    console.log('🧠 Prompt gerado pelo cérebro:', promptCerebro.substring(0, 200) + '...');
 
     // Criar um novo thread para cada conversa
     const thread = await openai.beta.threads.create();
     await openai.beta.threads.messages.create(thread.id, {
       role: 'user',
-      content: userMessage,
+      content: promptCerebro,
     });
 
     const run = await openai.beta.threads.runs.create(thread.id, {
