@@ -595,16 +595,16 @@ const WhatsAppDashboard: React.FC = () => {
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
                 <CircularProgress 
                   variant="determinate" 
-                  value={loadingProgress.percent} 
+                  value={(loadingProgress as { percent: number; message: string }).percent} 
                   size={60}
                   sx={{ mr: 2 }}
                 />
                 <Typography variant="h6" color="primary">
-                  {loadingProgress.percent}%
+                  {(loadingProgress as { percent: number; message: string }).percent}%
                 </Typography>
               </Box>
               <Typography variant="body2" color="text.secondary">
-                {loadingProgress.message}
+                {(loadingProgress as { percent: number; message: string }).message}
               </Typography>
             </Box>
           )}
