@@ -410,7 +410,28 @@ const WhatsAppDashboard: React.FC = () => {
   };
 
   const handleRefreshWhatsAppStatus = async () => {
-    await checkWhatsAppStatus();
+    try {
+      console.log('🔄 Verificando status do WhatsApp...');
+      
+      // Reconectar Socket.IO se necessário
+      if (!socketService.isConnected()) {
+        console.log('🔌 Reconectando Socket.IO...');
+        socketService.reconnect();
+      }
+      
+      // Verificar status do WhatsApp
+      const hasConnected = await checkWhatsAppStatus();
+      
+      // Se conectou, recarregar dados
+      if (hasConnected) {
+        console.log('✅ WhatsApp conectado, recarregando dados...');
+        await initializeApp();
+      } else {
+        console.log('❌ WhatsApp ainda não conectado');
+      }
+    } catch (error) {
+      console.error('❌ Erro ao verificar status:', error);
+    }
   };
 
   const selectedContact = contacts.find(c => c.id === selectedContactId);
@@ -677,17 +698,6 @@ const WhatsAppDashboard: React.FC = () => {
       margin: 0,
       padding: 0,
     }}>
-      {/* Status de Conectividade */}
-      <Box sx={{ 
-        position: 'fixed',
-        top: 10,
-        right: 10,
-        zIndex: 1000,
-        width: 300
-      }}>
-        <ConnectivityStatus showDetails={false} />
-      </Box>
-
       {/* Sidebar de Conversas */}
       <Box sx={{ 
         width: '350px', 
