@@ -3,7 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import io from 'socket.io-client';
 
 // Configuração da URL do Socket
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'https://resoluty.onrender.com';
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:4000';
 
 const socket = io(SOCKET_URL);
 
