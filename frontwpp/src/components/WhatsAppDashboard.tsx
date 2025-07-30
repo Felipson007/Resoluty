@@ -258,11 +258,17 @@ const WhatsAppDashboard: React.FC = () => {
       // Verificar status do WhatsApp
       const hasConnected = await checkWhatsAppStatus();
       
-      if (hasConnected) {
-        // Buscar leads apenas se há WhatsApp conectado
-        const leads = await ApiService.getLeads();
-        setContacts(leads);
+      // Se não há WhatsApp conectado, não carregar contatos
+      if (!hasConnected) {
+        console.log('📱 WhatsApp não conectado, aguardando conexão...');
+        setContacts([]);
+        setLoading(false);
+        return;
       }
+      
+      // Buscar leads apenas se há WhatsApp conectado
+      const leads = await ApiService.getLeads();
+      setContacts(leads);
       
       setRetryCount(0);
     } catch (err: any) {
@@ -465,7 +471,7 @@ const WhatsAppDashboard: React.FC = () => {
   }
 
   // Verificar se há WhatsApp conectado
-  if (!hasConnectedWhatsApp && !loading) {
+  if (!whatsappStatus.connected && !loading) {
     return (
       <Box sx={{ 
         minHeight: '100vh',
