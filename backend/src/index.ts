@@ -198,9 +198,9 @@ io.on('connection', (socket) => {
     console.log('🔌 Cliente desconectado:', socket.id);
   });
 
-  // Enviar status atual
+  // Enviar status atual - só conectado se realmente estiver inicializado e pronto
   const currentStatus = { 
-    connected: whatsappClient ? true : false,
+    connected: whatsappClient && whatsappClient.info ? true : false,
     number: whatsappClient?.info?.wid?.user || ''
   };
   socket.emit('whatsapp-status', currentStatus);
@@ -228,7 +228,7 @@ app.get('/api/whatsapp/instances', (req, res) => {
   res.json([{
     id: 'default',
     number: whatsappClient?.info?.wid?.user || '',
-    isConnected: whatsappClient ? true : false,
+    isConnected: whatsappClient && whatsappClient.info ? true : false,
     enabled: true
   }]);
 });

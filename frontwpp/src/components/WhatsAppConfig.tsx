@@ -61,7 +61,7 @@ const WhatsAppConfig: React.FC = () => {
     newSocket.on('qr-code', (data: { qr: string }) => {
       console.log('📱 QR Code recebido:', data.qr);
       setQrCode(data.qr);
-      setIsConnecting(true);
+      setIsConnecting(false); // QR Code recebido, não está mais conectando
     });
 
     newSocket.on('whatsapp-status', (status: { connected: boolean; number: string }) => {
@@ -223,7 +223,7 @@ const WhatsAppConfig: React.FC = () => {
         </DialogTitle>
         <DialogContent>
           <Box sx={{ textAlign: 'center', py: 2 }}>
-            {isConnecting && (
+            {isConnecting && !qrCode && (
               <Box sx={{ mb: 2 }}>
                 <CircularProgress size={40} sx={{ mb: 1 }} />
                 <Typography variant="body2" color="text.secondary">
@@ -232,7 +232,7 @@ const WhatsAppConfig: React.FC = () => {
               </Box>
             )}
 
-            {qrCode && !isConnecting && (
+            {qrCode && (
               <Box sx={{ mb: 3 }}>
                 <Typography variant="h6" sx={{ mb: 2 }}>
                   Escaneie o QR Code
