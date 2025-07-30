@@ -219,6 +219,11 @@ async function handleAIAutoReply(msg: any) {
   try {
     console.log('🤖 IA processando mensagem...');
 
+    // Delay de 30 segundos para entender o contexto
+    console.log('⏰ Aguardando 30 segundos para processar contexto...');
+    await new Promise((resolve) => setTimeout(resolve, 30000));
+    console.log('✅ Delay concluído, processando resposta...');
+
     const conversationHistory = messageHistory[msg.from] || [];
     
     // Converter histórico para formato do cérebro
