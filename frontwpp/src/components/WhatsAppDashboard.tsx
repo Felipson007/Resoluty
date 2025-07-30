@@ -255,11 +255,8 @@ const WhatsAppDashboard: React.FC = () => {
 
       console.log('✅ Backend está online');
       
-      // Verificar status do WhatsApp
-      const hasConnected = await checkWhatsAppStatus();
-      
       // Se não há WhatsApp conectado, não carregar contatos
-      if (!hasConnected) {
+      if (!whatsappStatus.connected) {
         console.log('📱 WhatsApp não conectado, aguardando conexão...');
         setContacts([]);
         setLoading(false);

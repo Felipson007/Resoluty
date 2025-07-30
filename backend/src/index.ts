@@ -88,6 +88,18 @@ async function initializeWhatsApp() {
 
   whatsappClient.on('authenticated', () => {
     console.log('🔐 WhatsApp autenticado!');
+    // Emitir status quando autenticado também
+    const status = { 
+      connected: true, 
+      number: whatsappClient?.info?.wid?.user || 'Número não disponível' 
+    };
+    io.emit('whatsapp-status', status);
+    console.log('📱 Status emitido após autenticação:', status);
+  });
+
+  whatsappClient.on('auth_failure', (msg) => {
+    console.log('❌ Falha na autenticação WhatsApp:', msg);
+    io.emit('whatsapp-status', { connected: false });
   });
 
   whatsappClient.on('disconnected', (reason) => {
