@@ -1,4 +1,4 @@
-import { ApiService } from '../services/apiService';
+import ApiService from '../services/apiService';
 
 export class ConnectivityTest {
   private static instance: ConnectivityTest;

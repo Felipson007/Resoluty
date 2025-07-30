@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Box, CircularProgress, Alert, Snackbar, Typography, Button } from '@mui/material';
-import { Refresh as RefreshIcon } from '@mui/icons-material';
+import { Box, CircularProgress, Alert, Snackbar, Typography, Button, Paper, Chip, Switch, FormControlLabel } from '@mui/material';
+import { Refresh as RefreshIcon, WhatsApp as WhatsAppIcon, SmartToy as AIIcon } from '@mui/icons-material';
 import ConversationSidebar from './ConversationSidebar';
 import ChatArea from './ChatArea';
 import MessageInput from './MessageInput';
 import FilterTabs from './FilterTabs';
 import ConnectivityStatus from './ConnectivityStatus';
 import socketService from '../services/socketService';
-import { ApiService } from '../services/apiService';
+import ApiService from '../services/apiService';
 
 export interface Contact {
   id: string;
@@ -44,6 +44,15 @@ const WhatsAppDashboard: React.FC = () => {
   const [selectedFilter, setSelectedFilter] = useState<string>('bot-ativo');
   const [whatsappInstances, setWhatsappInstances] = useState<any[]>([]);
   const [hasConnectedWhatsApp, setHasConnectedWhatsApp] = useState(false);
+  
+  // Novos estados para QR code e status
+  const [qrCode, setQrCode] = useState<string>('');
+  const [whatsappStatus, setWhatsappStatus] = useState({
+    connected: false,
+    number: ''
+  });
+  const [aiStatus, setAiStatus] = useState(true);
+  const [isConnecting, setIsConnecting] = useState(false);
 
   // Inicialização
   useEffect(() => {
@@ -161,6 +170,31 @@ const WhatsAppDashboard: React.FC = () => {
       }
     };
 
+    // Novos listeners para QR code e status
+    const handleQRCode = (data: { qr: string }) => {
+      console.log('📱 QR Code recebido');
+      setQrCode(data.qr);
+      setIsConnecting(true);
+    };
+
+    const handleWhatsAppStatus = (status: { connected: boolean; number: string }) => {
+      console.log('📱 Status WhatsApp atualizado:', status);
+      setWhatsappStatus(status);
+      if (status.connected) {
+        setIsConnecting(false);
+        setQrCode('');
+        // Recarregar dados quando WhatsApp conectar
+        setTimeout(() => {
+          initializeApp();
+        }, 1000);
+      }
+    };
+
+    const handleAIStatus = (status: { active: boolean }) => {
+      console.log('🤖 Status IA atualizado:', status);
+      setAiStatus(status.active);
+    };
+
     socketService.on('socket-connected', handleSocketConnected);
     socketService.on('socket-disconnected', handleSocketDisconnected);
     socketService.on('new-message', handleNewMessage);
@@ -168,6 +202,11 @@ const WhatsAppDashboard: React.FC = () => {
     socketService.on('wpp-status', handleWhatsAppStatusUpdate);
     socketService.on('qr-expired', handleQRExpired);
     socketService.on('whatsapp-instances-updated', handleWhatsAppInstancesUpdated);
+    
+    // Novos listeners
+    socketService.on('qr-code', handleQRCode);
+    socketService.on('whatsapp-status', handleWhatsAppStatus);
+    socketService.on('ai-status', handleAIStatus);
 
     return () => {
       socketService.off('socket-connected', handleSocketConnected);
@@ -176,6 +215,12 @@ const WhatsAppDashboard: React.FC = () => {
       socketService.off('status-updated', handleStatusUpdated);
       socketService.off('wpp-status', handleWhatsAppStatusUpdate);
       socketService.off('qr-expired', handleQRExpired);
+      socketService.off('whatsapp-instances-updated', handleWhatsAppInstancesUpdated);
+      
+      // Remover novos listeners
+      socketService.off('qr-code', handleQRCode);
+      socketService.off('whatsapp-status', handleWhatsAppStatus);
+      socketService.off('ai-status', handleAIStatus);
     };
   }, [selectedContactId]);
 
@@ -470,6 +515,59 @@ const WhatsAppDashboard: React.FC = () => {
           maxWidth: 500,
           width: '100%'
         }}>
+          {/* Status do WhatsApp */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 3 }}>
+            <Chip
+              label={whatsappStatus.connected ? 'WhatsApp Conectado' : 'WhatsApp Desconectado'}
+              color={whatsappStatus.connected ? 'success' : 'error'}
+              icon={<WhatsAppIcon />}
+              sx={{ mb: 2 }}
+            />
+          </Box>
+
+          {/* Loading durante conexão */}
+          {isConnecting && (
+            <Box sx={{ textAlign: 'center', mb: 3 }}>
+              <CircularProgress size={40} sx={{ mb: 2 }} />
+              <Typography variant="body1" color="text.secondary">
+                Conectando WhatsApp...
+              </Typography>
+            </Box>
+          )}
+
+          {/* QR Code */}
+          {qrCode && !whatsappStatus.connected && !isConnecting && (
+            <Box sx={{ textAlign: 'center', mb: 3 }}>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                Escaneie o QR Code
+              </Typography>
+              <Paper sx={{ p: 2, display: 'inline-block' }}>
+                <pre style={{ fontSize: '8px', lineHeight: '8px', margin: 0 }}>
+                  {qrCode}
+                </pre>
+              </Paper>
+            </Box>
+          )}
+
+          {/* Controle da IA */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 3 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={aiStatus}
+                  onChange={() => {
+                    // Toggle IA via API
+                    fetch('https://resoluty.onrender.com/api/ai/toggle', {
+                      method: 'POST'
+                    });
+                  }}
+                  color="primary"
+                />
+              }
+              label="IA Ativa"
+            />
+          </Box>
+
           {/* Ícone WhatsApp */}
           <Box sx={{ 
             width: 100, 
@@ -496,7 +594,7 @@ const WhatsAppDashboard: React.FC = () => {
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent'
           }}>
-            Nenhum WhatsApp Conectado
+            {whatsappStatus.connected ? 'WhatsApp Conectado!' : 'Conecte o WhatsApp'}
           </Typography>
 
           <Typography variant="body1" color="text.secondary" sx={{ 
@@ -505,7 +603,10 @@ const WhatsAppDashboard: React.FC = () => {
             lineHeight: 1.6,
             fontSize: '1.1rem'
           }}>
-            Para começar a usar o sistema, você precisa conectar pelo menos um número do WhatsApp.
+            {whatsappStatus.connected 
+              ? `Número conectado: ${whatsappStatus.number}`
+              : 'Para começar a usar o sistema, você precisa conectar o WhatsApp. Escaneie o QR Code acima.'
+            }
           </Typography>
 
           <Box sx={{ display: 'flex', gap: 2, flexDirection: 'column', alignItems: 'center' }}>
@@ -529,7 +630,7 @@ const WhatsAppDashboard: React.FC = () => {
                 minWidth: 200
               }}
             >
-              Conectar WhatsApp
+              Configurar WhatsApp
             </Button>
 
             <Button 

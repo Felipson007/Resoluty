@@ -2,158 +2,305 @@ import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import { setSocketIO } from './routes/whatsappBot';
-import apiRoutes from './routes/api';
+import { Client, LocalAuth } from 'whatsapp-web.js';
+import OpenAI from 'openai';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const app = express();
 const server = createServer(app);
 
-// Configuração CORS mais robusta
-const allowedOrigins = [
-  'http://localhost:3000',
-  'https://resoluty-frontend.onrender.com',
-  'https://resoluty.onrender.com',
-  'https://resoluty-frontend.onrender.com/',
-  'https://resoluty.onrender.com/',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173'
-];
-
-// Middleware CORS dinâmico
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  
-  if (req.method === 'OPTIONS') {
-    res.sendStatus(200);
-  } else {
-    next();
-  }
-});
+// CORS
+app.use(cors({
+  origin: ['http://localhost:3000', 'https://resoluty-frontend.onrender.com', 'https://resoluty.onrender.com'],
+  credentials: true
+}));
 
 app.use(express.json());
 
-// Log de inicialização com timestamp
-const startTime = new Date();
-console.log(`🚀 Backend Resoluty iniciando em: ${startTime.toISOString()}`);
-console.log(`📊 Memória inicial: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
-
-// Monitoramento de saúde do processo
-process.on('uncaughtException', (error) => {
-  console.error('❌ Erro não capturado:', error);
-  console.error('📊 Memória no erro:', Math.round(process.memoryUsage().heapUsed / 1024 / 1024), 'MB');
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Promise rejeitada não tratada:', reason);
-  console.error('📊 Memória no erro:', Math.round(process.memoryUsage().heapUsed / 1024 / 1024), 'MB');
-});
-
-// Monitoramento de memória
-setInterval(() => {
-  const memUsage = process.memoryUsage();
-  const heapUsed = Math.round(memUsage.heapUsed / 1024 / 1024);
-  const heapTotal = Math.round(memUsage.heapTotal / 1024 / 1024);
-  
-  if (heapUsed > 500) { // Alertar se usar mais de 500MB
-    console.warn(`⚠️ Alto uso de memória: ${heapUsed}MB / ${heapTotal}MB`);
-  }
-}, 30000); // Verificar a cada 30 segundos
-
-// Socket.IO com configuração otimizada
+// Socket.IO
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
-    methods: ['GET', 'POST'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    origin: ['http://localhost:3000', 'https://resoluty-frontend.onrender.com', 'https://resoluty.onrender.com'],
     credentials: true
-  },
-  transports: ['websocket', 'polling'],
-  allowEIO3: true,
-  pingTimeout: 60000,
-  pingInterval: 25000,
-  maxHttpBufferSize: 1e8,
-  connectTimeout: 45000
+  }
 });
 
-// Log de conexões Socket.IO
+// OpenAI
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+// WhatsApp Client
+let whatsappClient: Client | null = null;
+let isAIActive = true;
+
+// Histórico de mensagens
+const messageHistory: { [key: string]: any[] } = {};
+
+// Simular dados de leads para compatibilidade
+const mockLeads = [
+  {
+    id: '1',
+    numero: '5511999999999',
+    status: 'lead_novo',
+    created_at: new Date().toISOString()
+  }
+];
+
+// Inicializar WhatsApp
+async function initializeWhatsApp() {
+  console.log('🚀 Iniciando WhatsApp...');
+  
+  whatsappClient = new Client({
+    authStrategy: new LocalAuth({ 
+      clientId: 'resoluty-ai',
+      dataPath: './.wwebjs_auth'
+    }),
+    puppeteer: {
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--disable-web-security'
+      ]
+    }
+  });
+
+  whatsappClient.on('qr', (qr) => {
+    console.log('📱 QR Code disponível - escaneie no WhatsApp');
+    // Emitir QR code para todos os clientes conectados
+    io.emit('qr-code', { qr });
+  });
+
+  whatsappClient.on('ready', () => {
+    console.log('✅ WhatsApp conectado!');
+    const status = { 
+      connected: true, 
+      number: whatsappClient?.info?.wid?.user || 'Número não disponível' 
+    };
+    io.emit('whatsapp-status', status);
+    console.log('📱 Status emitido:', status);
+  });
+
+  whatsappClient.on('authenticated', () => {
+    console.log('🔐 WhatsApp autenticado!');
+  });
+
+  whatsappClient.on('disconnected', (reason) => {
+    console.log('🔌 WhatsApp desconectado:', reason);
+    io.emit('whatsapp-status', { connected: false });
+  });
+
+  // Processar mensagens
+  whatsappClient.on('message', async (msg) => {
+    const message = {
+      id: msg.id._serialized,
+      from: msg.from,
+      body: msg.body,
+      timestamp: new Date().toISOString(),
+      isFromMe: false
+    };
+
+    // Salvar no histórico
+    if (!messageHistory[msg.from]) {
+      messageHistory[msg.from] = [];
+    }
+    messageHistory[msg.from].push(message);
+
+    // Emitir para frontend
+    io.emit('new-message', message);
+    console.log(`📨 Mensagem de ${msg.from}: ${msg.body}`);
+
+    // IA responder automaticamente
+    if (isAIActive && !msg.fromMe) {
+      await handleAIAutoReply(msg);
+    }
+  });
+
+  // Mensagens enviadas
+  whatsappClient.on('message_create', async (msg) => {
+    if (msg.fromMe) {
+      const message = {
+        id: msg.id._serialized,
+        from: msg.to,
+        body: msg.body,
+        timestamp: new Date().toISOString(),
+        isFromMe: true
+      };
+
+      if (!messageHistory[msg.to]) {
+        messageHistory[msg.to] = [];
+      }
+      messageHistory[msg.to].push(message);
+
+      io.emit('new-message', message);
+      console.log(`📤 Mensagem enviada para ${msg.to}: ${msg.body}`);
+    }
+  });
+
+  try {
+    await whatsappClient.initialize();
+  } catch (error) {
+    console.error('❌ Erro ao inicializar WhatsApp:', error);
+  }
+}
+
+// IA responder automaticamente
+async function handleAIAutoReply(msg: any) {
+  try {
+    console.log('🤖 IA processando mensagem...');
+
+    const conversationHistory = messageHistory[msg.from] || [];
+    const recentMessages = conversationHistory.slice(-10);
+
+    const context = recentMessages.map(m => 
+      `${m.isFromMe ? 'IA' : 'Cliente'}: ${m.body}`
+    ).join('\n');
+
+    const prompt = `Você é uma assistente virtual profissional e amigável. 
+    
+Contexto da conversa:
+${context}
+
+Responda de forma natural, profissional e útil. Seja concisa mas completa. 
+Use emojis ocasionalmente para ser mais amigável.`;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        { role: "system", content: "Você é uma assistente virtual profissional e amigável." },
+        { role: "user", content: prompt }
+      ],
+      max_tokens: 200,
+      temperature: 0.7
+    });
+
+    const aiResponse = completion.choices[0]?.message?.content || 'Desculpe, não consegui processar sua mensagem.';
+
+    await msg.reply(aiResponse);
+    console.log(`🤖 IA respondeu: ${aiResponse}`);
+
+  } catch (error) {
+    console.error('❌ Erro na IA:', error);
+    await msg.reply('Desculpe, estou com dificuldades técnicas no momento. Tente novamente em alguns instantes.');
+  }
+}
+
+// Socket.IO connections
 io.on('connection', (socket) => {
-  const clientId = socket.id;
-  const timestamp = new Date().toISOString();
-  
-  console.log(`🔌 Cliente conectado: ${clientId} - ${timestamp}`);
-  console.log(`📊 Total de clientes conectados: ${io.engine.clientsCount}`);
-  
-  // Monitorar desconexões
-  socket.on('disconnect', (reason) => {
-    console.log(`🔌 Cliente desconectado: ${clientId} - Motivo: ${reason} - ${new Date().toISOString()}`);
-    console.log(`📊 Total de clientes conectados: ${io.engine.clientsCount}`);
-  });
-  
-  // Monitorar erros de socket
-  socket.on('error', (error) => {
-    console.error(`❌ Erro no socket ${clientId}:`, error);
-  });
-});
+  console.log('🔌 Cliente conectado:', socket.id);
 
-// Rota de saúde melhorada
-app.get('/health', (req, res) => {
-  const uptime = process.uptime();
-  const memUsage = process.memoryUsage();
-  const health = {
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m ${Math.floor(uptime % 60)}s`,
-    memory: {
-      heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024) + 'MB',
-      heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024) + 'MB',
-      external: Math.round(memUsage.external / 1024 / 1024) + 'MB'
-    },
-    clients: io.engine.clientsCount,
-    startTime: startTime.toISOString()
+  socket.on('disconnect', () => {
+    console.log('🔌 Cliente desconectado:', socket.id);
+  });
+
+  // Enviar status atual
+  const currentStatus = { 
+    connected: whatsappClient ? true : false,
+    number: whatsappClient?.info?.wid?.user || ''
   };
-  
-  res.json(health);
+  socket.emit('whatsapp-status', currentStatus);
+  console.log('📱 Status inicial enviado:', currentStatus);
 });
 
-// Rota de teste de conectividade
+// APIs REST
+
+// Test endpoint
 app.get('/api/test', (req, res) => {
-  res.json({ 
-    message: 'Backend funcionando!',
-    timestamp: new Date().toISOString(),
-    clients: io.engine.clientsCount
-  });
+  res.json({ message: 'Backend funcionando!' });
 });
 
-// Rota de diagnósticos
-app.get('/api/diagnostics', (req, res) => {
-  const { Diagnostics } = require('./utils/diagnostics');
-  const diagnostics = Diagnostics.getInstance();
-  
+// Status do WhatsApp
+app.get('/api/whatsapp/status', (req, res) => {
   res.json({
-    health: diagnostics.getDiagnosticsReport(),
-    connectivity: diagnostics.testConnectivity()
+    connected: whatsappClient ? true : false,
+    number: whatsappClient?.info?.wid?.user || '',
+    aiActive: isAIActive
   });
 });
 
-// Registrar rotas da API
-app.use('/api', apiRoutes);
+// Instâncias WhatsApp (simulado)
+app.get('/api/whatsapp/instances', (req, res) => {
+  res.json([{
+    id: 'default',
+    number: whatsappClient?.info?.wid?.user || '',
+    isConnected: whatsappClient ? true : false,
+    enabled: true
+  }]);
+});
+
+// Controle da IA
+app.post('/api/ai/toggle', (req, res) => {
+  isAIActive = !isAIActive;
+  console.log(`🤖 IA ${isAIActive ? 'ativada' : 'desativada'}`);
+  io.emit('ai-status', { active: isAIActive });
+  res.json({ active: isAIActive });
+});
+
+// Enviar mensagem manual
+app.post('/api/whatsapp/send', async (req, res) => {
+  const { to, message } = req.body;
+  
+  if (!whatsappClient) {
+    return res.status(400).json({ error: 'WhatsApp não está conectado' });
+  }
+
+  try {
+    await whatsappClient.sendMessage(to, message);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao enviar mensagem' });
+  }
+});
+
+// Buscar histórico de conversas
+app.get('/api/conversations', (req, res) => {
+  const conversations = Object.keys(messageHistory).map(contact => ({
+    contact,
+    lastMessage: messageHistory[contact][messageHistory[contact].length - 1],
+    messageCount: messageHistory[contact].length
+  }));
+  
+  res.json(conversations);
+});
+
+// Buscar mensagens de um contato
+app.get('/api/conversations/:contact/messages', (req, res) => {
+  const { contact } = req.params;
+  const messages = messageHistory[contact] || [];
+  res.json(messages);
+});
+
+// Leads endpoints (simulados)
+app.get('/api/leads', (req, res) => {
+  res.json(mockLeads);
+});
+
+app.get('/api/leads/status/:status', (req, res) => {
+  const { status } = req.params;
+  const filteredLeads = mockLeads.filter(lead => lead.status === status);
+  res.json(filteredLeads);
+});
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    whatsapp: whatsappClient ? true : false,
+    ai: isAIActive,
+    timestamp: new Date().toISOString()
+  });
+});
 
 const PORT = process.env.PORT || 4000;
 
 server.listen(PORT, () => {
-  console.log(`✅ Backend Resoluty rodando na porta ${PORT}`);
-  console.log(`🌐 Ambiente: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`📊 Memória inicial: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
+  console.log(`✅ Servidor rodando na porta ${PORT}`);
+  initializeWhatsApp();
 });
 
-export { io }; 
-
-
-// Configurar Socket.IO no WhatsApp Bot
-setSocketIO(io);
+export { io };

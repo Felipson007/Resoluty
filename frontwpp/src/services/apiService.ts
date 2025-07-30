@@ -1,341 +1,182 @@
 import axios from 'axios';
-import { API_CONFIG } from '../config/api';
 
-// Configuração da URL da API
-// Forçar uso da URL correta do backend
-const API_BASE_URL = API_CONFIG.BASE_URL;
+const API_BASE_URL = 'https://resoluty.onrender.com';
 
-// Log para debug
-console.log('API_BASE_URL:', API_BASE_URL);
+class ApiService {
+  private api = axios.create({
+    baseURL: API_BASE_URL,
+    timeout: 1000,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
 
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 60000, // Aumentar timeout para 60 segundos
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Instância específica para operações que podem demorar mais (como configuração do WhatsApp)
-const apiLongTimeout = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 120000, // 2 minutos para operações complexas
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-export interface Contact {
-  id: string;
-  name: string;
-  phone: string;
-  lastMessage: string;
-  lastMessageTime: string;
-  avatar?: string;
-  status: 'bot' | 'humano' | 'aguardando' | 'finalizado';
-  unreadCount?: number;
-}
-
-export interface Message {
-  id: string;
-  texto: string;
-  timestamp: string;
-  autor: 'usuario' | 'sistema';
-  contactId: string;
-}
-
-export class ApiService {
-  // Função de retry para operações que podem falhar
-  private static async retryOperation<T>(
-    operation: () => Promise<T>,
-    maxRetries: number = 3,
-    delay: number = 1000
-  ): Promise<T> {
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        return await operation();
-      } catch (error: any) {
-        console.warn(`Tentativa ${attempt} falhou:`, error.message);
-        
-        if (attempt === maxRetries) {
-          throw error;
-        }
-        
-        // Aguardar antes da próxima tentativa
-        await new Promise(resolve => setTimeout(resolve, delay * attempt));
-      }
-    }
-    throw new Error('Todas as tentativas falharam');
-  }
-
-  // Buscar todos os contatos
-  static async getContacts(): Promise<Contact[]> {
+  // Health check
+  async checkHealth(): Promise<boolean> {
     try {
-      const response = await api.get('/api/contacts');
-      
-      if (!response.data.ok || !response.data.data) {
-        console.warn('Resposta inválida da API de contatos:', response.data);
-        return [];
-      }
-
-      return response.data.data.map((contact: any) => ({
-        id: contact.id,
-        name: contact.name || `Cliente ${contact.phone}`,
-        phone: contact.phone,
-        lastMessage: contact.lastMessage || 'Última mensagem...',
-        lastMessageTime: contact.lastMessageTime || 'Agora',
-        status: contact.status || 'bot',
-        unreadCount: contact.unreadCount || 0,
-      }));
+      const response = await this.api.get('/health');
+      return response.status === 200;
     } catch (error) {
-      console.error('Erro ao buscar contatos:', error);
-      return [];
-    }
-  }
-
-  // Buscar mensagens de um contato
-  static async getContactMessages(contactId: string, limit: number = 50): Promise<Message[]> {
-    try {
-      // Primeiro tentar buscar do endpoint de leads
-      const response = await api.get(`/api/leads/${encodeURIComponent(contactId)}/messages?limit=${limit}`);
-      
-      if (response.data.ok && response.data.data) {
-        return response.data.data.map((msg: any) => ({
-          id: msg.id || `msg-${Date.now()}`,
-          texto: msg.mensagem,
-          timestamp: msg.timestamp,
-          autor: msg.autor === 'usuario' ? 'usuario' : 'sistema',
-          contactId: contactId,
-        }));
-      }
-
-      // Fallback para o endpoint antigo
-      const fallbackResponse = await api.get(`/api/contacts/${encodeURIComponent(contactId)}/messages?limit=${limit}`);
-      
-      if (fallbackResponse.data.ok && fallbackResponse.data.data) {
-        return fallbackResponse.data.data.map((msg: any) => ({
-          id: msg.id || `msg-${Date.now()}`,
-          texto: msg.texto || msg.mensagem,
-          timestamp: msg.timestamp,
-          autor: msg.autor === 'usuario' ? 'usuario' : 'sistema',
-          contactId: contactId,
-        }));
-      }
-
-      return [];
-    } catch (error) {
-      console.error('Erro ao buscar mensagens:', error);
-      return [];
-    }
-  }
-
-  // Enviar mensagem para um contato
-  static async sendMessage(contactId: string, message: string): Promise<boolean> {
-    try {
-      const response = await api.post(`/api/contacts/${encodeURIComponent(contactId)}/send`, {
-        message,
-      });
-      
-      return response.data.ok === true;
-    } catch (error) {
-      console.error('Erro ao enviar mensagem:', error);
+      console.error('❌ Erro no health check:', error);
       return false;
     }
   }
 
-  // Atualizar status de um contato
-  static async updateContactStatus(
-    contactId: string, 
-    status: 'bot' | 'humano' | 'aguardando' | 'finalizado',
-    attendantId: string = 'frontend-user'
-  ): Promise<boolean> {
+  // WhatsApp status
+  async getWhatsAppStatus() {
     try {
-      const response = await api.post(`/api/contacts/${encodeURIComponent(contactId)}/status`, {
-        status,
-        attendantId,
-      });
-      
-      return response.data.ok === true;
+      const response = await this.api.get('/api/whatsapp/status');
+      return response.data;
     } catch (error) {
-      console.error('Erro ao atualizar status:', error);
-      return false;
+      console.error('❌ Erro ao buscar status do WhatsApp:', error);
+      throw error;
     }
   }
 
-  // Buscar status de um contato
-  static async getContactStatus(contactId: string): Promise<any> {
+  // WhatsApp instances
+  async getWhatsAppInstances() {
     try {
-      const response = await api.get(`/api/contacts/${encodeURIComponent(contactId)}/status`);
-      return response.data.data;
+      const response = await this.api.get('/api/whatsapp/instances');
+      return response.data;
     } catch (error) {
-      console.error('Erro ao buscar status:', error);
-      return null;
-    }
-  }
-
-  // Buscar todos os status de sessões
-  static async getAllSessionStatuses(): Promise<any[]> {
-    try {
-      const response = await api.get('/api/sessions/status');
-      return response.data.data || [];
-    } catch (error) {
-      console.error('Erro ao buscar status das sessões:', error);
+      console.error('❌ Erro ao buscar instâncias do WhatsApp:', error);
       return [];
     }
   }
 
-  // Verificar saúde do backend
-  static async checkHealth(): Promise<boolean> {
+  // Leads
+  async getLeads() {
     try {
-      const response = await api.get('/health');
-      return response.data.status === 'ok';
-    } catch (error) {
-      console.error('Backend não está respondendo:', error);
-      return false;
-    }
-  }
-
-  // Buscar todos os leads
-  static async getLeads(): Promise<any[]> {
-    try {
-      const response = await api.get('/api/leads');
-      
-      if (!response.data.ok || !response.data.data) {
-        console.warn('Resposta inválida da API de leads:', response.data);
-        return [];
-      }
-
-      return response.data.data.map((lead: any) => ({
-        id: `${lead.numero}@s.whatsapp.net`,
+      const response = await this.api.get('/api/leads');
+      return response.data.map((lead: any) => ({
+        id: lead.numero,
         name: `Cliente ${lead.numero}`,
         phone: lead.numero,
-        lastMessage: 'Última mensagem...',
-        lastMessageTime: lead.updated_at 
-          ? new Date(lead.updated_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-          : 'Agora',
-        status: lead.metadata?.status === 'lead_novo' ? 'bot' : 
-               lead.metadata?.status === 'lead_avancado' ? 'humano' : 
-               lead.metadata?.status === 'lead_sem_interesse' ? 'finalizado' : 'bot',
-        unreadCount: 0,
+        lastMessage: 'Nenhuma mensagem',
+        lastMessageTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        status: lead.status === 'lead_novo' ? 'bot' : 
+               lead.status === 'lead_avancado' ? 'humano' : 
+               lead.status === 'lead_sem_interesse' ? 'finalizado' : 'bot',
+        unreadCount: 0
       }));
     } catch (error) {
-      console.error('Erro ao buscar leads:', error);
+      console.error('❌ Erro ao buscar leads:', error);
       return [];
     }
   }
 
-  // Buscar lead específico
-  static async getLead(numero: string): Promise<any> {
+  // Get leads by status
+  async getLeadsByStatus(status: string) {
     try {
-      const response = await api.get(`/api/leads/${encodeURIComponent(numero)}`);
-      return response.data.data;
+      const response = await this.api.get(`/api/leads/status/${status}`);
+      return response.data.map((lead: any) => ({
+        id: lead.numero,
+        name: `Cliente ${lead.numero}`,
+        phone: lead.numero,
+        lastMessage: 'Nenhuma mensagem',
+        lastMessageTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        status: lead.status === 'lead_novo' ? 'bot' : 
+               lead.status === 'lead_avancado' ? 'humano' : 
+               lead.status === 'lead_sem_interesse' ? 'finalizado' : 'bot',
+        unreadCount: 0
+      }));
     } catch (error) {
-      console.error('Erro ao buscar lead:', error);
-      return null;
+      console.error('❌ Erro ao buscar leads por status:', error);
+      return [];
     }
   }
 
-  // Atualizar status de um lead
-  static async updateLeadStatus(numero: string, status: 'lead_novo' | 'lead_avancado' | 'lead_sem_interesse'): Promise<boolean> {
+  // Update lead status
+  async updateLeadStatus(numero: string, status: string) {
     try {
-      const response = await api.put(`/api/leads/${encodeURIComponent(numero)}/status`, {
-        status,
-      });
-      return response.data.ok === true;
+      const response = await this.api.put(`/api/leads/${numero}/status`, { status });
+      return response.data;
     } catch (error) {
-      console.error('Erro ao atualizar status do lead:', error);
+      console.error('❌ Erro ao atualizar status do lead:', error);
       return false;
     }
   }
 
-  // Buscar leads por status
-  static async getLeadsByStatus(status: 'lead_novo' | 'lead_avancado' | 'lead_sem_interesse'): Promise<any[]> {
+  // Get contact messages
+  async getContactMessages(contactId: string) {
     try {
-      const response = await api.get(`/api/leads/status/${status}`);
-      
-      if (!response.data.ok || !response.data.data) {
-        console.warn('Resposta inválida da API de leads por status:', response.data);
-        return [];
-      }
-
-      return response.data.data.map((lead: any) => ({
-        id: `${lead.numero}@s.whatsapp.net`,
-        name: `Cliente ${lead.numero}`,
-        phone: lead.numero,
-        lastMessage: 'Última mensagem...',
-        lastMessageTime: lead.updated_at 
-          ? new Date(lead.updated_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-          : 'Agora',
-        status: lead.metadata?.status === 'lead_novo' ? 'bot' : 
-               lead.metadata?.status === 'lead_avancado' ? 'humano' : 
-               lead.metadata?.status === 'lead_sem_interesse' ? 'finalizado' : 'bot',
-        unreadCount: 0,
+      const response = await this.api.get(`/api/conversations/${contactId}/messages`);
+      return response.data.map((msg: any) => ({
+        id: msg.id,
+        texto: msg.body,
+        timestamp: msg.timestamp,
+        autor: msg.isFromMe ? 'sistema' : 'usuario',
+        contactId: contactId
       }));
     } catch (error) {
-      console.error('Erro ao buscar leads por status:', error);
+      console.error('❌ Erro ao buscar mensagens do contato:', error);
       return [];
     }
   }
 
-  // Buscar instâncias WhatsApp
-  static async getWhatsAppInstances(): Promise<any[]> {
+  // Send message
+  async sendMessage(contactId: string, message: string) {
     try {
-      const response = await api.get('/api/whatsapp/instances');
-      
-      if (!response.data.ok || !response.data.data) {
-        console.warn('Resposta inválida da API de instâncias:', response.data);
-        return [];
-      }
-
-      return response.data.data;
+      const response = await this.api.post('/api/whatsapp/send', {
+        to: contactId,
+        message: message
+      });
+      return response.data.success;
     } catch (error) {
-      console.error('Erro ao buscar instâncias WhatsApp:', error);
-      return [];
+      console.error('❌ Erro ao enviar mensagem:', error);
+      return false;
     }
   }
 
-  // Alternar modo SDR
-  static async toggleSDRMode(contactId: string, instanceId: string): Promise<boolean> {
+  // Test connection
+  async testConnection() {
     try {
-      const response = await api.post('/api/whatsapp/toggle-sdr', {
+      const response = await this.api.get('/api/test');
+      return response.data;
+    } catch (error) {
+      console.error('❌ Erro no teste de conexão:', error);
+      throw error;
+    }
+  }
+
+  // Toggle SDR mode
+  async toggleSdr(contactId: string, instanceId: string) {
+    try {
+      const response = await this.api.post('/api/whatsapp/toggle-sdr', {
         contactId,
         instanceId
       });
-      
-      return response.data.ok === true;
+      return response.data.success;
     } catch (error) {
-      console.error('Erro ao alternar modo SDR:', error);
+      console.error('❌ Erro ao alternar modo SDR:', error);
       return false;
     }
   }
 
-  // Configurar WhatsApp
-  static async configureWhatsApp(instanceId: string, number: string, enabled: boolean): Promise<boolean> {
+  // Remove WhatsApp instance
+  async removeWhatsApp(instanceId: string) {
     try {
-      return await this.retryOperation(async () => {
-        const response = await apiLongTimeout.post('/api/whatsapp/configure', {
-          instanceId,
-          number,
-          enabled
-        });
-        
-        return response.data.ok === true;
-      }, 2, 5000); // 2 tentativas com delay de 5 segundos
+      const response = await this.api.delete(`/api/whatsapp/instances/${instanceId}`);
+      return response.data.success;
     } catch (error) {
-      console.error('Erro ao configurar WhatsApp após todas as tentativas:', error);
+      console.error('❌ Erro ao remover WhatsApp:', error);
       return false;
     }
   }
 
-  // Remover WhatsApp
-  static async removeWhatsApp(instanceId: string): Promise<boolean> {
+  // Configure WhatsApp instance
+  async configureWhatsApp(instanceId: string, number: string, enabled: boolean) {
     try {
-      const response = await api.delete(`/api/whatsapp/${instanceId}`);
-      
-      return response.data.ok === true;
+      const response = await this.api.post(`/api/whatsapp/instances/${instanceId}`, {
+        number,
+        enabled
+      });
+      return response.data.success;
     } catch (error) {
-      console.error('Erro ao remover WhatsApp:', error);
+      console.error('❌ Erro ao configurar WhatsApp:', error);
       return false;
     }
   }
-} 
+}
+
+export default new ApiService(); 

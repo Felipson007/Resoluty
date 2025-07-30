@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Tabs, Tab, Chip, Typography } from '@mui/material';
 import { AllInbox } from '@mui/icons-material';
-import { ApiService } from '../services/apiService';
+import ApiService from '../services/apiService';
 
 export interface FilterTab {
   id: string;

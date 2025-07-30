@@ -25,7 +25,7 @@ import {
   Support as SupportIcon,
 } from '@mui/icons-material';
 import { Contact } from './WhatsAppDashboard';
-import { ApiService } from '../services/apiService';
+import ApiService from '../services/apiService';
 
 interface MessageInputProps {
   onSendMessage: (message: string) => void;
@@ -75,9 +75,9 @@ const MessageInput: React.FC<MessageInputProps> = ({
     if (!selectedInstanceId) return;
     
     try {
-      const success = await ApiService.toggleSDRMode(contact.id, selectedInstanceId);
+      const success = await ApiService.toggleSdr(contact.id, selectedInstanceId);
       if (success) {
-        setSdrMode(!sdrMode);
+        setSdrMode((prev) => !prev);
       }
     } catch (error) {
       console.error('Erro ao alternar modo SDR:', error);

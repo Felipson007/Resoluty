@@ -45,7 +45,7 @@ import {
 } from '@mui/icons-material';
 import { QRCodeSVG } from 'qrcode.react';
 import io from 'socket.io-client';
-import { ApiService } from '../services/apiService';
+import ApiService from '../services/apiService';
 import { API_CONFIG } from '../config/api';
 
 // Configuração da URL do Socket e API
@@ -190,8 +190,11 @@ export default function WhatsAppConfig() {
   const handleDelete = async (instanceId: string) => {
     if (window.confirm('Tem certeza que deseja remover este WhatsApp?')) {
       try {
-        const success = await ApiService.removeWhatsApp(instanceId);
-        if (success) {
+        const response = await fetch(`${API_BASE_URL}/api/whatsapp/instances/${instanceId}`, {
+          method: 'DELETE',
+        });
+        const data = await response.json();
+        if (data.ok) {
           setSuccess('WhatsApp removido com sucesso!');
           fetchInstances();
         } else {
@@ -212,11 +215,18 @@ export default function WhatsAppConfig() {
     try {
       setSaving(true);
       const config = editingConfig || newConfig;
-      const success = await ApiService.configureWhatsApp(
-        config.instanceId,
-        config.number,
-        config.enabled
-      );
+      const response = await fetch(`${API_BASE_URL}/api/whatsapp/instances/${config.instanceId}`, {
+        method: editingConfig ? 'PUT' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          number: config.number,
+          enabled: config.enabled,
+        }),
+      });
+      const data = await response.json();
+      const success = data.ok;
       
       if (success) {
         setSuccess(editingConfig ? 'WhatsApp atualizado!' : 'WhatsApp adicionado! Aguarde o QR code aparecer...');
