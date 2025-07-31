@@ -525,68 +525,91 @@ async function startBot(instanceId: string, number: string): Promise<void> {
       // Inicia/reinicia o timeout de 15 segundos
       timeoutsPorUsuario[from] = setTimeout(() => {
         (async () => {
-          // Buscar histórico do banco antes de montar o prompt
-          const { data: historicoDB } = await buscarHistoricoCliente(from, 10);
-          // Montar histórico estruturado para o cérebro
-          const historicoEstruturado = (historicoDB || []).flatMap((item: any) => [
-            { texto: item.mensagem_usuario, timestamp: item.data, autor: 'usuario' },
-            item.resposta_ia ? { texto: item.resposta_ia, timestamp: item.data, autor: 'sistema' } : null
-          ]).filter(Boolean);
-          // Acrescenta mensagens não salvas ainda (caso existam)
-          // Remove possíveis valores nulos do histórico estruturado antes de concatenar
-          const historicoFinal = [
-            ...historicoEstruturado.filter((msg: any) => msg !== null),
-            ...(historicoPorUsuario[from] || [])
-          ];
-          // Gera prompt usando o cérebro
-          const promptCerebro = gerarPromptCerebro(historicoFinal);
-          let resposta = 'Desculpe, não consegui responder.';
           try {
-            // Usar URL de produção ou localhost baseado no ambiente
-            const baseUrl = process.env.NODE_ENV === 'production' 
-              ? 'https://resoluty.onrender.com' 
-              : 'https://resoluty.onrender.com';
+            // Buscar histórico do banco antes de montar o prompt
+            const { data: historicoDB } = await buscarHistoricoCliente(from, 20); // Aumentar para 20 mensagens
             
-            console.log(`Chamando IA em ${baseUrl}/webhook/ia com:`, promptCerebro);
-            const iaResp = await axios.post(`${baseUrl}/webhook/ia`, { message: promptCerebro });
-            console.log('Resposta recebida da IA:', iaResp.data);
-            resposta = iaResp.data.resposta || resposta;
-            // Adiciona resposta ao histórico em memória
-            historicoPorUsuario[from].push({
-              texto: resposta,
-              timestamp: new Date().toISOString(),
-              autor: 'sistema',
-            });
-
-            // Salva resposta da IA no banco
-            await salvarInteracaoHistorico({
-              cliente_id: from,
-              mensagem_usuario: '',
-              resposta_ia: resposta,
-              data: new Date().toISOString(),
-              canal: 'whatsapp',
-            });
-
-            // Envia resposta via WhatsApp
-            await instance.client.sendMessage(from, resposta);
-
-            // Emitir evento via Socket.IO para resposta da IA
-            if (socketIO) {
-              socketIO.emit('new-message', {
-                contactId: from,
-                message: {
-                  texto: resposta,
-                  timestamp: new Date().toISOString(),
-                  autor: 'sistema'
-                },
-                instanceId,
-                number
+            // Montar histórico estruturado para o cérebro
+            const historicoEstruturado = (historicoDB || []).flatMap((item: any) => [
+              { texto: item.mensagem_usuario, timestamp: item.data, autor: 'usuario' },
+              item.resposta_ia ? { texto: item.resposta_ia, timestamp: item.data, autor: 'sistema' } : null
+            ]).filter(Boolean);
+            
+            // Combinar histórico do banco com histórico em memória
+            const historicoFinal = [
+              ...historicoEstruturado.filter((msg: any) => msg !== null),
+              ...(historicoPorUsuario[from] || [])
+            ];
+            
+            console.log(`🧠 Histórico final para ${from}:`, historicoFinal.length, 'mensagens');
+            console.log(`🧠 Últimas mensagens:`, historicoFinal.slice(-5));
+            
+            // Buscar informações do lead para contexto
+            const lead = await buscarLead(from);
+            const clienteInfo = lead ? {
+              nome: lead.metadata?.nome || 'Cliente',
+              numero: lead.numero,
+              status: lead.metadata?.status || 'lead_novo'
+            } : undefined;
+            
+            // Gera prompt usando o cérebro com a mensagem atual
+            const promptCerebro = gerarPromptCerebro(historicoFinal, clienteInfo, text);
+            
+            let resposta = 'Desculpe, não consegui responder.';
+            try {
+              // Usar URL de produção ou localhost baseado no ambiente
+              const baseUrl = process.env.NODE_ENV === 'production' 
+                ? 'https://resoluty.onrender.com' 
+                : 'https://resoluty.onrender.com';
+              
+              console.log(`Chamando IA em ${baseUrl}/webhook/ia`);
+              console.log(`🧠 Prompt gerado pelo cérebro:`, promptCerebro);
+              
+              const iaResp = await axios.post(`${baseUrl}/webhook/ia`, { message: promptCerebro });
+              console.log('Resposta recebida da IA:', iaResp.data);
+              resposta = iaResp.data.resposta || resposta;
+              
+              // Adiciona resposta ao histórico em memória
+              historicoPorUsuario[from].push({
+                texto: resposta,
+                timestamp: new Date().toISOString(),
+                autor: 'sistema',
               });
-            }
 
-            console.log(`Resposta enviada via ${number}: ${resposta}`);
+              // Salva resposta da IA no banco
+              await salvarInteracaoHistorico({
+                cliente_id: from,
+                mensagem_usuario: '',
+                resposta_ia: resposta,
+                data: new Date().toISOString(),
+                canal: 'whatsapp',
+              });
+
+              // Envia resposta via WhatsApp
+              await instance.client.sendMessage(from, resposta);
+
+              // Emitir evento via Socket.IO para resposta da IA
+              if (socketIO) {
+                console.log('📨 Emitindo evento new-message para resposta da IA');
+                socketIO.emit('new-message', {
+                  contactId: from,
+                  message: {
+                    texto: resposta,
+                    timestamp: new Date().toISOString(),
+                    autor: 'sistema'
+                  },
+                  instanceId,
+                  number
+                });
+                console.log('✅ Evento new-message emitido com sucesso para resposta da IA');
+              }
+
+              console.log(`Resposta enviada via ${number}: ${resposta}`);
+            } catch (error) {
+              console.error('Erro ao processar mensagem:', error);
+            }
           } catch (error) {
-            console.error('Erro ao processar mensagem:', error);
+            console.error('Erro ao processar timeout da mensagem:', error);
           }
         })();
       }, 15000);

@@ -39,20 +39,20 @@ INFORMAÇÕES DO CLIENTE:
   // Mensagem atual do cliente
   const mensagemCliente = mensagemAtual ? `\nMENSAGEM ATUAL DO CLIENTE: ${mensagemAtual}` : '';
 
-  // Informações sobre bancos
+  // Obter informações dos bancos
   const infoBancos = obterInformacoesBancos();
 
   // Prompt com instrução clara para a IA
-  const prompt = `Responda somente com a mensagem que deve ser enviada
+  const prompt = `
+  ${infoCliente}
 
-${infoBancos}
 
-${infoCliente}
+  HISTÓRICO COMPLETO DA CONVERSA:
+  ${historicoFormatado}${mensagemCliente}
+  Baseado na última mensagem do Cliente, qual a próxima mensagem que você tem que mandar seguindo o arquivo Script SDR PDE 
 
-HISTÓRICO COMPLETO DA CONVERSA:
-${historicoFormatado}${mensagemCliente}
-
-Baseado na conversa acima, responda como a Clara da Resoluty Consultoria. Seja natural, amigável e siga o fluxo da conversa.`;
+  Responda somente com a mensagem que deve ser enviada.`;
+  
 
   console.log('🧠 Prompt gerado (primeiros 500 chars):', prompt.substring(0, 500) + '...');
   return prompt;
