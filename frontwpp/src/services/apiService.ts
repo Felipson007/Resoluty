@@ -26,10 +26,11 @@ class ApiService {
   async getWhatsAppStatus() {
     try {
       const response = await this.api.get('/api/whatsapp/status');
+      console.log('📱 Status WhatsApp atualizado:', response.data);
       return response.data;
     } catch (error) {
       console.error('❌ Erro ao buscar status do WhatsApp:', error);
-      throw error;
+      return { connected: false, number: '', aiActive: true };
     }
   }
 
@@ -201,6 +202,18 @@ class ApiService {
       return response.data.success;
     } catch (error) {
       console.error('❌ Erro ao configurar WhatsApp:', error);
+      return false;
+    }
+  }
+
+  // Force check WhatsApp status
+  async forceCheckStatus() {
+    try {
+      const response = await this.api.post('/api/whatsapp/check-status');
+      console.log('🔍 Verificação forçada executada:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Erro na verificação forçada:', error);
       return false;
     }
   }

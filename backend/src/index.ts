@@ -38,6 +38,48 @@ setWhatsAppBotSocketIO(io);
 // Status do WhatsApp
 let lastEmittedStatus = { connected: false, number: '' };
 
+// Função para verificar status do WhatsApp
+function checkWhatsAppStatus() {
+  try {
+    const { getWhatsAppInstances } = require('./routes/whatsappWebJS');
+    const instances = getWhatsAppInstances();
+    
+    // Verificar se há alguma instância conectada
+    const connectedInstance = instances.find((instance: any) => instance.isConnected);
+    
+    const currentStatus = {
+      connected: !!connectedInstance,
+      number: connectedInstance ? connectedInstance.number : '',
+      aiActive: true // Por enquanto sempre ativo
+    };
+    
+    // Emitir status apenas se mudou
+    if (JSON.stringify(currentStatus) !== JSON.stringify(lastEmittedStatus)) {
+      console.log('📱 Status WhatsApp mudou:', currentStatus);
+      io.emit('whatsapp-status', currentStatus);
+      lastEmittedStatus = currentStatus;
+    }
+    
+    // Log das instâncias para debug
+    if (instances.length > 0) {
+      console.log('📱 Instâncias WhatsApp:', instances.map((i: any) => ({
+        id: i.id,
+        number: i.number,
+        connected: i.isConnected,
+        enabled: i.enabled
+      })));
+    }
+  } catch (error) {
+    console.error('❌ Erro ao verificar status do WhatsApp:', error);
+  }
+}
+
+// Verificar status a cada 5 segundos
+setInterval(checkWhatsAppStatus, 5000);
+
+// Verificação inicial
+setTimeout(checkWhatsAppStatus, 2000);
+
 // Inicializar WhatsApp Service
 async function initializeWhatsAppService() {
   console.log('🚀 Iniciando WhatsApp Service...');
@@ -99,10 +141,51 @@ app.post('/api/test/qr', (req, res) => {
   }
 });
 
-// Status do WhatsApp
+// Check WhatsApp status endpoint
 app.get('/api/whatsapp/status', (req, res) => {
-  const status = getWhatsAppStatus();
-  res.json(status);
+  try {
+    const { getWhatsAppInstances } = require('./routes/whatsappWebJS');
+    const instances = getWhatsAppInstances();
+    
+    const connectedInstance = instances.find((instance: any) => instance.isConnected);
+    
+    const status = {
+      connected: !!connectedInstance,
+      number: connectedInstance ? connectedInstance.number : '',
+      aiActive: true,
+      instances: instances.map((i: any) => ({
+        id: i.id,
+        number: i.number,
+        connected: i.isConnected,
+        enabled: i.enabled
+      }))
+    };
+    
+    console.log('📱 Status do WhatsApp consultado:', status);
+    res.json(status);
+  } catch (error) {
+    console.error('❌ Erro ao verificar status do WhatsApp:', error);
+    res.status(500).json({ error: 'Erro ao verificar status do WhatsApp' });
+  }
+});
+
+// Force check WhatsApp status endpoint
+app.post('/api/whatsapp/check-status', (req, res) => {
+  try {
+    console.log('🔍 Verificação forçada do status do WhatsApp solicitada');
+    
+    // Executar verificação manual
+    checkWhatsAppStatus();
+    
+    res.json({ 
+      success: true, 
+      message: 'Verificação de status executada',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Erro na verificação forçada:', error);
+    res.status(500).json({ error: 'Erro na verificação de status' });
+  }
 });
 
 // Instâncias WhatsApp (simulado)
@@ -140,25 +223,75 @@ app.delete('/api/whatsapp/instances/:instanceId', (req, res) => {
 });
 
 // Configure WhatsApp instance
-app.post('/api/whatsapp/instances/:instanceId', (req, res) => {
+app.post('/api/whatsapp/instances/:instanceId', async (req, res) => {
   const { instanceId } = req.params;
   const { number, enabled } = req.body;
   
   try {
     console.log(`⚙️ Configurando instância WhatsApp: ${instanceId}`, { number, enabled });
     
+    if (enabled) {
+      // Importar e chamar a função startBot do whatsappWebJS
+      const { startBot } = require('./routes/whatsappWebJS');
+      console.log(`🚀 Iniciando WhatsApp para instância: ${instanceId} com número: ${number}`);
+      
+      // Iniciar o bot em background
+      startBot(instanceId, number).catch((error: any) => {
+        console.error(`❌ Erro ao iniciar WhatsApp ${instanceId}:`, error);
+      });
+    } else {
+      // Se disabled, remover a instância
+      const { removeWhatsApp } = require('./routes/whatsappWebJS');
+      await removeWhatsApp(instanceId);
+    }
+    
     // Emitir evento para frontend
     io.emit('whatsapp-instance-configured', { instanceId, number, enabled });
     
     res.json({ 
       success: true, 
-      message: 'WhatsApp configurado com sucesso' 
+      message: enabled ? 'WhatsApp iniciado com sucesso' : 'WhatsApp desativado com sucesso'
     });
   } catch (error) {
     console.error('❌ Erro ao configurar WhatsApp:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Erro ao configurar WhatsApp' 
+    });
+  }
+});
+
+// Add new WhatsApp instance
+app.post('/api/whatsapp/add', async (req, res) => {
+  const { instanceId, number } = req.body;
+  
+  try {
+    console.log(`➕ Adicionando nova instância WhatsApp: ${instanceId}`, { number });
+    console.log(`📡 SocketIO disponível: ${io ? 'Sim' : 'Não'}`);
+    console.log(`📊 Total de clientes conectados: ${io.sockets.sockets.size}`);
+    
+    // Importar e chamar a função startBot do whatsappWebJS
+    const { startBot } = require('./routes/whatsappWebJS');
+    console.log(`🚀 Iniciando WhatsApp para instância: ${instanceId} com número: ${number}`);
+    
+    // Iniciar o bot em background
+    startBot(instanceId, number).catch((error: any) => {
+      console.error(`❌ Erro ao iniciar WhatsApp ${instanceId}:`, error);
+    });
+    
+    // Emitir evento para frontend
+    io.emit('whatsapp-instance-added', { instanceId, number });
+    console.log(`✅ Evento whatsapp-instance-added emitido para ${instanceId}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'WhatsApp adicionado com sucesso'
+    });
+  } catch (error) {
+    console.error('❌ Erro ao adicionar WhatsApp:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Erro ao adicionar WhatsApp' 
     });
   }
 });

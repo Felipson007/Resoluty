@@ -132,7 +132,7 @@ export async function removeWhatsApp(instanceId: string): Promise<boolean> {
   }
 }
 
-async function startBot(instanceId: string, number: string): Promise<void> {
+export async function startBot(instanceId: string, number: string): Promise<void> {
   try {
     const client = new Client({
       authStrategy: new LocalAuth({ clientId: instanceId }),
@@ -164,23 +164,52 @@ async function startBot(instanceId: string, number: string): Promise<void> {
 
     client.on('qr', (qr) => {
       console.log(`\n=== QR Code para ${number} (${instanceId}) ===`);
+      console.log('QR Code disponível no frontend');
+      console.log(`Tamanho do QR: ${qr.length} caracteres`);
+      console.log(`SocketIO disponível: ${socketIO ? 'Sim' : 'Não'}`);
       instance.qrDisplayed = true;
       
+      // Limpar timeout anterior se existir
       if (instance.qrTimeout) {
         clearTimeout(instance.qrTimeout);
       }
       
+      // Configurar timeout para detectar expiração do QR (60 segundos)
       instance.qrTimeout = setTimeout(() => {
-        console.log(`QR Code para ${number} (${instanceId}) expirou.`);
+        console.log(`QR Code para ${number} (${instanceId}) expirou. Regenerando...`);
         instance.qrDisplayed = false;
         
+        // Emitir evento de QR expirado
         if (socketIO) {
-          socketIO.emit('qr-expired', { instanceId, number });
+          socketIO.emit('qr-expired', { 
+            instanceId, 
+            number 
+          });
         }
-      }, 45000);
+      }, 60000); // 60 segundos
       
+      // Emitir QR para frontend
       if (socketIO) {
-        socketIO.emit('qr', { qr, instanceId, number });
+        console.log(`Emitindo QR para frontend: ${instanceId}`);
+        console.log(`Dados do QR: { qr: "${qr.substring(0, 50)}...", instanceId: "${instanceId}", number: "${number}" }`);
+        
+        // Emitir para todos os clientes conectados
+        socketIO.emit('qr', { 
+          qr, 
+          instanceId, 
+          number 
+        });
+        
+        // Também emitir o evento alternativo para compatibilidade
+        socketIO.emit('qr-code', { 
+          qr 
+        });
+        
+        console.log('✅ QR Code emitido com sucesso para todos os clientes');
+        console.log(`📊 Total de clientes conectados: ${socketIO.sockets.sockets.size}`);
+      } else {
+        console.error('❌ SocketIO não está disponível para emitir QR');
+        console.error('SocketIO object:', socketIO);
       }
     });
 
@@ -196,6 +225,12 @@ async function startBot(instanceId: string, number: string): Promise<void> {
       
       if (socketIO) {
         socketIO.emit('wpp-status', { status: 'open', instanceId, number });
+        // Emitir status geral do WhatsApp
+        socketIO.emit('whatsapp-status', { 
+          connected: true, 
+          number: number,
+          aiActive: true 
+        });
       }
     });
 
@@ -211,6 +246,15 @@ async function startBot(instanceId: string, number: string): Promise<void> {
       
       if (socketIO) {
         socketIO.emit('wpp-status', { status: 'close', instanceId, number });
+        // Verificar se ainda há outras instâncias conectadas
+        const connectedInstances = Array.from(whatsappInstances.values()).filter(i => i.isConnected);
+        const connectedInstance = connectedInstances[0];
+        
+        socketIO.emit('whatsapp-status', { 
+          connected: connectedInstances.length > 0, 
+          number: connectedInstance ? connectedInstance.number : '',
+          aiActive: true 
+        });
       }
     });
 

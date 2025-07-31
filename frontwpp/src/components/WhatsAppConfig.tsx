@@ -124,7 +124,7 @@ const WhatsAppConfig: React.FC = () => {
     }
   };
 
-  const handleAddWhatsApp = () => {
+  const handleAddWhatsApp = async () => {
     console.log('➕ Iniciando adição de WhatsApp...');
     setShowAddModal(true);
     setQrCode('');
@@ -133,11 +133,38 @@ const WhatsAppConfig: React.FC = () => {
     setSuccess(null);
     setDebugInfo('Modal aberto, aguardando QR...');
     
-    // Solicitar QR code ao backend
-    setTimeout(() => {
+    try {
+      // Gerar um ID único para a instância
+      const instanceId = `instance_${Date.now()}`;
+      const number = '5511999999999'; // Número padrão, pode ser alterado depois
+      
       console.log('📱 Solicitando QR code ao backend...');
-      // O backend deve automaticamente emitir o QR quando detectar nova conexão
-    }, 1000);
+      
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/whatsapp/add`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          instanceId,
+          number
+        })
+      });
+      
+      const data = await response.json();
+      console.log('📱 Resposta do backend:', data);
+      
+      if (data.success) {
+        setDebugInfo('WhatsApp iniciado, aguardando QR code...');
+      } else {
+        setError('Erro ao iniciar WhatsApp');
+        setDebugInfo(`Erro: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao adicionar WhatsApp:', error);
+      setError('Erro ao conectar com o backend');
+      setDebugInfo('Erro de conexão');
+    }
   };
 
   const handleCloseModal = () => {
@@ -211,6 +238,30 @@ const WhatsAppConfig: React.FC = () => {
     }
   };
 
+  const handleForceCheckStatus = async () => {
+    try {
+      console.log('🔍 Forçando verificação de status...');
+      setDebugInfo('Verificando status do WhatsApp...');
+      
+      const apiService = await import('../services/apiService');
+      const result = await apiService.default.forceCheckStatus();
+      
+      if (result.success) {
+        setDebugInfo('Verificação executada com sucesso');
+        setSuccess('Status verificado com sucesso!');
+        // Recarregar instâncias após verificação
+        fetchInstances();
+      } else {
+        setDebugInfo('Erro na verificação de status');
+        setError('Erro ao verificar status');
+      }
+    } catch (error) {
+      console.error('❌ Erro na verificação forçada:', error);
+      setDebugInfo('Erro na verificação de status');
+      setError('Erro ao verificar status');
+    }
+  };
+
   return (
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
@@ -226,6 +277,13 @@ const WhatsAppConfig: React.FC = () => {
             sx={{ borderColor: 'purple', color: 'purple' }}
           >
             Testar Conexão
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={handleForceCheckStatus}
+            sx={{ borderColor: 'blue', color: 'blue' }}
+          >
+            Verificar Status
           </Button>
           <Button
             variant="outlined"
