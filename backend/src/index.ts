@@ -54,19 +54,28 @@ async function salvarSessaoWhatsApp() {
     const authPath = './.wwebjs_auth';
     if (fs.existsSync(authPath)) {
       const authData = fs.readdirSync(authPath);
-      const sessionData = authData.map(file => ({
-        filename: file,
-        content: fs.readFileSync(path.join(authPath, file)).toString('base64')
-      }));
+      const sessionData = authData.map(file => {
+        const filePath = path.join(authPath, file);
+        // Verificar se é um arquivo antes de tentar ler
+        if (fs.statSync(filePath).isFile()) {
+          return {
+            filename: file,
+            content: fs.readFileSync(filePath).toString('base64')
+          };
+        }
+        return null;
+      }).filter(item => item !== null);
       
-      // Salvar no Supabase
-      await supabase.from('whatsapp_sessions').upsert({
-        id: 'resoluty-ai',
-        session_data: sessionData,
-        updated_at: new Date().toISOString()
-      });
-      
-      console.log('💾 Sessão WhatsApp salva no banco');
+      if (sessionData.length > 0) {
+        // Salvar no Supabase
+        await supabase.from('whatsapp_sessions').upsert({
+          id: 'resoluty-ai',
+          session_data: sessionData,
+          updated_at: new Date().toISOString()
+        });
+        
+        console.log('💾 Sessão WhatsApp salva no banco');
+      }
     }
   } catch (error) {
     console.error('❌ Erro ao salvar sessão WhatsApp:', error);

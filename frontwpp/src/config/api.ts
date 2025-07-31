@@ -1,7 +1,7 @@
 // Configuração da API
 export const API_CONFIG = {
   // URL do backend - forçar uso da URL correta
-  BASE_URL: process.env.REACT_APP_API_URL || 'https://resoluty.onrender.com',
+  BASE_URL: 'https://resoluty.onrender.com',
   
   // Endpoints
   ENDPOINTS: {

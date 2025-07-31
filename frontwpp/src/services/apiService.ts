@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://resoluty.onrender.com';
+const API_BASE_URL = 'https://resoluty.onrender.com';
 
 class ApiService {
   private api = axios.create({
