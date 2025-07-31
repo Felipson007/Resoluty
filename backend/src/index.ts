@@ -33,7 +33,7 @@ const io = new Server(server, {
 // Configurar Socket.IO para as rotas do WhatsApp
 setWhatsAppWebJSSocketIO(io);
 setWhatsAppBotSocketIO(io);
-setWhatsAppServiceSocketIO(io);
+// setWhatsAppServiceSocketIO(io); // Desabilitado para evitar duplicação de mensagens
 
 // Status do WhatsApp
 let lastEmittedStatus = { connected: false, number: '' };
@@ -41,7 +41,7 @@ let lastEmittedStatus = { connected: false, number: '' };
 // Inicializar WhatsApp Service
 async function initializeWhatsAppService() {
   console.log('🚀 Iniciando WhatsApp Service...');
-  await startWhatsAppService();
+  // await startWhatsAppService(); // Desabilitado para evitar duplicação de mensagens
 }
 
 // Socket.IO connections

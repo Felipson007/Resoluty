@@ -54,12 +54,18 @@ class ApiService {
       
       const leads = response.data.map((lead: any) => {
         console.log('📋 Lead bruto:', lead);
+        
+        // Usar nome do lead se disponível, senão usar número
+        const leadName = lead.metadata?.nome || `Cliente ${lead.numero}`;
+        
         const contact = {
           id: lead.numero,
-          name: `Cliente ${lead.numero}`,
+          name: leadName,
           phone: lead.numero,
-          lastMessage: 'Nenhuma mensagem',
-          lastMessageTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          lastMessage: lead.metadata?.ultima_mensagem || 'Nenhuma mensagem',
+          lastMessageTime: lead.metadata?.ultima_atividade ? 
+            new Date(lead.metadata.ultima_atividade).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) :
+            new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
           status: lead.metadata?.status === 'lead_novo' ? 'bot' : 
                  lead.metadata?.status === 'lead_avancado' ? 'humano' : 
                  lead.metadata?.status === 'lead_sem_interesse' ? 'finalizado' : 'bot',

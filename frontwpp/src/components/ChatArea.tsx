@@ -164,6 +164,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ contact, messages, onStatusChange }
 
       {/* Área de Mensagens */}
       <Box
+        className="chat-messages-container"
         sx={{
           flex: 1,
           overflow: 'auto',

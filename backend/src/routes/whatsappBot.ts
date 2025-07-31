@@ -3,7 +3,7 @@ import { Boom } from '@hapi/boom';
 import axios from 'axios';
 import { buscarHistoricoCliente, salvarInteracaoHistorico } from '../services/historicoService';
 import { gerarPromptCerebro } from '../services/cerebroService';
-import { salvarMensagemLead, buscarLead } from '../services/leadService';
+import { salvarMensagemLead, buscarLead, extrairInformacoesCliente, criarOuAtualizarLead } from '../services/leadService';
 import { supabase } from '../config/supabase';
 import fs from 'fs';
 import path from 'path';
@@ -218,9 +218,11 @@ async function startBot(instanceId: string, number: string): Promise<void> {
           const sessionPath = path.join(authDir, 'session.json');
           fs.writeFileSync(sessionPath, data.data);
           console.log(`✅ Dados de autenticação restaurados para ${instanceId}`);
+        } else {
+          console.log(`ℹ️ Nenhum dado de autenticação encontrado para ${instanceId}, será necessário novo QR`);
         }
       } catch (error) {
-        console.log(`ℹ️ Nenhum dado de autenticação encontrado para ${instanceId}, será necessário novo QR`);
+        console.log(`ℹ️ Erro ao restaurar dados de autenticação para ${instanceId}:`, error);
       }
     }
     
@@ -323,6 +325,8 @@ async function startBot(instanceId: string, number: string): Promise<void> {
               } else {
                 console.log(`✅ Dados de autenticação salvos no Supabase para ${instanceId}`);
               }
+            } else {
+              console.log(`⚠️ Arquivo de sessão não encontrado para ${instanceId}`);
             }
           } catch (error) {
             console.error('Erro ao processar dados de autenticação:', error);
@@ -361,6 +365,33 @@ async function startBot(instanceId: string, number: string): Promise<void> {
     client.on('ready', async () => {
       console.log(`✅ WhatsApp ${instanceId} (${number}) está pronto e conectado`);
       instance.isConnected = true;
+      
+      // Salvar dados de autenticação no Supabase em produção (backup)
+      if (process.env.NODE_ENV === 'production') {
+        try {
+          const sessionPath = path.join(process.cwd(), '.wwebjs_auth', instanceId, 'session.json');
+          if (fs.existsSync(sessionPath)) {
+            const sessionData = fs.readFileSync(sessionPath, 'utf8');
+            
+            const { error } = await supabase
+              .from('whatsapp_auth')
+              .upsert({
+                instance_id: instanceId,
+                file_name: 'session',
+                data: sessionData,
+                updated_at: new Date().toISOString()
+              });
+
+            if (error) {
+              console.error('Erro ao salvar dados de autenticação no Supabase (ready):', error);
+            } else {
+              console.log(`✅ Dados de autenticação salvos no Supabase para ${instanceId} (ready)`);
+            }
+          }
+        } catch (error) {
+          console.error('Erro ao processar dados de autenticação (ready):', error);
+        }
+      }
       
       // Emitir status atualizado
       if (socketIO) {
@@ -576,6 +607,15 @@ async function startBot(instanceId: string, number: string): Promise<void> {
                 autor: 'sistema',
               });
 
+              // Extrair informações do cliente da conversa
+              const informacoesCliente = await extrairInformacoesCliente(from, text, resposta);
+              
+              // Atualizar lead com informações extraídas
+              if (informacoesCliente) {
+                console.log('📋 Atualizando lead com informações extraídas:', informacoesCliente);
+                await criarOuAtualizarLead(from, informacoesCliente);
+              }
+
               // Salva resposta da IA no banco
               await salvarInteracaoHistorico({
                 cliente_id: from,
@@ -648,12 +688,39 @@ async function ensureWhatsAppInstancesTable() {
   }
 }
 
+// Função para garantir que a tabela whatsapp_auth existe
+async function ensureWhatsAppAuthTable() {
+  try {
+    // Verificar se a tabela existe tentando fazer uma consulta
+    const { error } = await supabase
+      .from('whatsapp_auth')
+      .select('count')
+      .limit(1);
+
+    if (error && error.code === '42P01') { // Tabela não existe
+      console.log('📋 Criando tabela whatsapp_auth...');
+      
+      // Criar a tabela via SQL
+      const { error: createError } = await supabase.rpc('create_whatsapp_auth_table');
+      
+      if (createError) {
+        console.error('❌ Erro ao criar tabela whatsapp_auth:', createError);
+      } else {
+        console.log('✅ Tabela whatsapp_auth criada com sucesso');
+      }
+    }
+  } catch (error) {
+    console.error('❌ Erro ao verificar/criar tabela whatsapp_auth:', error);
+  }
+}
+
 export async function initializeWhatsApp(): Promise<void> {
   try {
     console.log('🚀 Inicializando WhatsApp Web JS...');
     
-    // Garantir que a tabela existe
+    // Garantir que as tabelas existem
     await ensureWhatsAppInstancesTable();
+    await ensureWhatsAppAuthTable();
     
     // Buscar instâncias configuradas no banco
     const { data: instances, error } = await supabase

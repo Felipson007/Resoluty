@@ -304,3 +304,72 @@ export async function buscarMensagensLead(numero: string, limite: number = 50) {
     return [];
   }
 } 
+
+// Função para extrair informações do cliente das mensagens da IA
+export async function extrairInformacoesCliente(numero: string, mensagemCliente: string, respostaIA: string): Promise<Partial<LeadMetadata> | null> {
+  try {
+    console.log('🔍 Extraindo informações do cliente...');
+    console.log('🔍 Mensagem do cliente:', mensagemCliente);
+    console.log('🔍 Resposta da IA:', respostaIA);
+    
+    const informacoes: Partial<LeadMetadata> = {};
+    
+    // Extrair nome do cliente
+    // Padrões comuns para identificar nomes
+    const padroesNome = [
+      /meu nome é\s+([^\s,\.]+)/i,
+      /sou\s+([^\s,\.]+)/i,
+      /chamo\s+([^\s,\.]+)/i,
+      /nome\s+([^\s,\.]+)/i,
+      /sou\s+o\s+([^\s,\.]+)/i,
+      /sou\s+a\s+([^\s,\.]+)/i
+    ];
+    
+    // Procurar nome na mensagem do cliente
+    for (const padrao of padroesNome) {
+      const match = mensagemCliente.match(padrao);
+      if (match && match[1]) {
+        const nome = match[1].trim();
+        if (nome.length > 2 && nome.length < 50) {
+          informacoes.nome = nome;
+          console.log('🔍 Nome extraído:', nome);
+          break;
+        }
+      }
+    }
+    
+    // Se não encontrou na mensagem do cliente, procurar na resposta da IA
+    if (!informacoes.nome) {
+      for (const padrao of padroesNome) {
+        const match = respostaIA.match(padrao);
+        if (match && match[1]) {
+          const nome = match[1].trim();
+          if (nome.length > 2 && nome.length < 50) {
+            informacoes.nome = nome;
+            console.log('🔍 Nome extraído da resposta da IA:', nome);
+            break;
+          }
+        }
+      }
+    }
+    
+    // Extrair email se presente
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+    const emailMatch = mensagemCliente.match(emailRegex) || respostaIA.match(emailRegex);
+    if (emailMatch) {
+      informacoes.email = emailMatch[0];
+      console.log('🔍 Email extraído:', emailMatch[0]);
+    }
+    
+    // Se encontrou alguma informação, retornar
+    if (Object.keys(informacoes).length > 0) {
+      console.log('🔍 Informações extraídas:', informacoes);
+      return informacoes;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('❌ Erro ao extrair informações do cliente:', error);
+    return null;
+  }
+} 

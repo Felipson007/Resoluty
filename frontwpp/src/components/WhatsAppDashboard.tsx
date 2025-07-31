@@ -52,6 +52,7 @@ const WhatsAppDashboard: React.FC = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState<{ percent: number; message: string } | null>(null);
   const [isSynchronized, setIsSynchronized] = useState(false);
+  const [whatsappConnecting, setWhatsappConnecting] = useState(false);
 
   const checkWhatsAppStatus = useCallback(async () => {
     try {
@@ -72,20 +73,14 @@ const WhatsAppDashboard: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      console.log('🚀 Inicializando aplicação...');
-      
       // Verificar saúde do backend
       const isHealthy = await ApiService.checkHealth();
       if (!isHealthy) {
         throw new Error('Backend não está respondendo. Verifique se o servidor está rodando na porta 4000.');
       }
-
-      console.log('✅ Backend está online');
       
       // Sempre buscar leads, independente do status do WhatsApp
-      console.log('📋 Buscando leads...');
       const leads = await ApiService.getLeads();
-      console.log('📋 Leads encontrados:', leads.length);
       setContacts(leads);
       
       setRetryCount(0);
@@ -106,19 +101,32 @@ const WhatsAppDashboard: React.FC = () => {
     };
   }, [initializeApp]);
 
-  // Recarregar leads periodicamente
+  // Recarregar leads periodicamente de forma mais sutil
   useEffect(() => {
     const interval = setInterval(async () => {
       if (socketConnected && !loading) {
         try {
-          console.log('🔄 Recarregando leads periodicamente...');
           const leads = await ApiService.getLeads();
-          setContacts(leads);
+          
+          // Atualizar apenas se houver mudanças para evitar flickering
+          setContacts(prevContacts => {
+            const hasChanges = leads.length !== prevContacts.length || 
+              leads.some((lead: any, index: number) => 
+                lead.id !== prevContacts[index]?.id ||
+                lead.lastMessage !== prevContacts[index]?.lastMessage ||
+                lead.status !== prevContacts[index]?.status
+              );
+            
+            if (hasChanges) {
+              return leads;
+            }
+            return prevContacts;
+          });
         } catch (error) {
           console.error('❌ Erro ao recarregar leads:', error);
         }
       }
-    }, 30000); // Recarregar a cada 30 segundos
+    }, 15000); // Recarregar a cada 15 segundos para ser mais responsivo
 
     return () => clearInterval(interval);
   }, [socketConnected, loading]);
@@ -130,20 +138,13 @@ const WhatsAppDashboard: React.FC = () => {
     const handleSocketConnected = () => {
       setSocketConnected(true);
       setError(null);
-      console.log('✅ Socket.IO conectado');
     };
 
     const handleSocketDisconnected = () => {
       setSocketConnected(false);
-      console.log('❌ Socket.IO desconectado');
     };
 
     const handleNewMessage = (data: { contactId: string; message: any; lead?: any; instanceId?: string; number?: string }) => {
-      console.log('📨 Nova mensagem recebida:', data);
-      console.log('📨 Dados do lead:', data.lead);
-      console.log('📨 ContactId:', data.contactId);
-      console.log('📨 InstanceId:', data.instanceId);
-      console.log('📨 Number:', data.number);
       
       // Verificar se a mensagem tem dados válidos
       if (!data.message || !data.message.texto) {
@@ -165,33 +166,38 @@ const WhatsAppDashboard: React.FC = () => {
         number: data.number
       };
       
-      console.log('📨 Mensagem convertida para frontend:', frontendMessage);
-      
-      // Adicionar mensagem à lista imediatamente
+      // Adicionar mensagem à lista imediatamente com animação suave
       setMessages(prev => {
         const messageExists = prev.some(msg => 
           msg.id === frontendMessage.id || 
           (msg.texto === frontendMessage.texto && msg.timestamp === frontendMessage.timestamp)
         );
         if (messageExists) {
-          console.log('📨 Mensagem já existe, ignorando');
           return prev;
         }
-        console.log('📨 Adicionando nova mensagem à lista');
-        return [...prev, frontendMessage];
+        
+        // Adicionar mensagem no final da lista
+        const newMessages = [...prev, frontendMessage];
+        
+        // Se a mensagem é do contato selecionado, rolar para baixo automaticamente
+        if (data.contactId === selectedContactId) {
+          setTimeout(() => {
+            const chatContainer = document.querySelector('.chat-messages-container');
+            if (chatContainer) {
+              chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+          }, 100);
+        }
+        
+        return newMessages;
       });
 
       // Atualizar ou criar contato com informações do lead
       setContacts(prev => {
-        console.log('📨 Contatos atuais:', prev.length);
-        console.log('📨 Procurando contato existente com ID:', data.contactId);
-        
         const existingContactIndex = prev.findIndex(c => c.id === data.contactId);
-        console.log('📨 Índice do contato existente:', existingContactIndex);
         
         if (existingContactIndex >= 0) {
           // Atualizar contato existente
-          console.log('📨 Atualizando contato existente');
           const updatedContacts = [...prev];
           updatedContacts[existingContactIndex] = {
             ...updatedContacts[existingContactIndex],
@@ -209,11 +215,9 @@ const WhatsAppDashboard: React.FC = () => {
                      data.lead.status === 'lead_sem_interesse' ? 'finalizado' : 'bot'
             })
           };
-          console.log('📨 Contato atualizado:', updatedContacts[existingContactIndex]);
           return updatedContacts;
         } else {
           // Criar novo contato
-          console.log('📨 Criando novo contato');
           const newContact: Contact = {
             id: data.contactId,
             name: data.lead ? `Cliente ${data.lead.numero}` : `Cliente ${data.contactId}`,
@@ -228,12 +232,10 @@ const WhatsAppDashboard: React.FC = () => {
             instanceId: data.instanceId,
             number: data.number
           };
-          console.log('📨 Novo contato criado:', newContact);
           
           // Recarregar leads para garantir que todos os contatos apareçam
           setTimeout(async () => {
             try {
-              console.log('🔄 Recarregando leads após nova mensagem...');
               const leads = await ApiService.getLeads();
               setContacts(leads);
             } catch (error) {
@@ -295,7 +297,10 @@ const WhatsAppDashboard: React.FC = () => {
       // Se o WhatsApp se conectou, recarregar leads
       if (status.connected) {
         console.log('📱 WhatsApp conectado, recarregando leads...');
+        setWhatsappConnecting(false);
         initializeApp();
+      } else {
+        setWhatsappConnecting(true);
       }
     };
 
@@ -307,12 +312,14 @@ const WhatsAppDashboard: React.FC = () => {
     const handleWhatsAppLoading = (data: { percent: number; message: string }) => {
       console.log('📱 Carregando WhatsApp:', data.percent, data.message);
       setLoadingProgress(data);
+      setWhatsappConnecting(true);
       
       // Se chegou a 100%, marcar como sincronizado e redirecionar
       if (data.percent === 100) {
         setTimeout(() => {
           setIsSynchronized(true);
           setLoadingProgress(null);
+          setWhatsappConnecting(false);
           // Recarregar dados após sincronização e redirecionar para dashboard
           initializeApp();
         }, 2000);
@@ -567,6 +574,36 @@ const WhatsAppDashboard: React.FC = () => {
         </Button>
         <Typography variant="body2" color="text.secondary" textAlign="center">
           Certifique-se de que o backend está rodando na porta 4000
+        </Typography>
+      </Box>
+    );
+  }
+
+  // Mostrar loading quando WhatsApp está conectando
+  if (whatsappConnecting || loadingProgress) {
+    return (
+      <Box sx={{ 
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        display: 'flex', 
+        flexDirection: 'column',
+        alignItems: 'center', 
+        justifyContent: 'center',
+        gap: 4,
+        p: 4,
+        textAlign: 'center'
+      }}>
+        <CircularProgress size={80} sx={{ color: 'white' }} />
+        <Typography variant="h5" color="white" fontWeight="bold">
+          Conectando WhatsApp...
+        </Typography>
+        {loadingProgress && (
+          <Typography variant="body1" color="white">
+            {loadingProgress.message} ({loadingProgress.percent}%)
+          </Typography>
+        )}
+        <Typography variant="body2" color="rgba(255,255,255,0.8)">
+          Aguarde enquanto configuramos sua conexão
         </Typography>
       </Box>
     );
