@@ -139,7 +139,7 @@ async function initializeWhatsApp() {
   whatsappClient.on('qr', (qr) => {
     console.log('📱 QR Code disponível - escaneie no WhatsApp');
     if (socketIO) {
-      socketIO.emit('qr-code', { qr });
+      socketIO.emit('qr', { qr });
       console.log('📱 QR Code emitido para frontend');
     }
   });
@@ -150,12 +150,29 @@ async function initializeWhatsApp() {
 
   whatsappClient.on('authenticated', () => {
     console.log('🔐 WhatsApp autenticado!');
-    salvarSessaoWhatsApp();
+    
+    // Emitir status atualizado
+    if (socketIO) {
+      const status = getWhatsAppStatus();
+      socketIO.emit('whatsapp-status', status);
+      console.log('📱 Status atualizado após autenticação:', status);
+    }
   });
 
   whatsappClient.on('ready', () => {
     console.log('✅ WhatsApp conectado!');
-    salvarSessaoWhatsApp();
+    
+    // Salvar sessão após estar pronto
+    setTimeout(() => {
+      salvarSessaoWhatsApp();
+    }, 2000);
+    
+    // Emitir status atualizado
+    if (socketIO) {
+      const status = getWhatsAppStatus();
+      socketIO.emit('whatsapp-status', status);
+      console.log('📱 Status atualizado após conexão:', status);
+    }
   });
 
   whatsappClient.on('auth_failure', (msg) => {
@@ -377,9 +394,12 @@ export async function stopWhatsAppService() {
 
 // Função para verificar status
 export function getWhatsAppStatus() {
+  const connected = whatsappClient && whatsappClient.info ? true : false;
+  const number = whatsappClient?.info?.wid?.user || '';
+  
   return {
-    connected: whatsappClient && whatsappClient.info ? true : false,
-    number: whatsappClient?.info?.wid?.user || '',
+    connected,
+    number,
     aiActive: isAIActive
   };
 }
