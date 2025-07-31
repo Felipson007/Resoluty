@@ -32,211 +32,6 @@ export function setSocketIO(io: any) {
 const historicoPorUsuario: { [key: string]: any[] } = {};
 const timeoutsPorUsuario: { [key: string]: NodeJS.Timeout } = {};
 
-// Sistema de autenticação customizado para Supabase
-class SupabaseAuthStrategy {
-  private instanceId: string;
-
-  constructor(instanceId: string) {
-    this.instanceId = instanceId;
-  }
-
-  async beforeBrowserLaunch() {
-    // Não precisa fazer nada antes do launch
-  }
-
-  async afterBrowserLaunch() {
-    // Não precisa fazer nada após o launch
-  }
-
-  async onAuthenticationNeeded() {
-    // QR code será gerado automaticamente
-  }
-
-  async getAuthInfo() {
-    try {
-      const { data, error } = await supabase
-        .from('whatsapp_auth')
-        .select('data')
-        .eq('instance_id', this.instanceId)
-        .eq('file_name', 'session')
-        .single();
-
-      if (error || !data) {
-        return null;
-      }
-
-      return JSON.parse(data.data);
-    } catch (error) {
-      console.error('Erro ao ler dados de autenticação:', error);
-      return null;
-    }
-  }
-
-  async setAuthInfo(authInfo: any) {
-    try {
-      const { error } = await supabase
-        .from('whatsapp_auth')
-        .upsert({
-          instance_id: this.instanceId,
-          file_name: 'session',
-          data: JSON.stringify(authInfo),
-          updated_at: new Date().toISOString()
-        });
-
-      if (error) {
-        console.error('Erro ao salvar dados de autenticação:', error);
-      } else {
-        console.log(`Dados de autenticação salvos para ${this.instanceId}`);
-      }
-    } catch (error) {
-      console.error('Erro ao salvar dados de autenticação:', error);
-    }
-  }
-
-  async deleteAuthInfo() {
-    try {
-      const { error } = await supabase
-        .from('whatsapp_auth')
-        .delete()
-        .eq('instance_id', this.instanceId);
-
-      if (error) {
-        console.error('Erro ao deletar dados de autenticação:', error);
-      } else {
-        console.log(`Dados de autenticação deletados para ${this.instanceId}`);
-      }
-    } catch (error) {
-      console.error('Erro ao deletar dados de autenticação:', error);
-    }
-  }
-}
-
-// Sistema de autenticação híbrido
-class HybridAuthStrategy {
-  private instanceId: string;
-  private isProduction: boolean;
-
-  constructor(instanceId: string) {
-    this.instanceId = instanceId;
-    this.isProduction = process.env.NODE_ENV === 'production';
-  }
-
-  async beforeBrowserLaunch() {
-    // Não precisa fazer nada antes do launch
-  }
-
-  async afterBrowserLaunch() {
-    // Não precisa fazer nada após o launch
-  }
-
-  async onAuthenticationNeeded() {
-    // QR code será gerado automaticamente
-  }
-
-  async getAuthInfo() {
-    if (this.isProduction) {
-      // Usar Supabase em produção
-      try {
-        const { data, error } = await supabase
-          .from('whatsapp_auth')
-          .select('data')
-          .eq('instance_id', this.instanceId)
-          .eq('file_name', 'session')
-          .single();
-
-        if (error || !data) {
-          return null;
-        }
-
-        return JSON.parse(data.data);
-      } catch (error) {
-        console.error('Erro ao ler dados de autenticação do Supabase:', error);
-        return null;
-      }
-    } else {
-      // Usar arquivos locais em desenvolvimento
-      try {
-        const sessionPath = path.join(process.cwd(), '.wwebjs_auth', this.instanceId, 'session.json');
-        if (fs.existsSync(sessionPath)) {
-          const data = fs.readFileSync(sessionPath, 'utf8');
-          return JSON.parse(data);
-        }
-      } catch (error) {
-        console.error('Erro ao ler dados de autenticação local:', error);
-      }
-      return null;
-    }
-  }
-
-  async setAuthInfo(authInfo: any) {
-    if (this.isProduction) {
-      // Salvar no Supabase em produção
-      try {
-        const { error } = await supabase
-          .from('whatsapp_auth')
-          .upsert({
-            instance_id: this.instanceId,
-            file_name: 'session',
-            data: JSON.stringify(authInfo),
-            updated_at: new Date().toISOString()
-          });
-
-        if (error) {
-          console.error('Erro ao salvar dados de autenticação no Supabase:', error);
-        } else {
-          console.log(`Dados de autenticação salvos no Supabase para ${this.instanceId}`);
-        }
-      } catch (error) {
-        console.error('Erro ao salvar dados de autenticação no Supabase:', error);
-      }
-    } else {
-      // Salvar em arquivo local em desenvolvimento
-      try {
-        const authDir = path.join(process.cwd(), '.wwebjs_auth', this.instanceId);
-        if (!fs.existsSync(authDir)) {
-          fs.mkdirSync(authDir, { recursive: true });
-        }
-        const sessionPath = path.join(authDir, 'session.json');
-        fs.writeFileSync(sessionPath, JSON.stringify(authInfo, null, 2));
-        console.log(`Dados de autenticação salvos localmente para ${this.instanceId}`);
-      } catch (error) {
-        console.error('Erro ao salvar dados de autenticação local:', error);
-      }
-    }
-  }
-
-  async deleteAuthInfo() {
-    if (this.isProduction) {
-      // Deletar do Supabase em produção
-      try {
-        const { error } = await supabase
-          .from('whatsapp_auth')
-          .delete()
-          .eq('instance_id', this.instanceId);
-
-        if (error) {
-          console.error('Erro ao deletar dados de autenticação do Supabase:', error);
-        } else {
-          console.log(`Dados de autenticação deletados do Supabase para ${this.instanceId}`);
-        }
-      } catch (error) {
-        console.error('Erro ao deletar dados de autenticação do Supabase:', error);
-      }
-    } else {
-      // Deletar arquivo local em desenvolvimento
-      try {
-        const authDir = path.join(process.cwd(), '.wwebjs_auth', this.instanceId);
-        if (fs.existsSync(authDir)) {
-          fs.rmSync(authDir, { recursive: true, force: true });
-          console.log(`Dados de autenticação deletados localmente para ${this.instanceId}`);
-        }
-      } catch (error) {
-        console.error('Erro ao deletar dados de autenticação local:', error);
-      }
-    }
-  }
-}
-
 export async function sendWhatsAppMessage(to: string, message: string, instanceId?: string): Promise<boolean> {
   try {
     // Se não especificar instância, usar a primeira disponível
@@ -357,10 +152,23 @@ export async function removeWhatsApp(instanceId: string): Promise<boolean> {
       }
       whatsappInstances.delete(instanceId);
       
-      // Limpar dados de autenticação
-      console.log(`WhatsApp removido para ${instanceId} - limpando dados de autenticação`);
-      const authStrategy = new HybridAuthStrategy(instanceId);
-      await authStrategy.deleteAuthInfo();
+      // Limpar dados de autenticação do Supabase em produção
+      if (process.env.NODE_ENV === 'production') {
+        try {
+          const { error } = await supabase
+            .from('whatsapp_auth')
+            .delete()
+            .eq('instance_id', instanceId);
+
+          if (error) {
+            console.error('Erro ao deletar dados de autenticação do Supabase:', error);
+          } else {
+            console.log(`Dados de autenticação deletados do Supabase para ${instanceId}`);
+          }
+        } catch (error) {
+          console.error('Erro ao deletar dados de autenticação do Supabase:', error);
+        }
+      }
     }
     return true;
   } catch (error) {
@@ -387,8 +195,40 @@ async function startBot(instanceId: string, number: string): Promise<void> {
       }
     }
     
+    // Em produção, tentar restaurar dados de autenticação do Supabase
+    if (process.env.NODE_ENV === 'production') {
+      try {
+        const { data, error } = await supabase
+          .from('whatsapp_auth')
+          .select('data')
+          .eq('instance_id', instanceId)
+          .eq('file_name', 'session')
+          .single();
+
+        if (!error && data) {
+          console.log(`📥 Restaurando dados de autenticação do Supabase para ${instanceId}`);
+          
+          // Criar diretório se não existir
+          const authDir = path.join(process.cwd(), '.wwebjs_auth', instanceId);
+          if (!fs.existsSync(authDir)) {
+            fs.mkdirSync(authDir, { recursive: true });
+          }
+          
+          // Salvar dados de sessão localmente
+          const sessionPath = path.join(authDir, 'session.json');
+          fs.writeFileSync(sessionPath, data.data);
+          console.log(`✅ Dados de autenticação restaurados para ${instanceId}`);
+        }
+      } catch (error) {
+        console.log(`ℹ️ Nenhum dado de autenticação encontrado para ${instanceId}, será necessário novo QR`);
+      }
+    }
+    
     // Criar estratégia de autenticação híbrida
-    const authStrategy = new HybridAuthStrategy(instanceId);
+    const authStrategy = new LocalAuth({ 
+      clientId: instanceId,
+      dataPath: process.env.NODE_ENV === 'production' ? undefined : path.join(process.cwd(), '.wwebjs_auth')
+    });
     
     const client = new Client({
       authStrategy: authStrategy,
@@ -459,6 +299,35 @@ async function startBot(instanceId: string, number: string): Promise<void> {
       try {
         console.log(`✅ WhatsApp ${instanceId} autenticado - dados salvos automaticamente`);
         instance.isConnected = true;
+        
+        // Salvar dados de autenticação no Supabase em produção
+        if (process.env.NODE_ENV === 'production') {
+          try {
+            // Tentar ler dados de sessão do LocalAuth
+            const sessionPath = path.join(process.cwd(), '.wwebjs_auth', instanceId, 'session.json');
+            if (fs.existsSync(sessionPath)) {
+              const sessionData = fs.readFileSync(sessionPath, 'utf8');
+              
+              // Salvar no Supabase
+              const { error } = await supabase
+                .from('whatsapp_auth')
+                .upsert({
+                  instance_id: instanceId,
+                  file_name: 'session',
+                  data: sessionData,
+                  updated_at: new Date().toISOString()
+                });
+
+              if (error) {
+                console.error('Erro ao salvar dados de autenticação no Supabase:', error);
+              } else {
+                console.log(`✅ Dados de autenticação salvos no Supabase para ${instanceId}`);
+              }
+            }
+          } catch (error) {
+            console.error('Erro ao processar dados de autenticação:', error);
+          }
+        }
         
         // Emitir status atualizado
         if (socketIO) {
