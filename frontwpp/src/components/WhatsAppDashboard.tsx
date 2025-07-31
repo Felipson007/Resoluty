@@ -90,9 +90,9 @@ const WhatsAppDashboard: React.FC = () => {
       // Converter mensagem do backend para formato do frontend
       const frontendMessage: Message = {
         id: data.message.id,
-        texto: data.message.body || data.message.texto || 'Mensagem sem texto',
+        texto: data.message.texto || data.message.body || 'Mensagem sem texto',
         timestamp: data.message.timestamp || new Date().toISOString(),
-        autor: data.message.isFromMe ? 'sistema' : 'usuario',
+        autor: data.message.autor || (data.message.isFromMe ? 'sistema' : 'usuario'),
         contactId: data.contactId,
         instanceId: data.instanceId,
         number: data.number
@@ -325,7 +325,18 @@ const WhatsAppDashboard: React.FC = () => {
       // Carregar mensagens do contato
       const contactMessages = await ApiService.getContactMessages(contactId);
       console.log('💬 Mensagens carregadas:', contactMessages.length);
-      setMessages(contactMessages);
+      console.log('💬 Primeiras mensagens:', contactMessages.slice(0, 3));
+      
+      // Garantir que as mensagens tenham o formato correto
+      const formattedMessages = contactMessages.map(msg => ({
+        id: msg.id,
+        texto: msg.texto || msg.body || 'Mensagem sem texto',
+        timestamp: msg.timestamp,
+        autor: msg.autor || 'usuario',
+        contactId: contactId
+      }));
+      
+      setMessages(formattedMessages);
     } catch (err) {
       console.error('❌ Erro ao carregar mensagens:', err);
       setError('Erro ao carregar mensagens do contato');

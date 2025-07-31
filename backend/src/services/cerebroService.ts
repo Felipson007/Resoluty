@@ -44,25 +44,13 @@ INFORMAÇÕES DO CLIENTE:
   const historicoTextos = historicoFiltrado.map(msg => msg.texto);
   const passoAtual = identificarPassoConversa(historicoTextos, mensagemAtual || '');
 
-  // Gerar resposta baseada no script SDR
-  const respostaScript = gerarRespostaScript(passoAtual, mensagemAtual);
 
   // Informações sobre bancos
   const infoBancos = obterInformacoesBancos();
 
   // Prompt com instrução clara para a IA baseado no SCRIPT - SDR
-  return `Você é um assistente SDR (Sales Development Representative) da Resoluty.
+  return `Segundo o Documento "SCRIPT - SDR" analise em qual Passo a conversa se encontra e retorne a mensagem entre aspas seguindo sempre as instruções descritas entre as mensagens, se não conseguir identificar em qual passo a conversa se encontra retorne "Biscoito"'
 
-INSTRUÇÕES OBRIGATÓRIAS:
-- SIGA EXATAMENTE o SCRIPT - SDR fornecido
-- Analise a conversa e identifique em qual passo ela se encontra
-- Retorne APENAS a mensagem correspondente ao passo identificado
-- NÃO invente respostas fora do script
-- NÃO adicione informações extras
-- Se não conseguir identificar o passo, retorne "Biscoito"
-- Mantenha o tom profissional e amigável
-- Use emojis conforme especificado no script
-- Para bancos, verifique se são aceitos ou não aceitos
 
 SCRIPT - SDR DISPONÍVEL:
 ${SCRIPT_SDR.map(passo => 
@@ -76,7 +64,7 @@ ${SCRIPT_SDR.map(passo =>
 ${infoBancos}
 
 PASSO IDENTIFICADO: ${passoAtual ? passoAtual.name : 'NÃO IDENTIFICADO'}
-RESPOSTA OBRIGATÓRIA: ${respostaScript}
+
 
 ${infoCliente}
 
