@@ -185,9 +185,10 @@ const WhatsAppDashboard: React.FC = () => {
 
     // Novos listeners para QR code e status
     const handleQRCode = (data: { qr: string }) => {
-      console.log('📱 QR Code recebido');
+      console.log('📱 QR Code recebido:', data);
       setQrCode(data.qr);
       setIsConnecting(true);
+      console.log('📱 QR Code definido no estado:', data.qr);
     };
 
     const handleWhatsAppStatus = (status: { connected: boolean; number: string }) => {
@@ -656,6 +657,11 @@ const WhatsAppDashboard: React.FC = () => {
               </Paper>
             </Box>
           )}
+          
+          {/* Debug info */}
+          <Box sx={{ textAlign: 'center', mb: 2, fontSize: '12px', color: 'text.secondary' }}>
+            Debug: qrCode={!!qrCode}, connected={whatsappStatus.connected}, isConnecting={isConnecting}
+          </Box>
 
           {/* Controle da IA */}
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 3 }}>
