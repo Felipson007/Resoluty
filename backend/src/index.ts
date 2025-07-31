@@ -65,6 +65,40 @@ app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend funcionando!' });
 });
 
+// Test QR Code endpoint
+app.post('/api/test/qr', (req, res) => {
+  try {
+    console.log('🧪 Teste de QR Code solicitado');
+    
+    // Verificar se o SocketIO está configurado
+    if (!io) {
+      console.error('❌ SocketIO não está configurado');
+      return res.status(500).json({ error: 'SocketIO não configurado' });
+    }
+    
+    // Emitir um QR code de teste
+    const testQR = 'test-qr-code-data';
+    io.emit('qr', { 
+      qr: testQR, 
+      instanceId: 'test-instance', 
+      number: 'test-number' 
+    });
+    
+    // Também emitir o evento alternativo
+    io.emit('qr-code', { qr: testQR });
+    
+    console.log('✅ QR Code de teste emitido');
+    res.json({ 
+      success: true, 
+      message: 'QR Code de teste emitido',
+      qr: testQR
+    });
+  } catch (error) {
+    console.error('❌ Erro no teste de QR Code:', error);
+    res.status(500).json({ error: 'Erro no teste de QR Code' });
+  }
+});
+
 // Status do WhatsApp
 app.get('/api/whatsapp/status', (req, res) => {
   const status = getWhatsAppStatus();

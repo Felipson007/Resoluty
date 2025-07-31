@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
   Button,
-  Paper,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -20,17 +19,12 @@ import {
   WhatsApp as WhatsAppIcon,
   Add as AddIcon,
   Delete as DeleteIcon,
-  Settings as SettingsIcon,
-  Refresh as RefreshIcon
+  BugReport as BugReportIcon
 } from '@mui/icons-material';
 import { QRCodeSVG } from 'qrcode.react';
-import io from 'socket.io-client';
-import ApiService from '../services/apiService';
+import socketService from '../services/socketService';
 import { API_CONFIG } from '../config/api';
-
-// Configuração da URL do Socket e API
-const SOCKET_URL = 'https://resoluty.onrender.com';
-const API_BASE_URL = 'https://resoluty.onrender.com';
+import { ConnectivityTest } from '../utils/connectivityTest';
 
 interface WhatsAppInstance {
   id: string;
@@ -47,25 +41,36 @@ const WhatsAppConfig: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [qrCode, setQrCode] = useState<string>('');
   const [isConnecting, setIsConnecting] = useState(false);
-  const [socket, setSocket] = useState<any>(null);
+  const [debugInfo, setDebugInfo] = useState<string>('');
 
-  useEffect(() => {
-    fetchInstances();
-    setupSocket();
-  }, []);
+  const setupSocket = useCallback(() => {
+    console.log('🔌 Configurando Socket.IO para WhatsAppConfig...');
+    
+    // Garantir que o socket está conectado
+    if (!socketService.isConnected()) {
+      console.log('🔌 Socket não conectado, conectando...');
+      socketService.connect();
+    }
 
-  const setupSocket = () => {
-    const newSocket = io(SOCKET_URL);
-    setSocket(newSocket);
-
-    newSocket.on('qr-code', (data: { qr: string }) => {
-      console.log('📱 QR Code recebido:', data.qr);
+    // Listener para QR Code (evento principal)
+    const handleQRCode = (data: { qr: string; instanceId?: string; number?: string }) => {
+      console.log('📱 QR Code recebido no WhatsAppConfig:', data);
       setQrCode(data.qr);
-      setIsConnecting(false); // QR Code recebido, não está mais conectando
-    });
+      setIsConnecting(false);
+      setDebugInfo(`QR recebido: ${data.qr ? 'Sim' : 'Não'}, Tamanho: ${data.qr?.length || 0}`);
+    };
 
-    newSocket.on('whatsapp-status', (status: { connected: boolean; number: string }) => {
-      console.log('📱 Status WhatsApp atualizado:', status);
+    // Listener alternativo para QR Code
+    const handleQRCodeAlt = (data: { qr: string }) => {
+      console.log('📱 QR Code recebido (alt) no WhatsAppConfig:', data);
+      setQrCode(data.qr);
+      setIsConnecting(false);
+      setDebugInfo(`QR recebido (alt): ${data.qr ? 'Sim' : 'Não'}, Tamanho: ${data.qr?.length || 0}`);
+    };
+
+    // Listener para status do WhatsApp
+    const handleWhatsAppStatus = (status: { connected: boolean; number: string }) => {
+      console.log('📱 Status WhatsApp atualizado no WhatsAppConfig:', status);
       if (status.connected) {
         setIsConnecting(false);
         setQrCode('');
@@ -73,19 +78,44 @@ const WhatsAppConfig: React.FC = () => {
         setSuccess(`WhatsApp conectado com sucesso! Número: ${status.number}`);
         fetchInstances();
       }
-    });
+    };
+
+    // Listener para status de instâncias
+    const handleInstancesUpdated = (instances: any[]) => {
+      console.log('📱 Instâncias atualizadas no WhatsAppConfig:', instances);
+      setInstances(instances);
+    };
+
+    // Adicionar listeners
+    socketService.on('qr', handleQRCode);
+    socketService.on('qr-code', handleQRCodeAlt);
+    socketService.on('whatsapp-status', handleWhatsAppStatus);
+    socketService.on('whatsapp-instances-updated', handleInstancesUpdated);
+
+    // Log de debug
+    setDebugInfo('Socket configurado, aguardando QR...');
 
     return () => {
-      newSocket.disconnect();
+      // Remover listeners
+      socketService.off('qr', handleQRCode);
+      socketService.off('qr-code', handleQRCodeAlt);
+      socketService.off('whatsapp-status', handleWhatsAppStatus);
+      socketService.off('whatsapp-instances-updated', handleInstancesUpdated);
     };
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchInstances();
+    setupSocket();
+  }, [setupSocket]);
 
   const fetchInstances = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/api/whatsapp/instances`);
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/whatsapp/instances`);
       const data = await response.json();
       setInstances(data);
+      console.log('📱 Instâncias carregadas:', data);
     } catch (error) {
       console.error('Erro ao buscar instâncias:', error);
       setError('Erro ao carregar instâncias do WhatsApp');
@@ -95,23 +125,33 @@ const WhatsAppConfig: React.FC = () => {
   };
 
   const handleAddWhatsApp = () => {
+    console.log('➕ Iniciando adição de WhatsApp...');
     setShowAddModal(true);
     setQrCode('');
-    setIsConnecting(false);
+    setIsConnecting(true);
     setError(null);
     setSuccess(null);
+    setDebugInfo('Modal aberto, aguardando QR...');
+    
+    // Solicitar QR code ao backend
+    setTimeout(() => {
+      console.log('📱 Solicitando QR code ao backend...');
+      // O backend deve automaticamente emitir o QR quando detectar nova conexão
+    }, 1000);
   };
 
   const handleCloseModal = () => {
+    console.log('❌ Fechando modal...');
     setShowAddModal(false);
     setQrCode('');
     setIsConnecting(false);
+    setDebugInfo('');
   };
 
   const handleRemoveWhatsApp = async (instanceId: string) => {
     if (window.confirm('Tem certeza que deseja remover este WhatsApp?')) {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/whatsapp/instances/${instanceId}`, {
+        const response = await fetch(`${API_CONFIG.BASE_URL}/api/whatsapp/instances/${instanceId}`, {
           method: 'DELETE',
         });
         const data = await response.json();
@@ -128,8 +168,47 @@ const WhatsAppConfig: React.FC = () => {
     }
   };
 
-  const handleRefresh = () => {
-    fetchInstances();
+  const handleTestQR = async () => {
+    try {
+      console.log('🧪 Testando QR Code...');
+      setDebugInfo('Testando QR Code...');
+      
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/test/qr`, {
+        method: 'POST'
+      });
+      
+      const data = await response.json();
+      console.log('🧪 Resposta do teste:', data);
+      
+      if (data.success) {
+        setDebugInfo(`Teste enviado: ${data.message}`);
+      } else {
+        setDebugInfo(`Erro no teste: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('❌ Erro no teste:', error);
+      setDebugInfo('Erro no teste de QR Code');
+    }
+  };
+
+  const handleTestConnectivity = async () => {
+    try {
+      console.log('🔍 Iniciando teste de conectividade...');
+      setDebugInfo('Executando teste de conectividade...');
+      
+      const results = await ConnectivityTest.testFullConnection();
+      console.log('📊 Resultados do teste:', results);
+      
+      const summary = `API: ${results.apiHealth ? '✅' : '❌'}, Socket: ${results.socketConnection ? '✅' : '❌'}, QR: ${results.qrTest ? '✅' : '❌'}`;
+      setDebugInfo(`Teste completo: ${summary}`);
+      
+      if (results.errors.length > 0) {
+        console.error('❌ Erros encontrados:', results.errors);
+      }
+    } catch (error) {
+      console.error('❌ Erro no teste de conectividade:', error);
+      setDebugInfo('Erro no teste de conectividade');
+    }
   };
 
   return (
@@ -139,15 +218,37 @@ const WhatsAppConfig: React.FC = () => {
           <WhatsAppIcon color="primary" />
           Configuração do WhatsApp
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleAddWhatsApp}
-          sx={{ background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)' }}
-        >
-          Adicionar WhatsApp
-        </Button>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button
+            variant="outlined"
+            onClick={handleTestConnectivity}
+            startIcon={<BugReportIcon />}
+            sx={{ borderColor: 'purple', color: 'purple' }}
+          >
+            Testar Conexão
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={handleTestQR}
+            sx={{ borderColor: 'orange', color: 'orange' }}
+          >
+            Testar QR
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleAddWhatsApp}
+            sx={{ background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)' }}
+          >
+            Adicionar WhatsApp
+          </Button>
+        </Box>
       </Box>
+
+      {/* Debug Info */}
+      <Alert severity="info" sx={{ mb: 2 }}>
+        Debug: {debugInfo}
+      </Alert>
 
       {/* Alertas */}
       {error && (
@@ -243,6 +344,9 @@ const WhatsAppConfig: React.FC = () => {
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
                   Abra o WhatsApp no seu celular e escaneie o QR Code
                 </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  QR Code recebido com sucesso! Tamanho: {qrCode.length} caracteres
+                </Typography>
               </Box>
             )}
 
@@ -251,6 +355,9 @@ const WhatsAppConfig: React.FC = () => {
                 <CircularProgress size={60} />
                 <Typography variant="body1" sx={{ mt: 2 }}>
                   Aguardando QR Code...
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  Verificando conexão com o servidor...
                 </Typography>
               </Box>
             )}

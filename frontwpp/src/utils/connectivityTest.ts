@@ -1,190 +1,84 @@
+import socketService from '../services/socketService';
 import ApiService from '../services/apiService';
 
 export class ConnectivityTest {
-  private static instance: ConnectivityTest;
-  private testResults: Array<{timestamp: string, test: string, success: boolean, details: any}> = [];
-
-  static getInstance(): ConnectivityTest {
-    if (!ConnectivityTest.instance) {
-      ConnectivityTest.instance = new ConnectivityTest();
-    }
-    return ConnectivityTest.instance;
-  }
-
-  async runAllTests() {
-    console.log('🔍 Iniciando testes de conectividade...');
+  static async testFullConnection() {
+    console.log('🧪 Iniciando teste completo de conectividade...');
     
-    const tests = [
-      this.testBackendHealth(),
-      this.testSocketConnection(),
-      this.testWhatsAppInstances(),
-      this.testApiEndpoints()
-    ];
-
-    const results = await Promise.allSettled(tests);
-    
-    const testResults = results.map((result, index) => {
-      const testName = ['backend_health', 'socket_connection', 'whatsapp_instances', 'api_endpoints'][index];
-      const success = result.status === 'fulfilled';
-      const details = result.status === 'fulfilled' ? result.value : result.reason;
-      
-      this.testResults.push({
-        timestamp: new Date().toISOString(),
-        test: testName,
-        success,
-        details
-      });
-
-      return { test: testName, success, details };
-    });
-
-    return {
-      timestamp: new Date().toISOString(),
-      results: testResults,
-      summary: this.generateSummary(testResults)
+    const results = {
+      apiHealth: false,
+      socketConnection: false,
+      qrTest: false,
+      errors: [] as string[]
     };
-  }
 
-  private async testBackendHealth() {
     try {
-      const response = await fetch('https://resoluty.onrender.com/health');
-      const data = await response.json();
-      
-      return {
-        status: 'success',
-        uptime: data.uptime,
-        memory: data.memory,
-        clients: data.clients
-      };
-    } catch (error: any) {
-      throw {
-        status: 'error',
-        message: 'Backend não está respondendo',
-        error: error.message
-      };
+      // Teste 1: Health check da API
+      console.log('1️⃣ Testando health check da API...');
+      const healthCheck = await ApiService.checkHealth();
+      results.apiHealth = healthCheck;
+      console.log('✅ Health check:', healthCheck);
+
+      // Teste 2: Conexão do Socket
+      console.log('2️⃣ Testando conexão do Socket...');
+      const socketTest = await socketService.testConnection();
+      results.socketConnection = socketTest;
+      console.log('✅ Socket connection:', socketTest);
+
+      // Teste 3: Teste de QR Code
+      console.log('3️⃣ Testando QR Code...');
+      try {
+        const response = await fetch('https://resoluty.onrender.com/api/test/qr', {
+          method: 'POST'
+        });
+        const data = await response.json();
+        results.qrTest = data.success;
+        console.log('✅ QR test:', data.success);
+      } catch (error) {
+        console.error('❌ QR test error:', error);
+        results.errors.push(`QR Test: ${error}`);
+      }
+
+    } catch (error) {
+      console.error('❌ Erro no teste de conectividade:', error);
+      results.errors.push(`General: ${error}`);
     }
+
+    console.log('📊 Resultados do teste:', results);
+    return results;
   }
 
-  private async testSocketConnection() {
-    return new Promise((resolve, reject) => {
-      const socket = require('socket.io-client');
-      const io = socket('https://resoluty.onrender.com');
+  static async testSocketEvents() {
+    console.log('🔍 Testando eventos do Socket...');
+    
+    return new Promise((resolve) => {
+      let eventsReceived = 0;
+      const expectedEvents = ['qr', 'qr-code', 'whatsapp-status'];
       
       const timeout = setTimeout(() => {
-        io.disconnect();
-        reject({
-          status: 'error',
-          message: 'Timeout ao conectar Socket.IO',
-          timeout: true
-        });
+        console.log('⏰ Timeout no teste de eventos');
+        resolve({ success: false, eventsReceived, expectedEvents: expectedEvents.length });
       }, 10000);
 
-      io.on('connect', () => {
-        clearTimeout(timeout);
-        io.disconnect();
-        resolve({
-          status: 'success',
-          message: 'Socket.IO conectado com sucesso',
-          socketId: io.id
-        });
-      });
-
-      io.on('connect_error', (error: any) => {
-        clearTimeout(timeout);
-        io.disconnect();
-        reject({
-          status: 'error',
-          message: 'Erro ao conectar Socket.IO',
-          error: error.message
-        });
-      });
-    });
-  }
-
-  private async testWhatsAppInstances() {
-    try {
-      const response = await fetch('https://resoluty.onrender.com/api/whatsapp/instances');
-      const data = await response.json();
-      
-      return {
-        status: 'success',
-        instances: data,
-        count: data.length
-      };
-    } catch (error: any) {
-      throw {
-        status: 'error',
-        message: 'Erro ao buscar instâncias WhatsApp',
-        error: error.message
-      };
-    }
-  }
-
-  private async testApiEndpoints() {
-    const endpoints = [
-      'https://resoluty.onrender.com/api/test',
-      'https://resoluty.onrender.com/api/leads',
-      'https://resoluty.onrender.com/api/whatsapp/status'
-    ];
-
-    const results = await Promise.allSettled(
-      endpoints.map(async (url) => {
-        const response = await fetch(url);
-        return {
-          url,
-          status: response.status,
-          ok: response.ok
+      // Adicionar listeners temporários
+      expectedEvents.map(event => {
+        const listener = (data: any) => {
+          console.log(`📡 Evento recebido: ${event}`, data);
+          eventsReceived++;
+          
+          if (eventsReceived >= expectedEvents.length) {
+            clearTimeout(timeout);
+            expectedEvents.forEach(evt => socketService.off(evt, listener));
+            resolve({ success: true, eventsReceived, expectedEvents: expectedEvents.length });
+          }
         };
-      })
-    );
-
-    const endpointResults = results.map((result, index) => {
-      const url = endpoints[index];
-      const success = result.status === 'fulfilled' && result.value.ok;
-      
-      return {
-        url,
-        success,
-        details: result.status === 'fulfilled' ? result.value : result.reason
-      };
-    });
-
-    return {
-      status: 'success',
-      endpoints: endpointResults,
-      working: endpointResults.filter(r => r.success).length
-    };
-  }
-
-  private generateSummary(results: Array<{test: string, success: boolean, details: any}>) {
-    const total = results.length;
-    const passed = results.filter(r => r.success).length;
-    const failed = total - passed;
-
-    return {
-      total,
-      passed,
-      failed,
-      successRate: (passed / total) * 100
-    };
-  }
-
-  getTestHistory() {
-    return this.testResults;
-  }
-
-  getLastTestResult() {
-    return this.testResults[this.testResults.length - 1];
-  }
-
-  startContinuousMonitoring() {
-    // Executar testes a cada minuto
-    setInterval(() => {
-      this.runAllTests().then(result => {
-        console.log('📊 Resultado do monitoramento:', result.summary);
-      }).catch(error => {
-        console.error('❌ Erro no monitoramento:', error);
+        
+        socketService.on(event, listener);
+        return listener;
       });
-    }, 60000); // Testar a cada minuto
+
+      // Emitir teste de QR
+      fetch('https://resoluty.onrender.com/api/test/qr', { method: 'POST' });
+    });
   }
 } 

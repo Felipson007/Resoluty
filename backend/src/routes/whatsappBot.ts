@@ -471,6 +471,7 @@ async function startBot(instanceId: string, number: string): Promise<void> {
       console.log(`\n=== QR Code para ${number} (${instanceId}) ===`);
       console.log('QR Code disponível no frontend');
       console.log(`Tamanho do QR: ${qr.length} caracteres`);
+      console.log(`SocketIO disponível: ${socketIO ? 'Sim' : 'Não'}`);
       instance.qrDisplayed = true;
       
       // Limpar timeout anterior se existir
@@ -495,13 +496,24 @@ async function startBot(instanceId: string, number: string): Promise<void> {
       // Emitir QR para frontend
       if (socketIO) {
         console.log(`Emitindo QR para frontend: ${instanceId}`);
+        console.log(`Dados do QR: { qr: "${qr.substring(0, 50)}...", instanceId: "${instanceId}", number: "${number}" }`);
+        
+        // Emitir para todos os clientes conectados
         socketIO.emit('qr', { 
           qr, 
           instanceId, 
           number 
         });
+        
+        // Também emitir o evento alternativo para compatibilidade
+        socketIO.emit('qr-code', { 
+          qr 
+        });
+        
+        console.log('✅ QR Code emitido com sucesso para todos os clientes');
       } else {
-        console.error('SocketIO não está disponível para emitir QR');
+        console.error('❌ SocketIO não está disponível para emitir QR');
+        console.error('SocketIO object:', socketIO);
       }
     });
 

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Box, CircularProgress, Alert, Snackbar, Typography, Button, Paper, Chip, Switch, FormControlLabel } from '@mui/material';
-import { Refresh as RefreshIcon, WhatsApp as WhatsAppIcon, SmartToy as AIIcon } from '@mui/icons-material';
+import { Refresh as RefreshIcon, WhatsApp as WhatsAppIcon } from '@mui/icons-material';
 import ConversationSidebar from './ConversationSidebar';
 import ChatArea from './ChatArea';
 import MessageInput from './MessageInput';
@@ -41,8 +41,6 @@ const WhatsAppDashboard: React.FC = () => {
   const [socketConnected, setSocketConnected] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [selectedFilter, setSelectedFilter] = useState<string>('bot-ativo');
-  const [whatsappInstances, setWhatsappInstances] = useState<any[]>([]);
-  const [hasConnectedWhatsApp, setHasConnectedWhatsApp] = useState(false);
   
   // Novos estados para QR code e status
   const [qrCode, setQrCode] = useState<string>('');
@@ -55,13 +53,64 @@ const WhatsAppDashboard: React.FC = () => {
   const [loadingProgress, setLoadingProgress] = useState<{ percent: number; message: string } | null>(null);
   const [isSynchronized, setIsSynchronized] = useState(false);
 
+  const checkWhatsAppStatus = useCallback(async () => {
+    try {
+      const instances = await ApiService.getWhatsAppInstances();
+      
+      // Verificar se há pelo menos um WhatsApp conectado
+      const hasConnected = instances.some((instance: any) => instance.isConnected);
+      
+      return hasConnected;
+    } catch (error) {
+      console.error('Erro ao verificar status do WhatsApp:', error);
+      return false;
+    }
+  }, []);
+
+  const initializeApp = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('🚀 Inicializando aplicação...');
+      
+      // Verificar saúde do backend
+      const isHealthy = await ApiService.checkHealth();
+      if (!isHealthy) {
+        throw new Error('Backend não está respondendo. Verifique se o servidor está rodando na porta 4000.');
+      }
+
+      console.log('✅ Backend está online');
+      
+      // Se não há WhatsApp conectado, não carregar contatos
+      if (!whatsappStatus.connected) {
+        console.log('📱 WhatsApp não conectado, aguardando conexão...');
+        setContacts([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Buscar leads apenas se há WhatsApp conectado
+      const leads = await ApiService.getLeads();
+      setContacts(leads);
+      
+      setRetryCount(0);
+    } catch (err: any) {
+      console.error('❌ Erro ao inicializar app:', err);
+      setError(err.message || 'Erro ao conectar com o servidor');
+      setRetryCount(prev => prev + 1);
+    } finally {
+      setLoading(false);
+    }
+  }, [whatsappStatus.connected]);
+
   // Inicialização
   useEffect(() => {
     initializeApp();
     return () => {
       socketService.disconnect();
     };
-  }, []);
+  }, [initializeApp]);
 
   // Configurar Socket.IO
   useEffect(() => {
@@ -252,60 +301,7 @@ const WhatsAppDashboard: React.FC = () => {
       socketService.off('ai-status', handleAIStatus);
       socketService.off('whatsapp-loading', handleWhatsAppLoading);
     };
-  }, [selectedContactId]);
-
-  const checkWhatsAppStatus = async () => {
-    try {
-      const instances = await ApiService.getWhatsAppInstances();
-      setWhatsappInstances(instances);
-      
-      // Verificar se há pelo menos um WhatsApp conectado
-      const hasConnected = instances.some((instance: any) => instance.isConnected);
-      setHasConnectedWhatsApp(hasConnected);
-      
-      return hasConnected;
-    } catch (error) {
-      console.error('Erro ao verificar status do WhatsApp:', error);
-      return false;
-    }
-  };
-
-  const initializeApp = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      console.log('🚀 Inicializando aplicação...');
-      
-      // Verificar saúde do backend
-      const isHealthy = await ApiService.checkHealth();
-      if (!isHealthy) {
-        throw new Error('Backend não está respondendo. Verifique se o servidor está rodando na porta 4000.');
-      }
-
-      console.log('✅ Backend está online');
-      
-      // Se não há WhatsApp conectado, não carregar contatos
-      if (!whatsappStatus.connected) {
-        console.log('📱 WhatsApp não conectado, aguardando conexão...');
-        setContacts([]);
-        setLoading(false);
-        return;
-      }
-      
-      // Buscar leads apenas se há WhatsApp conectado
-      const leads = await ApiService.getLeads();
-      setContacts(leads);
-      
-      setRetryCount(0);
-    } catch (err: any) {
-      console.error('❌ Erro ao inicializar app:', err);
-      setError(err.message || 'Erro ao conectar com o servidor');
-      setRetryCount(prev => prev + 1);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [selectedContactId, initializeApp]);
 
   const handleContactSelect = async (contactId: string) => {
     setSelectedContactId(contactId);
