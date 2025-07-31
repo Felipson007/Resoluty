@@ -6,7 +6,7 @@ import { buscarLead } from './services/leadService';
 import { supabase } from './config/supabase';
 import fs from 'fs';
 import path from 'path';
-import qrcode from 'qrcode-terminal';
+const qrcode = require('qrcode-terminal');
 
 dotenv.config();
 
