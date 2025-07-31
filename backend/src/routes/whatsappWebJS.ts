@@ -228,7 +228,13 @@ async function startBot(instanceId: string, number: string): Promise<void> {
       await salvarMensagemLead(from, text, 'usuario');
 
       if (socketIO) {
-        socketIO.emit('new-message', {
+        console.log('📨 Emitindo evento new-message para mensagem do usuário (WebJS)');
+        console.log('📨 Dados do lead encontrado:', lead);
+        console.log('📨 ContactId:', from);
+        console.log('📨 InstanceId:', instanceId);
+        console.log('📨 Number:', number);
+        
+        const eventData = {
           contactId: from,
           message: {
             texto: text,
@@ -244,7 +250,11 @@ async function startBot(instanceId: string, number: string): Promise<void> {
           } : null,
           instanceId,
           number
-        });
+        };
+        
+        console.log('📨 Dados do evento new-message (WebJS):', eventData);
+        socketIO.emit('new-message', eventData);
+        console.log('✅ Evento new-message emitido com sucesso (WebJS)');
       }
 
       if (!historicoPorUsuario[from]) historicoPorUsuario[from] = [];

@@ -129,6 +129,10 @@ const WhatsAppDashboard: React.FC = () => {
 
     const handleNewMessage = (data: { contactId: string; message: any; lead?: any; instanceId?: string; number?: string }) => {
       console.log('📨 Nova mensagem recebida:', data);
+      console.log('📨 Dados do lead:', data.lead);
+      console.log('📨 ContactId:', data.contactId);
+      console.log('📨 InstanceId:', data.instanceId);
+      console.log('📨 Number:', data.number);
       
       // Verificar se a mensagem tem dados válidos
       if (!data.message || !data.message.id) {
@@ -147,19 +151,30 @@ const WhatsAppDashboard: React.FC = () => {
         number: data.number
       };
       
+      console.log('📨 Mensagem convertida para frontend:', frontendMessage);
+      
       // Adicionar mensagem à lista
       setMessages(prev => {
         const messageExists = prev.some(msg => msg.id === frontendMessage.id);
-        if (messageExists) return prev;
+        if (messageExists) {
+          console.log('📨 Mensagem já existe, ignorando');
+          return prev;
+        }
+        console.log('📨 Adicionando nova mensagem à lista');
         return [...prev, frontendMessage];
       });
 
       // Atualizar ou criar contato com informações do lead
       setContacts(prev => {
+        console.log('📨 Contatos atuais:', prev.length);
+        console.log('📨 Procurando contato existente com ID:', data.contactId);
+        
         const existingContactIndex = prev.findIndex(c => c.id === data.contactId);
+        console.log('📨 Índice do contato existente:', existingContactIndex);
         
         if (existingContactIndex >= 0) {
           // Atualizar contato existente
+          console.log('📨 Atualizando contato existente');
           const updatedContacts = [...prev];
           updatedContacts[existingContactIndex] = {
             ...updatedContacts[existingContactIndex],
@@ -177,9 +192,11 @@ const WhatsAppDashboard: React.FC = () => {
                      data.lead.status === 'lead_sem_interesse' ? 'finalizado' : 'bot'
             })
           };
+          console.log('📨 Contato atualizado:', updatedContacts[existingContactIndex]);
           return updatedContacts;
         } else {
           // Criar novo contato
+          console.log('📨 Criando novo contato');
           const newContact: Contact = {
             id: data.contactId,
             name: data.lead ? `Cliente ${data.lead.numero}` : `Cliente ${data.contactId}`,
@@ -192,6 +209,7 @@ const WhatsAppDashboard: React.FC = () => {
                data.lead.status === 'lead_sem_interesse' ? 'finalizado' : 'bot') : 'bot',
             unreadCount: data.contactId === selectedContactId ? 0 : 1
           };
+          console.log('📨 Novo contato criado:', newContact);
           return [newContact, ...prev];
         }
       });

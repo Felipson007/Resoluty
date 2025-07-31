@@ -47,18 +47,30 @@ class ApiService {
   // Leads
   async getLeads() {
     try {
+      console.log('📋 Buscando leads via API...');
       const response = await this.api.get('/api/leads');
-      return response.data.map((lead: any) => ({
-        id: lead.numero,
-        name: `Cliente ${lead.numero}`,
-        phone: lead.numero,
-        lastMessage: 'Nenhuma mensagem',
-        lastMessageTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-        status: lead.status === 'lead_novo' ? 'bot' : 
-               lead.status === 'lead_avancado' ? 'humano' : 
-               lead.status === 'lead_sem_interesse' ? 'finalizado' : 'bot',
-        unreadCount: 0
-      }));
+      console.log('📋 Resposta da API de leads:', response.data);
+      console.log('📋 Número de leads recebidos:', response.data.length);
+      
+      const leads = response.data.map((lead: any) => {
+        console.log('📋 Lead bruto:', lead);
+        const contact = {
+          id: lead.numero,
+          name: `Cliente ${lead.numero}`,
+          phone: lead.numero,
+          lastMessage: 'Nenhuma mensagem',
+          lastMessageTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          status: lead.metadata?.status === 'lead_novo' ? 'bot' : 
+                 lead.metadata?.status === 'lead_avancado' ? 'humano' : 
+                 lead.metadata?.status === 'lead_sem_interesse' ? 'finalizado' : 'bot',
+          unreadCount: 0
+        };
+        console.log('📋 Lead convertido:', contact);
+        return contact;
+      });
+      
+      console.log('📋 Total de leads convertidos:', leads.length);
+      return leads;
     } catch (error) {
       console.error('❌ Erro ao buscar leads:', error);
       return [];
@@ -75,9 +87,9 @@ class ApiService {
         phone: lead.numero,
         lastMessage: 'Nenhuma mensagem',
         lastMessageTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-        status: lead.status === 'lead_novo' ? 'bot' : 
-               lead.status === 'lead_avancado' ? 'humano' : 
-               lead.status === 'lead_sem_interesse' ? 'finalizado' : 'bot',
+        status: lead.metadata?.status === 'lead_novo' ? 'bot' : 
+               lead.metadata?.status === 'lead_avancado' ? 'humano' : 
+               lead.metadata?.status === 'lead_sem_interesse' ? 'finalizado' : 'bot',
         unreadCount: 0
       }));
     } catch (error) {

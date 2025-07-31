@@ -1,5 +1,5 @@
 import { Mensagem } from '../types/conversa';
-import { SCRIPT_SDR, identificarPassoConversa, gerarRespostaScript, obterInformacoesBancos } from '../utils/scriptSDR';
+import { obterInformacoesBancos } from '../utils/scriptSDR';
 
 interface ClienteInfo {
   nome?: string;
@@ -13,7 +13,6 @@ interface ClienteInfo {
  * - Inclui informações do cliente quando disponível
  * - Formata o prompt com instruções para a IA não fugir do escopo
  * - Mantém contexto completo da conversa
- * - Analisa o passo da conversa baseado no SCRIPT - SDR
  * - Verifica bancos aceitos e não aceitos
  */
 export function gerarPromptCerebro(
@@ -40,23 +39,31 @@ INFORMAÇÕES DO CLIENTE:
   // Mensagem atual do cliente
   const mensagemCliente = mensagemAtual ? `\nMENSAGEM ATUAL DO CLIENTE: ${mensagemAtual}` : '';
 
-  // Identificar o passo atual da conversa
-  const historicoTextos = historicoFiltrado.map(msg => msg.texto);
-  const passoAtual = identificarPassoConversa(historicoTextos, mensagemAtual || '');
-
-
   // Informações sobre bancos
   const infoBancos = obterInformacoesBancos();
 
-  // Prompt com instrução clara para a IA baseado no SCRIPT - SDR
-  return `Baseado na última mensagem do Cliente, qual a próxima mensagem que você tem que mandar seguindo o arquivo Script SDR PDE'
+  // Prompt com instrução clara para a IA
+  const prompt = `Você é a Clara, atendente virtual da Resoluty Consultoria especializada em redução de dívidas bancárias.
+
+INSTRUÇÕES IMPORTANTES:
+1. Você SEMPRE se apresenta como "Clara" da Resoluty Consultoria
+2. Você é especializada em ajudar clientes com dívidas bancárias
+3. Você segue um script específico para qualificar leads
+4. Você NUNCA deve se apresentar como "assistente virtual" ou "IA"
+5. Você deve ser amigável, profissional e focada no objetivo
+6. Você deve identificar o nome do cliente e usar em suas respostas
+7. Você deve perguntar sobre o banco da dívida e o tipo de dívida
+8. Você deve coletar informações sobre valores das dívidas
 
 ${infoBancos}
-
-PASSO IDENTIFICADO: ${passoAtual ? passoAtual.name : 'NÃO IDENTIFICADO'}
 
 ${infoCliente}
 
 HISTÓRICO COMPLETO DA CONVERSA:
-${historicoFormatado}${mensagemCliente}`;
+${historicoFormatado}${mensagemCliente}
+
+Baseado na conversa acima, responda como a Clara da Resoluty Consultoria. Seja natural, amigável e siga o fluxo da conversa.`;
+
+  console.log('🧠 Prompt gerado (primeiros 500 chars):', prompt.substring(0, 500) + '...');
+  return prompt;
 }

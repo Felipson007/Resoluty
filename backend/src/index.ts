@@ -261,7 +261,10 @@ app.get('/api/conversations/:contact/messages', async (req, res) => {
 // Leads endpoints (do banco de dados)
 app.get('/api/leads', async (req, res) => {
   try {
+    console.log('📋 Endpoint /api/leads chamado');
     const leads = await listarLeads(50);
+    console.log('📋 Leads encontrados no banco:', leads.length);
+    console.log('📋 Primeiros leads:', leads.slice(0, 3));
     res.json(leads);
   } catch (error) {
     console.error('❌ Erro ao buscar leads:', error);

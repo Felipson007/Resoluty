@@ -37,6 +37,9 @@ export interface MensagemLead {
 export async function criarOuAtualizarLead(numero: string, metadata?: Partial<LeadMetadata>): Promise<Lead | null> {
   try {
     const numeroLimpo = numero.replace('@s.whatsapp.net', '');
+    console.log('📋 Criando/atualizando lead para número:', numero);
+    console.log('📋 Número limpo:', numeroLimpo);
+    console.log('📋 Metadata fornecida:', metadata);
     
     // Verificar se o lead já existe
     const { data: existingLead } = await supabase
@@ -45,8 +48,11 @@ export async function criarOuAtualizarLead(numero: string, metadata?: Partial<Le
       .eq('numero', numeroLimpo)
       .maybeSingle();
 
+    console.log('📋 Lead existente encontrado:', existingLead);
+
     if (existingLead) {
       // Atualizar lead existente
+      console.log('📋 Atualizando lead existente');
       const { data, error } = await supabase
         .from('leads')
         .update({
@@ -60,10 +66,15 @@ export async function criarOuAtualizarLead(numero: string, metadata?: Partial<Le
         .select()
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error('📋 Erro ao atualizar lead:', error);
+        throw error;
+      }
+      console.log('📋 Lead atualizado:', data);
       return data;
     } else {
       // Criar novo lead
+      console.log('📋 Criando novo lead');
       const novoMetadata: LeadMetadata = {
         id: crypto.randomUUID(),
         numero: numeroLimpo,
@@ -72,6 +83,8 @@ export async function criarOuAtualizarLead(numero: string, metadata?: Partial<Le
         ultima_atividade: new Date().toISOString(),
         ...metadata
       };
+
+      console.log('📋 Novo metadata criado:', novoMetadata);
 
       const { data, error } = await supabase
         .from('leads')
@@ -83,7 +96,11 @@ export async function criarOuAtualizarLead(numero: string, metadata?: Partial<Le
         .select()
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error('📋 Erro ao criar lead:', error);
+        throw error;
+      }
+      console.log('📋 Lead criado:', data);
       return data;
     }
   } catch (error) {
@@ -119,6 +136,8 @@ export async function atualizarStatusLead(numero: string, status: LeadStatus): P
 export async function buscarLead(numero: string): Promise<Lead | null> {
   try {
     const numeroLimpo = numero.replace('@s.whatsapp.net', '');
+    console.log('📋 Buscando lead para número:', numero);
+    console.log('📋 Número limpo:', numeroLimpo);
     
     const { data, error } = await supabase
       .from('leads')
@@ -128,9 +147,11 @@ export async function buscarLead(numero: string): Promise<Lead | null> {
 
     if (error) {
       logger.error(`Erro ao buscar lead: ${error.message}`);
+      console.error('📋 Erro na consulta Supabase para buscarLead:', error);
       return null;
     }
     
+    console.log('📋 Lead encontrado:', data);
     return data;
   } catch (error) {
     console.error('Erro ao buscar lead:', error);
@@ -141,6 +162,7 @@ export async function buscarLead(numero: string): Promise<Lead | null> {
 // Listar todos os leads
 export async function listarLeads(limite: number = 50) {
   try {
+    console.log('📋 Função listarLeads chamada com limite:', limite);
     const { data, error } = await supabase
       .from('leads')
       .select('*')
@@ -149,12 +171,16 @@ export async function listarLeads(limite: number = 50) {
 
     if (error) {
       logger.error(`Erro ao listar leads: ${error.message}`);
+      console.error('📋 Erro na consulta Supabase:', error);
       return [];
     }
 
+    console.log('📋 Dados brutos do Supabase:', data);
+    console.log('📋 Número de leads retornados:', data?.length || 0);
     return data || [];
   } catch (error: any) {
     logger.error(`Erro ao listar leads: ${error.message}`);
+    console.error('📋 Erro geral na listarLeads:', error);
     return [];
   }
 }
@@ -162,13 +188,20 @@ export async function listarLeads(limite: number = 50) {
 // Buscar leads por status
 export async function buscarLeadsPorStatus(status: LeadStatus): Promise<Lead[]> {
   try {
+    console.log('📋 Função buscarLeadsPorStatus chamada com status:', status);
     const { data, error } = await supabase
       .from('leads')
       .select('*')
       .contains('metadata', { status })
       .order('updated_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('📋 Erro na consulta Supabase por status:', error);
+      throw error;
+    }
+    
+    console.log('📋 Leads encontrados por status:', data?.length || 0);
+    console.log('📋 Primeiros leads por status:', data?.slice(0, 3));
     return data || [];
   } catch (error) {
     console.error('Erro ao buscar leads por status:', error);
@@ -185,11 +218,21 @@ export async function salvarMensagemLead(
 ): Promise<boolean> {
   try {
     const numeroLimpo = numero.replace('@s.whatsapp.net', '');
+    console.log('📋 Salvando mensagem do lead');
+    console.log('📋 Número:', numero);
+    console.log('📋 Número limpo:', numeroLimpo);
+    console.log('📋 Mensagem:', mensagem);
+    console.log('📋 Autor:', autor);
+    console.log('📋 InstanceId:', instanceId);
     
     // Buscar ou criar lead
     let lead = await buscarLead(numero);
+    console.log('📋 Lead encontrado/criado:', lead);
+    
     if (!lead) {
+      console.log('📋 Lead não encontrado, criando novo...');
       lead = await criarOuAtualizarLead(numero);
+      console.log('📋 Novo lead criado:', lead);
     }
 
     if (!lead) {
@@ -198,6 +241,7 @@ export async function salvarMensagemLead(
     }
 
     // Salvar mensagem
+    console.log('📋 Salvando mensagem no banco...');
     const { error } = await supabase
       .from('mensagens_leads')
       .insert({
@@ -209,9 +253,15 @@ export async function salvarMensagemLead(
         timestamp: new Date().toISOString()
       });
 
-    if (error) throw error;
+    if (error) {
+      console.error('📋 Erro ao salvar mensagem:', error);
+      throw error;
+    }
+
+    console.log('📋 Mensagem salva com sucesso');
 
     // Atualizar última mensagem no metadata do lead
+    console.log('📋 Atualizando metadata do lead...');
     await supabase
       .from('leads')
       .update({
@@ -223,6 +273,7 @@ export async function salvarMensagemLead(
       })
       .eq('id', lead.id);
 
+    console.log('📋 Metadata do lead atualizada');
     return true;
   } catch (error) {
     console.error('Erro ao salvar mensagem do lead:', error);

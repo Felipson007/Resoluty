@@ -391,10 +391,7 @@ async function startBot(instanceId: string, number: string): Promise<void> {
     const authStrategy = new HybridAuthStrategy(instanceId);
     
     const client = new Client({
-      authStrategy: new LocalAuth({ 
-        clientId: instanceId,
-        dataPath: process.env.NODE_ENV === 'production' ? undefined : path.join(process.cwd(), '.wwebjs_auth')
-      }),
+      authStrategy: authStrategy,
       puppeteer: {
         headless: true,
         timeout: 180000, // 3 minutos para dar mais tempo
@@ -460,10 +457,75 @@ async function startBot(instanceId: string, number: string): Promise<void> {
     // Handler para salvar dados de autenticação quando disponíveis
     client.on('authenticated', async () => {
       try {
-        console.log(`WhatsApp ${instanceId} autenticado - dados salvos automaticamente`);
+        console.log(`✅ WhatsApp ${instanceId} autenticado - dados salvos automaticamente`);
+        instance.isConnected = true;
+        
+        // Emitir status atualizado
+        if (socketIO) {
+          socketIO.emit('whatsapp-status', {
+            connected: true,
+            number: number,
+            instanceId: instanceId
+          });
+        }
       } catch (error) {
         console.error('Erro ao processar autenticação:', error);
       }
+    });
+
+    // Handler para quando a autenticação é necessária
+    client.on('auth_failure', async (msg) => {
+      console.log(`❌ Falha na autenticação do WhatsApp ${instanceId}:`, msg);
+      instance.isConnected = false;
+      
+      // Emitir status atualizado
+      if (socketIO) {
+        socketIO.emit('whatsapp-status', {
+          connected: false,
+          number: number,
+          instanceId: instanceId
+        });
+      }
+    });
+
+    // Handler para quando o cliente está pronto
+    client.on('ready', async () => {
+      console.log(`✅ WhatsApp ${instanceId} (${number}) está pronto e conectado`);
+      instance.isConnected = true;
+      
+      // Emitir status atualizado
+      if (socketIO) {
+        socketIO.emit('whatsapp-status', {
+          connected: true,
+          number: number,
+          instanceId: instanceId
+        });
+      }
+    });
+
+    // Handler para desconexão
+    client.on('disconnected', async (reason) => {
+      console.log(`❌ WhatsApp ${instanceId} desconectado: ${reason}`);
+      instance.isConnected = false;
+      
+      // Emitir status atualizado
+      if (socketIO) {
+        socketIO.emit('whatsapp-status', {
+          connected: false,
+          number: number,
+          instanceId: instanceId
+        });
+      }
+      
+      // Tentar reconectar após alguns segundos
+      setTimeout(async () => {
+        try {
+          console.log(`🔄 Tentando reconectar WhatsApp ${instanceId}...`);
+          await startBot(instanceId, number);
+        } catch (error) {
+          console.error(`❌ Erro na reconexão do WhatsApp ${instanceId}:`, error);
+        }
+      }, 5000);
     });
 
     // Evento QR Code
@@ -517,80 +579,6 @@ async function startBot(instanceId: string, number: string): Promise<void> {
       }
     });
 
-    // Evento Ready (conectado)
-    client.on('ready', () => {
-      console.log(`WhatsApp ${number} conectado!`);
-      instance.isConnected = true;
-      instance.qrDisplayed = false;
-      
-      // Limpar timeout do QR quando conectar
-      if (instance.qrTimeout) {
-        clearTimeout(instance.qrTimeout);
-        instance.qrTimeout = undefined;
-      }
-      
-      if (socketIO) {
-        socketIO.emit('wpp-status', { 
-          status: 'open', 
-          instanceId, 
-          number 
-        });
-        
-        // Emitir atualização das instâncias
-        socketIO.emit('whatsapp-instances-updated', getWhatsAppInstances());
-      }
-    });
-
-    // Evento Disconnected
-    client.on('disconnected', (reason: string) => {
-      console.log(`WhatsApp ${number} desconectado: ${reason}`);
-      instance.isConnected = false;
-      instance.qrDisplayed = false;
-      
-      // Limpar timeout do QR quando desconectar
-      if (instance.qrTimeout) {
-        clearTimeout(instance.qrTimeout);
-        instance.qrTimeout = undefined;
-      }
-      
-      if (socketIO) {
-        socketIO.emit('wpp-status', { 
-          status: 'disconnected', 
-          instanceId, 
-          number 
-        });
-        
-        // Emitir atualização das instâncias
-        socketIO.emit('whatsapp-instances-updated', getWhatsAppInstances());
-      }
-      
-      // Se foi logout, limpar dados de autenticação
-      if (reason === 'NAVIGATION') {
-        console.log(`Logout realizado para ${instanceId} - limpando dados de autenticação`);
-        const authStrategy = new HybridAuthStrategy(instanceId);
-        (async () => {
-          try {
-            await authStrategy.deleteAuthInfo();
-          } catch (error) {
-            console.error('Erro ao limpar dados de autenticação após logout:', error);
-          }
-        })();
-      }
-      
-      if (socketIO) {
-        socketIO.emit('wpp-status', { 
-          status: 'close', 
-          instanceId, 
-          number 
-        });
-      }
-
-      // Tentar reconectar se ainda estiver habilitado
-      if (instance.enabled) {
-        setTimeout(() => startBot(instanceId, number), 3000);
-      }
-    });
-
     // Evento de mensagem recebida
     client.on('message', async (message: Message) => {
       if (message.fromMe) return;
@@ -610,7 +598,13 @@ async function startBot(instanceId: string, number: string): Promise<void> {
 
       // Emitir evento via Socket.IO para mensagem do usuário
       if (socketIO) {
-        socketIO.emit('new-message', {
+        console.log('📨 Emitindo evento new-message para mensagem do usuário');
+        console.log('📨 Dados do lead encontrado:', lead);
+        console.log('📨 ContactId:', from);
+        console.log('📨 InstanceId:', instanceId);
+        console.log('📨 Number:', number);
+        
+        const eventData = {
           contactId: from,
           message: {
             texto: text,
@@ -626,7 +620,11 @@ async function startBot(instanceId: string, number: string): Promise<void> {
           } : null,
           instanceId,
           number
-        });
+        };
+        
+        console.log('📨 Dados do evento new-message:', eventData);
+        socketIO.emit('new-message', eventData);
+        console.log('✅ Evento new-message emitido com sucesso');
       }
 
       // Acumula histórico estruturado por usuário
@@ -732,7 +730,64 @@ async function startBot(instanceId: string, number: string): Promise<void> {
   }
 }
 
+// Função para garantir que a tabela whatsapp_instances existe
+async function ensureWhatsAppInstancesTable() {
+  try {
+    // Verificar se a tabela existe tentando fazer uma consulta
+    const { error } = await supabase
+      .from('whatsapp_instances')
+      .select('count')
+      .limit(1);
+
+    if (error && error.code === '42P01') { // Tabela não existe
+      console.log('📋 Criando tabela whatsapp_instances...');
+      
+      // Criar a tabela via SQL
+      const { error: createError } = await supabase.rpc('create_whatsapp_instances_table');
+      
+      if (createError) {
+        console.error('❌ Erro ao criar tabela whatsapp_instances:', createError);
+      } else {
+        console.log('✅ Tabela whatsapp_instances criada com sucesso');
+      }
+    }
+  } catch (error) {
+    console.error('❌ Erro ao verificar/criar tabela whatsapp_instances:', error);
+  }
+}
+
 export async function initializeWhatsApp(): Promise<void> {
-  console.log('Inicializando WhatsApp Web JS...');
-  // Implementar inicialização se necessário
+  try {
+    console.log('🚀 Inicializando WhatsApp Web JS...');
+    
+    // Garantir que a tabela existe
+    await ensureWhatsAppInstancesTable();
+    
+    // Buscar instâncias configuradas no banco
+    const { data: instances, error } = await supabase
+      .from('whatsapp_instances')
+      .select('*')
+      .eq('enabled', true);
+
+    if (error) {
+      console.error('❌ Erro ao buscar instâncias do WhatsApp:', error);
+      return;
+    }
+
+    console.log(`📱 Encontradas ${instances?.length || 0} instâncias para inicializar`);
+
+    // Inicializar cada instância
+    for (const instance of instances || []) {
+      try {
+        console.log(`🚀 Inicializando instância ${instance.instance_id} (${instance.number})`);
+        await startBot(instance.instance_id, instance.number);
+      } catch (error) {
+        console.error(`❌ Erro ao inicializar instância ${instance.instance_id}:`, error);
+      }
+    }
+
+    console.log('✅ Inicialização do WhatsApp concluída');
+  } catch (error) {
+    console.error('❌ Erro na inicialização do WhatsApp:', error);
+  }
 } 
