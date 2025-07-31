@@ -5,7 +5,9 @@ import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 import { listarLeads, buscarLeadsPorStatus, atualizarStatusLead, buscarLead } from './services/leadService';
 import { supabase } from './config/supabase';
-import { startWhatsAppService, getWhatsAppStatus, toggleAI, sendMessage } from './whatsappService';
+import { startWhatsAppService, getWhatsAppStatus, toggleAI, sendMessage, setSocketIO as setWhatsAppServiceSocketIO } from './whatsappService';
+import { setSocketIO as setWhatsAppWebJSSocketIO } from './routes/whatsappWebJS';
+import { setSocketIO as setWhatsAppBotSocketIO } from './routes/whatsappBot';
 
 dotenv.config();
 
@@ -27,6 +29,11 @@ const io = new Server(server, {
     credentials: true
   }
 });
+
+// Configurar Socket.IO para as rotas do WhatsApp
+setWhatsAppWebJSSocketIO(io);
+setWhatsAppBotSocketIO(io);
+setWhatsAppServiceSocketIO(io);
 
 // Status do WhatsApp
 let lastEmittedStatus = { connected: false, number: '' };

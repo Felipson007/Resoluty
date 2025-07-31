@@ -17,12 +17,18 @@ const openai = new OpenAI({
 // WhatsApp Client
 let whatsappClient: Client | null = null;
 let isAIActive = true;
+let socketIO: any = null;
 
 // Histórico de mensagens
 const messageHistory: { [key: string]: any[] } = {};
 
 // Controle de debounce para IA por número
 const aiReplyTimeouts: { [key: string]: NodeJS.Timeout } = {};
+
+// Função para configurar Socket.IO
+export function setSocketIO(io: any) {
+  socketIO = io;
+}
 
 // Funções para persistência da sessão WhatsApp
 async function salvarSessaoWhatsApp() {
@@ -132,6 +138,10 @@ async function initializeWhatsApp() {
 
   whatsappClient.on('qr', (qr) => {
     console.log('📱 QR Code disponível - escaneie no WhatsApp');
+    if (socketIO) {
+      socketIO.emit('qr-code', { qr });
+      console.log('📱 QR Code emitido para frontend');
+    }
   });
 
   whatsappClient.on('loading_screen', (percent, message) => {
