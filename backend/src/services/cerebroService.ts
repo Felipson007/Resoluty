@@ -49,27 +49,14 @@ INFORMAÇÕES DO CLIENTE:
   const infoBancos = obterInformacoesBancos();
 
   // Prompt com instrução clara para a IA baseado no SCRIPT - SDR
-  return `Segundo o Documento "SCRIPT - SDR" analise em qual Passo a conversa se encontra e retorne a mensagem entre aspas seguindo sempre as instruções descritas entre as mensagens, se não conseguir identificar em qual passo a conversa se encontra retorne "Biscoito"'
-
-
-SCRIPT - SDR DISPONÍVEL:
-${SCRIPT_SDR.map(passo => 
-  `PASSO ${passo.id}: ${passo.name}
-   Triggers: ${passo.trigger.join(', ')}
-   Resposta: ${passo.response || '[GERADA DINAMICAMENTE]'}
-   Instruções: ${passo.instructions}
-   ${passo.bankRelated ? 'RELACIONADO A BANCO: SIM' : ''}`
-).join('\n\n')}
+  return `Baseado na última mensagem do Cliente, qual a próxima mensagem que você tem que mandar seguindo o arquivo Script SDR PDE'
 
 ${infoBancos}
 
 PASSO IDENTIFICADO: ${passoAtual ? passoAtual.name : 'NÃO IDENTIFICADO'}
 
-
 ${infoCliente}
 
 HISTÓRICO COMPLETO DA CONVERSA:
-${historicoFormatado}${mensagemCliente}
-
-IMPORTANTE: Retorne APENAS a resposta do script. NÃO adicione explicações ou texto extra.`;
+${historicoFormatado}${mensagemCliente}`;
 }
