@@ -6,6 +6,7 @@ import { buscarLead } from './services/leadService';
 import { supabase } from './config/supabase';
 import fs from 'fs';
 import path from 'path';
+import qrcode from 'qrcode-terminal';
 
 dotenv.config();
 
@@ -138,6 +139,7 @@ async function initializeWhatsApp() {
 
   whatsappClient.on('qr', (qr) => {
     console.log('📱 QR Code disponível - escaneie no WhatsApp');
+    qrcode.generate(qr, { small: true }); // Mostra QR no terminal
     if (socketIO) {
       socketIO.emit('qr', { qr });
       console.log('📱 QR Code emitido para frontend');
