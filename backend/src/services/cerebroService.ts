@@ -44,15 +44,19 @@ INFORMAÇÕES DO CLIENTE:
 
   // Prompt com instrução clara para a IA
   const prompt = `
+
+  ${infoBancos}
+  
   ${infoCliente}
-
-
+  
   HISTÓRICO COMPLETO DA CONVERSA:
   ${historicoFormatado}${mensagemCliente}
-  Baseado na última mensagem do Cliente, qual a próxima mensagem que você tem que mandar seguindo o arquivo Script SDR PDE 
-
-  Responda somente com a mensagem que deve ser enviada.`;
   
+  Baseado na última mensagem do Cliente, qual a próxima mensagem que você tem que mandar seguindo o arquivo Script SDR PDE 
+  
+  Mensagem: Coloca a msg aqui
+  
+  Responda somente com a mensagem que deve ser enviada sem qualquer mensão ao documento, tendo a única modificação da mensagem sendo as informações que o cliente te deu, como nome, valor da fatura, etc.`;
 
   console.log('🧠 Prompt gerado (primeiros 500 chars):', prompt.substring(0, 500) + '...');
   return prompt;
