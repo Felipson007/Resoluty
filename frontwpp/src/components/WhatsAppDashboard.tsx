@@ -328,7 +328,7 @@ const WhatsAppDashboard: React.FC = () => {
       console.log('💬 Primeiras mensagens:', contactMessages.slice(0, 3));
       
       // Garantir que as mensagens tenham o formato correto
-      const formattedMessages = contactMessages.map(msg => ({
+      const formattedMessages = contactMessages.map((msg: any) => ({
         id: msg.id,
         texto: msg.texto || msg.body || 'Mensagem sem texto',
         timestamp: msg.timestamp,
