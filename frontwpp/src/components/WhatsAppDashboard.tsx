@@ -232,7 +232,7 @@ const WhatsAppDashboard: React.FC = () => {
     socketService.on('whatsapp-instances-updated', handleWhatsAppInstancesUpdated);
     
     // Novos listeners
-    socketService.on('qr-code', handleQRCode);
+    socketService.on('qr', handleQRCode);
     socketService.on('whatsapp-status', handleWhatsAppStatus);
     socketService.on('ai-status', handleAIStatus);
     socketService.on('whatsapp-loading', handleWhatsAppLoading);
@@ -247,7 +247,7 @@ const WhatsAppDashboard: React.FC = () => {
       socketService.off('whatsapp-instances-updated', handleWhatsAppInstancesUpdated);
       
       // Remover novos listeners
-      socketService.off('qr-code', handleQRCode);
+      socketService.off('qr', handleQRCode);
       socketService.off('whatsapp-status', handleWhatsAppStatus);
       socketService.off('ai-status', handleAIStatus);
       socketService.off('whatsapp-loading', handleWhatsAppLoading);
