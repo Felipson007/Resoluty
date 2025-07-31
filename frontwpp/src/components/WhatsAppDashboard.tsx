@@ -184,11 +184,25 @@ const WhatsAppDashboard: React.FC = () => {
     };
 
     // Novos listeners para QR code e status
-    const handleQRCode = (data: { qr: string }) => {
-      console.log('📱 QR Code recebido:', data);
-      setQrCode(data.qr);
-      setIsConnecting(true);
-      console.log('📱 QR Code definido no estado:', data.qr);
+    const handleQRCode = (data: any) => {
+      console.log('📱 QR Code recebido (dados completos):', data);
+      console.log('📱 Tipo de dados:', typeof data);
+      console.log('📱 Estrutura dos dados:', JSON.stringify(data, null, 2));
+      
+      // Verificar se data é um objeto com propriedade qr
+      if (data && typeof data === 'object' && data.qr) {
+        console.log('📱 QR Code encontrado na propriedade qr:', data.qr);
+        setQrCode(data.qr);
+        setIsConnecting(true);
+        console.log('📱 QR Code definido no estado:', data.qr);
+      } else if (typeof data === 'string') {
+        console.log('📱 QR Code recebido como string:', data);
+        setQrCode(data);
+        setIsConnecting(true);
+        console.log('📱 QR Code definido no estado (string):', data);
+      } else {
+        console.log('❌ Formato de QR Code inválido:', data);
+      }
     };
 
     const handleWhatsAppStatus = (status: { connected: boolean; number: string }) => {
