@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Box, CircularProgress, Alert, Snackbar, Typography, Paper, Chip, Button } from '@mui/material';
-import { Refresh as RefreshIcon, WhatsApp as WhatsAppIcon } from '@mui/icons-material';
+import { Box, CircularProgress, Alert, Snackbar, Typography, Paper, Chip, Button, Tabs, Tab } from '@mui/material';
+import { WhatsApp as WhatsAppIcon, Settings as SettingsIcon } from '@mui/icons-material';
 import ConversationSidebar from './ConversationSidebar';
 import ChatArea from './ChatArea';
 import MessageInput from './MessageInput';
@@ -40,28 +40,26 @@ const WhatsAppDashboard: React.FC = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [socketConnected, setSocketConnected] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
   const [selectedFilter, setSelectedFilter] = useState<string>('bot-ativo');
   
-  // Novos estados para QR code e status
+  // Estados para WhatsApp
   const [qrCode, setQrCode] = useState<string>('');
   const [whatsappStatus, setWhatsappStatus] = useState({
     connected: false,
     number: ''
   });
-  const [aiStatus, setAiStatus] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [loadingProgress, setLoadingProgress] = useState<{ percent: number; message: string } | null>(null);
-  const [isSynchronized, setIsSynchronized] = useState(false);
-  const [whatsappConnecting, setWhatsappConnecting] = useState(false);
+  const [showConfig, setShowConfig] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
+  
+  // Estados para transparência no carregamento
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
 
   const checkWhatsAppStatus = useCallback(async () => {
     try {
       const instances = await ApiService.getWhatsAppInstances();
-      
-      // Verificar se há pelo menos um WhatsApp conectado
       const hasConnected = instances.some((instance: any) => instance.isConnected);
-      
       return hasConnected;
     } catch (error) {
       console.error('Erro ao verificar status do WhatsApp:', error);
@@ -77,18 +75,16 @@ const WhatsAppDashboard: React.FC = () => {
       // Verificar saúde do backend
       const isHealthy = await ApiService.checkHealth();
       if (!isHealthy) {
-        throw new Error('Backend não está respondendo. Verifique se o servidor está rodando na porta 4000.');
+        throw new Error('Backend não está respondendo.');
       }
       
-      // Sempre buscar leads, independente do status do WhatsApp
+      // Buscar leads
       const leads = await ApiService.getLeads();
       setContacts(leads);
       
-      setRetryCount(0);
     } catch (err: any) {
       console.error('❌ Erro ao inicializar app:', err);
       setError(err.message || 'Erro ao conectar com o servidor');
-      setRetryCount(prev => prev + 1);
     } finally {
       setLoading(false);
     }
@@ -102,58 +98,7 @@ const WhatsAppDashboard: React.FC = () => {
     };
   }, [initializeApp]);
 
-  // Retry automático quando há erro
-  useEffect(() => {
-    if (error && retryCount < 3) {
-      const timer = setTimeout(() => {
-        console.log('🔄 Tentativa automática de reconexão...');
-        initializeApp();
-      }, 5000); // Tentar novamente após 5 segundos
-
-      return () => clearTimeout(timer);
-    }
-  }, [error, retryCount, initializeApp]);
-
-  // Recarregar leads periodicamente de forma invisível
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      if (socketConnected && !loading && whatsappStatus.connected) {
-        try {
-          const leads = await ApiService.getLeads();
-          
-          // Atualizar apenas se houver mudanças reais para evitar flickering
-          setContacts(prevContacts => {
-            // Verificar se há mudanças significativas
-            const hasChanges = leads.length !== prevContacts.length || 
-              leads.some((lead: any, index: number) => {
-                const prevContact = prevContacts[index];
-                if (!prevContact) return true;
-                
-                return (
-                  lead.id !== prevContact.id ||
-                  lead.lastMessage !== prevContact.lastMessage ||
-                  lead.status !== prevContact.status ||
-                  lead.unreadCount !== prevContact.unreadCount
-                );
-              });
-            
-            if (hasChanges) {
-              // Atualizar silenciosamente sem mostrar loading
-              return leads;
-            }
-            return prevContacts;
-          });
-        } catch (error) {
-          // Log silencioso de erro para não atrapalhar a experiência
-          console.debug('❌ Erro ao atualizar leads (silencioso):', error);
-        }
-      }
-    }, 30000); // Aumentar para 30 segundos para ser menos intrusivo
-
-    return () => clearInterval(interval);
-  }, [socketConnected, loading, whatsappStatus.connected]);
-
-  // Configurar Socket.IO
+  // Configurar Socket.IO com otimizações
   useEffect(() => {
     socketService.connect();
 
@@ -167,16 +112,9 @@ const WhatsAppDashboard: React.FC = () => {
     };
 
     const handleNewMessage = (data: { contactId: string; message: any; lead?: any; instanceId?: string; number?: string }) => {
-      
-      // Verificar se a mensagem tem dados válidos
-      if (!data.message || !data.message.texto) {
-        return;
-      }
+      if (!data.message || !data.message.texto) return;
 
-      // Gerar ID único para a mensagem se não existir
       const messageId = data.message.id || `${data.contactId}-${Date.now()}-${Math.random()}`;
-
-      // Converter mensagem do backend para formato do frontend
       const frontendMessage: Message = {
         id: messageId,
         texto: data.message.texto || data.message.body || 'Mensagem sem texto',
@@ -187,20 +125,17 @@ const WhatsAppDashboard: React.FC = () => {
         number: data.number
       };
       
-      // Adicionar mensagem à lista imediatamente com animação suave
+      // Adicionar mensagem sem reload
       setMessages(prev => {
         const messageExists = prev.some(msg => 
           msg.id === frontendMessage.id || 
           (msg.texto === frontendMessage.texto && msg.timestamp === frontendMessage.timestamp)
         );
-        if (messageExists) {
-          return prev;
-        }
+        if (messageExists) return prev;
         
-        // Adicionar mensagem no final da lista
         const newMessages = [...prev, frontendMessage];
         
-        // Se a mensagem é do contato selecionado, rolar para baixo automaticamente
+        // Scroll automático se for o contato selecionado
         if (data.contactId === selectedContactId) {
           setTimeout(() => {
             const chatContainer = document.querySelector('.chat-messages-container');
@@ -213,12 +148,11 @@ const WhatsAppDashboard: React.FC = () => {
         return newMessages;
       });
 
-      // Atualizar ou criar contato com informações do lead
+      // Atualizar contatos sem reload
       setContacts(prev => {
         const existingContactIndex = prev.findIndex(c => c.id === data.contactId);
         
         if (existingContactIndex >= 0) {
-          // Atualizar contato existente
           const updatedContacts = [...prev];
           updatedContacts[existingContactIndex] = {
             ...updatedContacts[existingContactIndex],
@@ -227,7 +161,6 @@ const WhatsAppDashboard: React.FC = () => {
             unreadCount: data.contactId === selectedContactId ? 0 : (updatedContacts[existingContactIndex].unreadCount || 0) + 1,
             instanceId: data.instanceId,
             number: data.number,
-            // Atualizar com dados do lead se disponível
             ...(data.lead && {
               name: `Cliente ${data.lead.numero}`,
               phone: data.lead.numero,
@@ -238,7 +171,6 @@ const WhatsAppDashboard: React.FC = () => {
           };
           return updatedContacts;
         } else {
-          // Criar novo contato
           const newContact: Contact = {
             id: data.contactId,
             name: data.lead ? `Cliente ${data.lead.numero}` : `Cliente ${data.contactId}`,
@@ -254,16 +186,6 @@ const WhatsAppDashboard: React.FC = () => {
             number: data.number
           };
           
-          // Recarregar leads para garantir que todos os contatos apareçam
-          setTimeout(async () => {
-            try {
-              const leads = await ApiService.getLeads();
-              setContacts(leads);
-            } catch (error) {
-              console.error('❌ Erro ao recarregar leads:', error);
-            }
-          }, 1000);
-          
           return [newContact, ...prev];
         }
       });
@@ -277,92 +199,43 @@ const WhatsAppDashboard: React.FC = () => {
       ));
     };
 
-    const handleWhatsAppStatusUpdate = (data: { status: string; instanceId: string; number: string }) => {
-      // Atualizar status do WhatsApp quando receber eventos
-      if (data.status === 'open' || data.status === 'close') {
-        checkWhatsAppStatus();
-      }
-    };
-
-    const handleQRExpired = (data: { instanceId: string; number: string }) => {
-      // O backend irá automaticamente gerar um novo QR Code
-    };
-
-    const handleWhatsAppInstancesUpdated = (instances: any[]) => {
-      // Verificar se há instâncias conectadas
-      const hasConnectedInstances = instances.some(instance => instance.isConnected && instance.enabled);
-      
-      if (hasConnectedInstances) {
-        // Se há instâncias conectadas, carregar contatos
-        initializeApp();
-      }
-    };
-
-    // Novos listeners para QR code e status
-    const handleQRCode = (data: { qr: string }) => {
-      setQrCode(data.qr);
-    };
-
     const handleWhatsAppStatus = (status: { connected: boolean; number: string }) => {
       setWhatsappStatus(status);
       
-      // Se o WhatsApp se conectou, recarregar leads
       if (status.connected) {
-        setWhatsappConnecting(false);
-        initializeApp();
+        setIsConnecting(false);
+        setShowQRModal(false);
+        // Carregar dados automaticamente após conexão
+        setIsLoadingData(true);
+        setLoadingMessage('Carregando dados...');
+        initializeApp().finally(() => {
+          setIsLoadingData(false);
+          setLoadingMessage('');
+        });
       } else {
-        setWhatsappConnecting(true);
+        setIsConnecting(true);
       }
     };
 
-    const handleAIStatus = (status: { active: boolean }) => {
-      setAiStatus(status.active);
-    };
-
-    const handleWhatsAppLoading = (data: { percent: number; message: string }) => {
-      setLoadingProgress(data);
-      setWhatsappConnecting(true);
-      
-      // Se chegou a 100%, marcar como sincronizado e redirecionar
-      if (data.percent === 100) {
-        setTimeout(() => {
-          setIsSynchronized(true);
-          setLoadingProgress(null);
-          setWhatsappConnecting(false);
-          // Recarregar dados após sincronização e redirecionar para dashboard
-          initializeApp();
-        }, 2000);
-      }
+    const handleQRCode = (data: { qr: string }) => {
+      setQrCode(data.qr);
+      setShowQRModal(true);
     };
 
     socketService.on('socket-connected', handleSocketConnected);
     socketService.on('socket-disconnected', handleSocketDisconnected);
     socketService.on('new-message', handleNewMessage);
     socketService.on('status-updated', handleStatusUpdated);
-    socketService.on('wpp-status', handleWhatsAppStatusUpdate);
-    socketService.on('qr-expired', handleQRExpired);
-    socketService.on('whatsapp-instances-updated', handleWhatsAppInstancesUpdated);
-    
-    // Novos listeners
-    socketService.on('qr', handleQRCode);
     socketService.on('whatsapp-status', handleWhatsAppStatus);
-    socketService.on('ai-status', handleAIStatus);
-    socketService.on('whatsapp-loading', handleWhatsAppLoading);
+    socketService.on('qr', handleQRCode);
 
     return () => {
       socketService.off('socket-connected', handleSocketConnected);
       socketService.off('socket-disconnected', handleSocketDisconnected);
       socketService.off('new-message', handleNewMessage);
       socketService.off('status-updated', handleStatusUpdated);
-      socketService.off('wpp-status', handleWhatsAppStatusUpdate);
-      socketService.off('qr-expired', handleQRExpired);
-      socketService.off('whatsapp-instances-updated', handleWhatsAppInstancesUpdated);
-      
-      // Remover novos listeners
-      socketService.off('qr', handleQRCode);
       socketService.off('whatsapp-status', handleWhatsAppStatus);
-      socketService.off('ai-status', handleAIStatus);
-      socketService.off('whatsapp-loading', handleWhatsAppLoading);
+      socketService.off('qr', handleQRCode);
     };
   }, [selectedContactId, initializeApp]);
 
@@ -379,10 +252,7 @@ const WhatsAppDashboard: React.FC = () => {
     ));
 
     try {
-      // Carregar mensagens do contato
       const contactMessages = await ApiService.getContactMessages(contactId);
-      
-      // Garantir que as mensagens tenham o formato correto
       const formattedMessages = contactMessages.map((msg: any) => ({
         id: msg.id,
         texto: msg.texto || msg.body || 'Mensagem sem texto',
@@ -404,11 +274,9 @@ const WhatsAppDashboard: React.FC = () => {
     if (!selectedContactId) return;
 
     try {
-      // Enviar via API
       const success = await ApiService.sendMessage(selectedContactId, message);
       
       if (success) {
-        // Adicionar mensagem otimisticamente
         const newMessage: Message = {
           id: `local-${Date.now()}`,
           texto: message,
@@ -419,7 +287,6 @@ const WhatsAppDashboard: React.FC = () => {
 
         setMessages(prev => [...prev, newMessage]);
         
-        // Atualizar última mensagem do contato
         setContacts(prev => prev.map(contact => 
           contact.id === selectedContactId
             ? { 
@@ -440,7 +307,6 @@ const WhatsAppDashboard: React.FC = () => {
 
   const handleStatusChange = async (contactId: string, newStatus: 'bot' | 'humano' | 'aguardando' | 'finalizado') => {
     try {
-      // Converter status do frontend para status do lead
       let leadStatus: 'lead_novo' | 'lead_avancado' | 'lead_sem_interesse';
       switch (newStatus) {
         case 'bot':
@@ -456,10 +322,7 @@ const WhatsAppDashboard: React.FC = () => {
           leadStatus = 'lead_novo';
       }
 
-      // Extrair número do telefone do contactId
       const numero = contactId.replace('@s.whatsapp.net', '');
-      
-      // Atualizar status do lead
       const success = await ApiService.updateLeadStatus(numero, leadStatus);
       
       if (success) {
@@ -477,10 +340,6 @@ const WhatsAppDashboard: React.FC = () => {
     }
   };
 
-  const handleRetry = () => {
-    initializeApp();
-  };
-
   const handleFilterChange = (filterId: string) => {
     setSelectedFilter(filterId);
     setSelectedContactId(null);
@@ -491,34 +350,15 @@ const WhatsAppDashboard: React.FC = () => {
     setContacts(newContacts);
   };
 
-  const handleGoToWhatsAppConfig = () => {
-    // Navegar para a página de configuração do WhatsApp
-    // Como o App.tsx usa views internas, vou usar um evento customizado
-    window.dispatchEvent(new CustomEvent('changeView', { detail: 'config' }));
-  };
-
-  const handleRefreshWhatsAppStatus = async () => {
-    try {
-      // Reconectar Socket.IO se necessário
-      if (!socketService.isConnected()) {
-        socketService.reconnect();
-      }
-      
-      // Verificar status do WhatsApp
-      const hasConnected = await checkWhatsAppStatus();
-      
-      // Se conectou, recarregar dados
-      if (hasConnected) {
-        await initializeApp();
-      }
-    } catch (error) {
-      console.error('❌ Erro ao verificar status:', error);
-    }
+  const handleAddWhatsApp = () => {
+    setShowQRModal(true);
+    setIsConnecting(true);
   };
 
   const selectedContact = contacts.find(c => c.id === selectedContactId);
   const contactMessages = messages.filter(m => m.contactId === selectedContactId);
 
+  // Tela de loading inicial
   if (loading) {
     return (
       <Box sx={{ 
@@ -533,15 +373,11 @@ const WhatsAppDashboard: React.FC = () => {
         <Typography variant="h6" color="text.secondary">
           Conectando ao servidor...
         </Typography>
-        {retryCount > 0 && (
-          <Typography variant="body2" color="text.secondary">
-            Tentativa {retryCount}
-          </Typography>
-        )}
       </Box>
     );
   }
 
+  // Tela de erro com retry automático
   if (error && contacts.length === 0) {
     return (
       <Box sx={{ 
@@ -564,38 +400,8 @@ const WhatsAppDashboard: React.FC = () => {
     );
   }
 
-  // Mostrar loading quando WhatsApp está conectando
-  if (whatsappConnecting || loadingProgress) {
-    return (
-      <Box sx={{ 
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        display: 'flex', 
-        flexDirection: 'column',
-        alignItems: 'center', 
-        justifyContent: 'center',
-        gap: 4,
-        p: 4,
-        textAlign: 'center'
-      }}>
-        <CircularProgress size={80} sx={{ color: 'white' }} />
-        <Typography variant="h5" color="white" fontWeight="bold">
-          Conectando WhatsApp...
-        </Typography>
-        {loadingProgress && (
-          <Typography variant="body1" color="white">
-            {loadingProgress.message} ({loadingProgress.percent}%)
-          </Typography>
-        )}
-        <Typography variant="body2" color="rgba(255,255,255,0.8)">
-          Aguarde enquanto configuramos sua conexão
-        </Typography>
-      </Box>
-    );
-  }
-
-  // Verificar se há WhatsApp conectado - mostrar dashboard se conectado ou sincronizado
-  if (!whatsappStatus.connected && !loading && !isSynchronized && !loadingProgress) {
+  // Tela de conexão WhatsApp
+  if (!whatsappStatus.connected && !loading) {
     return (
       <Box sx={{ 
         minHeight: '100vh',
@@ -606,36 +412,9 @@ const WhatsAppDashboard: React.FC = () => {
         justifyContent: 'center',
         gap: 4,
         p: 4,
-        textAlign: 'center',
-        position: 'relative',
-        overflow: 'hidden'
+        textAlign: 'center'
       }}>
-        {/* Background decoration */}
-        <Box sx={{
-          position: 'absolute',
-          top: -50,
-          right: -50,
-          width: 200,
-          height: 200,
-          borderRadius: '50%',
-          background: 'rgba(255,255,255,0.1)',
-          zIndex: 0
-        }} />
-        <Box sx={{
-          position: 'absolute',
-          bottom: -30,
-          left: -30,
-          width: 150,
-          height: 150,
-          borderRadius: '50%',
-          background: 'rgba(255,255,255,0.1)',
-          zIndex: 0
-        }} />
-
-        {/* Main content */}
         <Box sx={{ 
-          position: 'relative',
-          zIndex: 1,
           background: 'rgba(255,255,255,0.95)',
           borderRadius: 4,
           p: 6,
@@ -645,78 +424,18 @@ const WhatsAppDashboard: React.FC = () => {
           maxWidth: 500,
           width: '100%'
         }}>
-          {/* Status do WhatsApp */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 3 }}>
-            <Chip
-              label={whatsappStatus.connected ? 'WhatsApp Conectado' : 'WhatsApp Desconectado'}
-              color={whatsappStatus.connected ? 'success' : 'error'}
-              icon={<WhatsAppIcon />}
-              sx={{ mb: 2 }}
-            />
-          </Box>
-
-          {/* Loading durante conexão */}
-          {isConnecting && (
-            <Box sx={{ textAlign: 'center', mb: 3 }}>
-              <CircularProgress size={40} sx={{ mb: 2 }} />
-              <Typography variant="body1" color="text.secondary">
-                Conectando WhatsApp...
-              </Typography>
-            </Box>
-          )}
-
-          {/* Progresso de carregamento */}
-          {loadingProgress && (
-            <Box sx={{ textAlign: 'center', mb: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
-                <CircularProgress 
-                  variant="determinate" 
-                  value={(loadingProgress as { percent: number; message: string }).percent} 
-                  size={60}
-                  sx={{ mr: 2 }}
-                />
-                <Typography variant="h6" color="primary">
-                  {(loadingProgress as { percent: number; message: string }).percent}%
-                </Typography>
-              </Box>
-              <Typography variant="body2" color="text.secondary">
-                {(loadingProgress as { percent: number; message: string }).message}
-              </Typography>
-            </Box>
-          )}
-
-          {/* Sincronizado */}
-          {isSynchronized && (
-            <Box sx={{ textAlign: 'center', mb: 3 }}>
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                mb: 2,
-                color: 'success.main'
-              }}>
-                <Typography variant="h6" sx={{ mr: 1 }}>
-                  ✅
-                </Typography>
-                <Typography variant="h6" color="success.main">
-                  Sincronizado!
-                </Typography>
-              </Box>
-              <Typography variant="body2" color="text.secondary">
-                Número: {whatsappStatus.number}
-              </Typography>
-            </Box>
-          )}
-
-          {/* QR Code */}
-          {qrCode && !whatsappStatus.connected && (
-            <Box sx={{ textAlign: 'center', mb: 3 }}>
+          {/* QR Code Modal */}
+          {showQRModal && qrCode && (
+            <Box sx={{ textAlign: 'center', mb: 4 }}>
               <Typography variant="h6" sx={{ mb: 2 }}>
                 Escaneie o QR Code
               </Typography>
               <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
                 <QRCodeSVG value={qrCode} size={200} />
               </Box>
+              <Typography variant="body2" color="text.secondary">
+                Abra o WhatsApp no seu celular e escaneie o QR Code
+              </Typography>
             </Box>
           )}
 
@@ -746,7 +465,7 @@ const WhatsAppDashboard: React.FC = () => {
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent'
           }}>
-            {whatsappStatus.connected ? 'WhatsApp Conectado!' : 'Conecte o WhatsApp'}
+            Conecte o WhatsApp
           </Typography>
 
           <Typography variant="body1" color="text.secondary" sx={{ 
@@ -755,49 +474,41 @@ const WhatsAppDashboard: React.FC = () => {
             lineHeight: 1.6,
             fontSize: '1.1rem'
           }}>
-            {whatsappStatus.connected 
-              ? `Número conectado: ${whatsappStatus.number}`
-              : 'Para começar a usar o sistema, você precisa conectar o WhatsApp. Escaneie o QR Code acima.'
-            }
+            Para começar a usar o sistema, você precisa conectar o WhatsApp.
           </Typography>
 
-          {!whatsappStatus.connected && (
-            <>
-              <Box sx={{ display: 'flex', gap: 2, flexDirection: 'column', alignItems: 'center' }}>
-                <Button 
-                  variant="contained" 
-                  size="large"
-                  onClick={handleGoToWhatsAppConfig}
-                  sx={{ 
-                    background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
-                    '&:hover': { 
-                      background: 'linear-gradient(135deg, #128C7E 0%, #075E54 100%)',
-                      transform: 'translateY(-2px)',
-                      boxShadow: '0 8px 25px rgba(37, 211, 102, 0.4)'
-                    },
-                    px: 5,
-                    py: 2,
-                    fontSize: '1.1rem',
-                    fontWeight: 600,
-                    borderRadius: 3,
-                    transition: 'all 0.3s ease',
-                    minWidth: 200
-                  }}
-                >
-                  Configurar WhatsApp
-                </Button>
-              </Box>
+          <Button 
+            variant="contained" 
+            size="large"
+            onClick={handleAddWhatsApp}
+            sx={{ 
+              background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+              '&:hover': { 
+                background: 'linear-gradient(135deg, #128C7E 0%, #075E54 100%)',
+                transform: 'translateY(-2px)',
+                boxShadow: '0 8px 25px rgba(37, 211, 102, 0.4)'
+              },
+              px: 5,
+              py: 2,
+              fontSize: '1.1rem',
+              fontWeight: 600,
+              borderRadius: 3,
+              transition: 'all 0.3s ease',
+              minWidth: 200
+            }}
+          >
+            Adicionar WhatsApp
+          </Button>
 
-              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 2 }}>
-                Após conectar o WhatsApp, você poderá ver e gerenciar seus contatos aqui.
-              </Typography>
-            </>
-          )}
+          <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 2 }}>
+            Após conectar o WhatsApp, você poderá ver e gerenciar seus contatos aqui.
+          </Typography>
         </Box>
       </Box>
     );
   }
 
+  // Dashboard principal
   return (
     <Box sx={{ 
       height: '100vh', 
@@ -816,12 +527,27 @@ const WhatsAppDashboard: React.FC = () => {
         height: '100%',
         overflow: 'hidden',
       }}>
-        {/* Filtros */}
+        {/* Header com tabs */}
         <Box sx={{ 
           p: 2, 
           borderBottom: '1px solid #e0e0e0',
           flexShrink: 0,
         }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Central de Atendimento
+            </Typography>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<SettingsIcon />}
+              onClick={() => setShowConfig(!showConfig)}
+              sx={{ minWidth: 'auto' }}
+            >
+              Config
+            </Button>
+          </Box>
+          
           <FilterTabs
             selectedFilter={selectedFilter}
             onFilterChange={handleFilterChange}
@@ -914,6 +640,37 @@ const WhatsAppDashboard: React.FC = () => {
           </Box>
         )}
       </Box>
+
+      {/* Overlay de carregamento transparente */}
+      {isLoadingData && (
+        <Box sx={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+        }}>
+          <Box sx={{
+            background: 'white',
+            borderRadius: 2,
+            p: 3,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 2,
+          }}>
+            <CircularProgress size={40} />
+            <Typography variant="body2" color="text.secondary">
+              {loadingMessage}
+            </Typography>
+          </Box>
+        </Box>
+      )}
 
       {/* Snackbar para erros */}
       <Snackbar 

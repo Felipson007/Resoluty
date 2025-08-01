@@ -26,7 +26,7 @@ export function getWebhookUrl(endpoint: string): string {
 
 // Função para fazer requisição para webhook interno
 export async function callInternalWebhook(endpoint: string, data: any): Promise<any> {
-  // Se o endpoint já começa com /webhook, usar diretamente
+  // Construir URL correta para webhook
   const url = endpoint.startsWith('/webhook') 
     ? `${API_CONFIG.WEBHOOK_URL}${endpoint}`
     : `${API_CONFIG.WEBHOOK_URL}/webhook${endpoint}`;
@@ -36,15 +36,22 @@ export async function callInternalWebhook(endpoint: string, data: any): Promise<
   try {
     const response = await fetch(url, {
       method: 'POST',
-      headers: API_CONFIG.DEFAULT_HEADERS,
+      headers: {
+        ...API_CONFIG.DEFAULT_HEADERS,
+        'Accept': 'application/json',
+      },
       body: JSON.stringify(data),
     });
     
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Erro HTTP ${response.status}: ${errorText}`);
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     
-    return await response.json();
+    const result = await response.json();
+    console.log(`✅ Webhook interno respondido:`, result);
+    return result;
   } catch (error) {
     console.error(`❌ Erro ao chamar webhook interno ${endpoint}:`, error);
     throw error;
