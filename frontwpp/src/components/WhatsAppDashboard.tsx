@@ -102,35 +102,56 @@ const WhatsAppDashboard: React.FC = () => {
     };
   }, [initializeApp]);
 
-  // Recarregar leads periodicamente de forma mais sutil
+  // Retry automático quando há erro
+  useEffect(() => {
+    if (error && retryCount < 3) {
+      const timer = setTimeout(() => {
+        console.log('🔄 Tentativa automática de reconexão...');
+        initializeApp();
+      }, 5000); // Tentar novamente após 5 segundos
+
+      return () => clearTimeout(timer);
+    }
+  }, [error, retryCount, initializeApp]);
+
+  // Recarregar leads periodicamente de forma invisível
   useEffect(() => {
     const interval = setInterval(async () => {
-      if (socketConnected && !loading) {
+      if (socketConnected && !loading && whatsappStatus.connected) {
         try {
           const leads = await ApiService.getLeads();
           
-          // Atualizar apenas se houver mudanças para evitar flickering
+          // Atualizar apenas se houver mudanças reais para evitar flickering
           setContacts(prevContacts => {
+            // Verificar se há mudanças significativas
             const hasChanges = leads.length !== prevContacts.length || 
-              leads.some((lead: any, index: number) => 
-                lead.id !== prevContacts[index]?.id ||
-                lead.lastMessage !== prevContacts[index]?.lastMessage ||
-                lead.status !== prevContacts[index]?.status
-              );
+              leads.some((lead: any, index: number) => {
+                const prevContact = prevContacts[index];
+                if (!prevContact) return true;
+                
+                return (
+                  lead.id !== prevContact.id ||
+                  lead.lastMessage !== prevContact.lastMessage ||
+                  lead.status !== prevContact.status ||
+                  lead.unreadCount !== prevContact.unreadCount
+                );
+              });
             
             if (hasChanges) {
+              // Atualizar silenciosamente sem mostrar loading
               return leads;
             }
             return prevContacts;
           });
         } catch (error) {
-          console.error('❌ Erro ao recarregar leads:', error);
+          // Log silencioso de erro para não atrapalhar a experiência
+          console.debug('❌ Erro ao atualizar leads (silencioso):', error);
         }
       }
-    }, 15000); // Recarregar a cada 15 segundos para ser mais responsivo
+    }, 30000); // Aumentar para 30 segundos para ser menos intrusivo
 
     return () => clearInterval(interval);
-  }, [socketConnected, loading]);
+  }, [socketConnected, loading, whatsappStatus.connected]);
 
   // Configurar Socket.IO
   useEffect(() => {
@@ -532,18 +553,12 @@ const WhatsAppDashboard: React.FC = () => {
         gap: 2,
         p: 3
       }}>
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-        <Button 
-          variant="contained" 
-          startIcon={<RefreshIcon />}
-          onClick={handleRetry}
-        >
-          Tentar Novamente
-        </Button>
+        <CircularProgress size={60} />
+        <Typography variant="h6" color="text.secondary">
+          Reconectando automaticamente...
+        </Typography>
         <Typography variant="body2" color="text.secondary" textAlign="center">
-          Certifique-se de que o backend está rodando na porta 4000
+          Aguarde enquanto tentamos conectar novamente
         </Typography>
       </Box>
     );

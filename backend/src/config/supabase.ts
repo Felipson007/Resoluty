@@ -78,19 +78,28 @@ export async function recuperarConversasCliente(
   limite: number = 10
 ) {
   try {
+    // Primeiro, buscar todas as conversas e filtrar no lado do cliente
     const { data, error } = await supabase
       .from('whatsapp_conversations')
       .select('*')
-      .or(`metadata->>cliente_id.eq.${clienteId}`)
       .order('created_at', { ascending: false })
-      .limit(limite);
+      .limit(limite * 2); // Buscar mais para compensar o filtro
 
     if (error) {
       console.error('Erro ao recuperar conversas:', error);
       return [];
     }
 
-    return data || [];
+    if (!data) return [];
+
+    // Filtrar conversas que correspondem ao clienteId
+    const conversasFiltradas = data.filter((conversa: any) => {
+      const metadata = conversa.metadata as any;
+      return metadata?.cliente_id === clienteId;
+    });
+
+    // Retornar apenas o limite solicitado
+    return conversasFiltradas.slice(0, limite);
   } catch (err) {
     console.error('Exceção ao recuperar conversas:', err);
     return [];

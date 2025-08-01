@@ -26,7 +26,11 @@ export function getWebhookUrl(endpoint: string): string {
 
 // Função para fazer requisição para webhook interno
 export async function callInternalWebhook(endpoint: string, data: any): Promise<any> {
-  const url = getWebhookUrl(endpoint);
+  // Se o endpoint já começa com /webhook, usar diretamente
+  const url = endpoint.startsWith('/webhook') 
+    ? `${API_CONFIG.WEBHOOK_URL}${endpoint}`
+    : `${API_CONFIG.WEBHOOK_URL}/webhook${endpoint}`;
+    
   console.log(`🔗 Chamando webhook interno: ${url}`);
   
   try {
