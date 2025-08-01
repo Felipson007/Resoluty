@@ -11,38 +11,37 @@ const ConnectivityStatus: React.FC = () => {
   const runConnectivityTest = async () => {
     try {
       setTesting(true);
-      console.log('🔍 Executando teste de conectividade...');
       
       const results = await ConnectivityTest.testFullConnection();
       
       const allTestsPassed = results.apiHealth && results.socketConnection && results.qrTest;
       setIsConnected(allTestsPassed);
       
-      // Só mostrar alerta se houver problemas
-      if (!allTestsPassed) {
+      // Só mostrar alerta se houver problemas persistentes
+      if (!allTestsPassed && !showAlert) {
         setShowAlert(true);
-        // Auto-hide após 15 segundos
-        setTimeout(() => setShowAlert(false), 15000);
-      } else {
+        // Auto-hide após 10 segundos (reduzido)
+        setTimeout(() => setShowAlert(false), 10000);
+      } else if (allTestsPassed) {
         setShowAlert(false);
       }
-      
-      console.log('📊 Resultados do teste:', results);
     } catch (error) {
-      console.error('❌ Erro no teste de conectividade:', error);
       setIsConnected(false);
-      setShowAlert(true);
+      if (!showAlert) {
+        setShowAlert(true);
+        setTimeout(() => setShowAlert(false), 10000);
+      }
     } finally {
       setTesting(false);
     }
   };
 
   useEffect(() => {
-    // Executar teste inicial após 10 segundos
-    const initialTest = setTimeout(runConnectivityTest, 10000);
+    // Executar teste inicial após 30 segundos (aumentado)
+    const initialTest = setTimeout(runConnectivityTest, 30000);
     
-    // Executar teste a cada 5 minutos (muito menos frequente)
-    const interval = setInterval(runConnectivityTest, 300000);
+    // Executar teste a cada 10 minutos (muito menos frequente)
+    const interval = setInterval(runConnectivityTest, 600000);
     
     return () => {
       clearTimeout(initialTest);
