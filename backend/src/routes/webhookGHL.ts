@@ -81,7 +81,7 @@ router.post('/webhook/whatsapp', async (req, res) => {
 });
 
 // Endpoint para integração local com o bot Baileys
-router.post('/webhook/ia', async (req, res) => {
+router.post('/ia', async (req, res) => {
   try {
     console.log('[IA] Body recebido:', req.body);
     const { message } = req.body;

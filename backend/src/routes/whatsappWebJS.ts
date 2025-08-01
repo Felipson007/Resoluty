@@ -328,7 +328,7 @@ export async function startBot(instanceId: string, number: string): Promise<void
       });
 
       await salvarInteracaoHistorico({
-        cliente_id: from,
+        cliente_id: from.replace('@c.us', ''),
         mensagem_usuario: text,
         resposta_ia: '',
         data: new Date().toISOString(),
@@ -343,7 +343,9 @@ export async function startBot(instanceId: string, number: string): Promise<void
 
       timeoutsPorUsuario[from] = setTimeout(async () => {
         try {
-          const { data: historicoDB } = await buscarHistoricoCliente(from, 10);
+          // Extrair apenas o número do telefone do from (remover @c.us se presente)
+          const numeroTelefone = from.replace('@c.us', '');
+          const { data: historicoDB } = await buscarHistoricoCliente(numeroTelefone, 10);
           const historicoEstruturado = (historicoDB || []).flatMap((item: any) => [
             { texto: item.mensagem_usuario, timestamp: item.data, autor: 'usuario' },
             item.resposta_ia ? { texto: item.resposta_ia, timestamp: item.data, autor: 'sistema' } : null
@@ -367,7 +369,7 @@ export async function startBot(instanceId: string, number: string): Promise<void
           });
 
           await salvarInteracaoHistorico({
-            cliente_id: from,
+            cliente_id: from.replace('@c.us', ''),
             mensagem_usuario: '',
             resposta_ia: resposta,
             data: new Date().toISOString(),

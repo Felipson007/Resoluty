@@ -534,7 +534,7 @@ async function startBot(instanceId: string, number: string): Promise<void> {
 
       // Salva mensagem do usuário no banco
       await salvarInteracaoHistorico({
-        cliente_id: from,
+        cliente_id: from.replace('@c.us', ''),
         mensagem_usuario: text,
         resposta_ia: '',
         data: new Date().toISOString(),
@@ -553,8 +553,10 @@ async function startBot(instanceId: string, number: string): Promise<void> {
       timeoutsPorUsuario[from] = setTimeout(() => {
         (async () => {
           try {
+            // Extrair apenas o número do telefone do from (remover @c.us se presente)
+            const numeroTelefone = from.replace('@c.us', '');
             // Buscar histórico do banco antes de montar o prompt
-            const { data: historicoDB } = await buscarHistoricoCliente(from, 20);
+            const { data: historicoDB } = await buscarHistoricoCliente(numeroTelefone, 20);
             
             // Montar histórico estruturado para o cérebro
             const historicoEstruturado = (historicoDB || []).flatMap((item: any) => [
@@ -601,7 +603,7 @@ async function startBot(instanceId: string, number: string): Promise<void> {
 
               // Salva resposta da IA no banco
               await salvarInteracaoHistorico({
-                cliente_id: from,
+                cliente_id: from.replace('@c.us', ''),
                 mensagem_usuario: '',
                 resposta_ia: resposta,
                 data: new Date().toISOString(),
