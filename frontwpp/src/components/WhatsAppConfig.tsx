@@ -17,9 +17,7 @@ import {
 } from '@mui/material';
 import {
   WhatsApp as WhatsAppIcon,
-  Add as AddIcon,
-  Delete as DeleteIcon,
-  BugReport as BugReportIcon
+  Delete as DeleteIcon
 } from '@mui/icons-material';
 import { QRCodeSVG } from 'qrcode.react';
 import socketService from '../services/socketService';
@@ -269,44 +267,7 @@ const WhatsAppConfig: React.FC = () => {
           <WhatsAppIcon color="primary" />
           Configuração do WhatsApp
         </Typography>
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button
-            variant="outlined"
-            onClick={handleTestConnectivity}
-            startIcon={<BugReportIcon />}
-            sx={{ borderColor: 'purple', color: 'purple' }}
-          >
-            Testar Conexão
-          </Button>
-          <Button
-            variant="outlined"
-            onClick={handleForceCheckStatus}
-            sx={{ borderColor: 'blue', color: 'blue' }}
-          >
-            Verificar Status
-          </Button>
-          <Button
-            variant="outlined"
-            onClick={handleTestQR}
-            sx={{ borderColor: 'orange', color: 'orange' }}
-          >
-            Testar QR
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleAddWhatsApp}
-            sx={{ background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)' }}
-          >
-            Adicionar WhatsApp
-          </Button>
-        </Box>
       </Box>
-
-      {/* Debug Info */}
-      <Alert severity="info" sx={{ mb: 2 }}>
-        Debug: {debugInfo}
-      </Alert>
 
       {/* Alertas */}
       {error && (
@@ -401,9 +362,6 @@ const WhatsAppConfig: React.FC = () => {
                 </Box>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
                   Abra o WhatsApp no seu celular e escaneie o QR Code
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                  QR Code recebido com sucesso! Tamanho: {qrCode.length} caracteres
                 </Typography>
               </Box>
             )}

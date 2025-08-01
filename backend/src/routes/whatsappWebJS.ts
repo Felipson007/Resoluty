@@ -204,7 +204,6 @@ export async function startBot(instanceId: string, number: string): Promise<void
     client.on('ready', async () => {
       try {
         // Obter informações do cliente para pegar o número real
-        const clientInfo = await client.getProfilePictureUrl(client.info.wid._serialized);
         const realNumber = client.info.wid.user;
         
         console.log(`WhatsApp conectado! Número real: ${realNumber}`);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Box, CircularProgress, Alert, Snackbar, Typography, Button, Paper, Chip, Switch, FormControlLabel } from '@mui/material';
+import { Box, CircularProgress, Alert, Snackbar, Typography, Paper, Chip, Button } from '@mui/material';
 import { Refresh as RefreshIcon, WhatsApp as WhatsAppIcon } from '@mui/icons-material';
 import ConversationSidebar from './ConversationSidebar';
 import ChatArea from './ChatArea';
@@ -7,6 +7,7 @@ import MessageInput from './MessageInput';
 import FilterTabs from './FilterTabs';
 import socketService from '../services/socketService';
 import ApiService from '../services/apiService';
+import { QRCodeSVG } from 'qrcode.react';
 
 export interface Contact {
   id: string;
@@ -698,35 +699,11 @@ const WhatsAppDashboard: React.FC = () => {
               <Typography variant="h6" sx={{ mb: 2 }}>
                 Escaneie o QR Code
               </Typography>
-              <Paper sx={{ p: 2, display: 'inline-block' }}>
-                <pre style={{ fontSize: '8px', lineHeight: '8px', margin: 0 }}>
-                  {qrCode}
-                </pre>
-              </Paper>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                QR Code recebido e sendo exibido
-              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+                <QRCodeSVG value={qrCode} size={200} />
+              </Box>
             </Box>
           )}
-
-          {/* Controle da IA */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 3 }}>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={aiStatus}
-                  onChange={() => {
-                    // Toggle IA via API
-                    fetch(`${process.env.REACT_APP_API_URL || 'https://resoluty.onrender.com'}/api/ai/toggle`, {
-                      method: 'POST'
-                    });
-                  }}
-                  color="primary"
-                />
-              }
-              label="IA Ativa"
-            />
-          </Box>
 
           {/* Ícone WhatsApp */}
           <Box sx={{ 
@@ -769,57 +746,11 @@ const WhatsAppDashboard: React.FC = () => {
             }
           </Typography>
 
-          <Box sx={{ display: 'flex', gap: 2, flexDirection: 'column', alignItems: 'center' }}>
-            <Button 
-              variant="contained" 
-              size="large"
-              onClick={handleGoToWhatsAppConfig}
-              sx={{ 
-                background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
-                '&:hover': { 
-                  background: 'linear-gradient(135deg, #128C7E 0%, #075E54 100%)',
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 8px 25px rgba(37, 211, 102, 0.4)'
-                },
-                px: 5,
-                py: 2,
-                fontSize: '1.1rem',
-                fontWeight: 600,
-                borderRadius: 3,
-                transition: 'all 0.3s ease',
-                minWidth: 200
-              }}
-            >
-              Configurar WhatsApp
-            </Button>
-
-            <Button 
-              variant="outlined" 
-              onClick={handleRefreshWhatsAppStatus}
-              startIcon={<RefreshIcon />}
-              sx={{
-                borderColor: '#25D366',
-                color: '#25D366',
-                '&:hover': {
-                  borderColor: '#128C7E',
-                  backgroundColor: 'rgba(37, 211, 102, 0.1)',
-                  transform: 'translateY(-1px)'
-                },
-                transition: 'all 0.3s ease',
-                borderRadius: 3
-              }}
-            >
-              Verificar Novamente
-            </Button>
-          </Box>
-
-          <Typography variant="body2" color="text.secondary" sx={{ 
-            mt: 4,
-            opacity: 0.8,
-            fontStyle: 'italic'
-          }}>
-            Após conectar o WhatsApp, você poderá ver e gerenciar seus contatos aqui.
-          </Typography>
+          {!whatsappStatus.connected && (
+            <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+              Após conectar o WhatsApp, você poderá ver e gerenciar seus contatos aqui.
+            </Typography>
+          )}
         </Box>
       </Box>
     );
