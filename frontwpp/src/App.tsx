@@ -51,10 +51,16 @@ function App() {
       setCurrentView(event.detail as ViewType);
     };
 
+    const handleOpenWhatsAppConfig = () => {
+      setCurrentView('config');
+    };
+
     window.addEventListener('changeView', handleViewChange as EventListener);
+    window.addEventListener('openWhatsAppConfig', handleOpenWhatsAppConfig as EventListener);
     
     return () => {
       window.removeEventListener('changeView', handleViewChange as EventListener);
+      window.removeEventListener('openWhatsAppConfig', handleOpenWhatsAppConfig as EventListener);
     };
   }, []);
 

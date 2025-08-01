@@ -42,6 +42,16 @@ const WhatsAppConfig: React.FC = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [debugInfo, setDebugInfo] = useState<string>('');
 
+  // Abrir modal automaticamente quando o componente for montado
+  useEffect(() => {
+    // Pequeno delay para garantir que o componente está renderizado
+    const timer = setTimeout(() => {
+      handleAddWhatsApp();
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
   const setupSocket = useCallback(() => {
     console.log('🔌 Configurando Socket.IO para WhatsAppConfig...');
     

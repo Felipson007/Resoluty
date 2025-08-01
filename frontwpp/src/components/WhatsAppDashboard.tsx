@@ -7,7 +7,6 @@ import MessageInput from './MessageInput';
 import FilterTabs from './FilterTabs';
 import socketService from '../services/socketService';
 import ApiService from '../services/apiService';
-import { QRCodeSVG } from 'qrcode.react';
 
 export interface Contact {
   id: string;
@@ -50,7 +49,6 @@ const WhatsAppDashboard: React.FC = () => {
   });
   const [isConnecting, setIsConnecting] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
-  const [showQRModal, setShowQRModal] = useState(false);
   
   // Estados para transparência no carregamento
   const [isLoadingData, setIsLoadingData] = useState(false);
@@ -204,7 +202,6 @@ const WhatsAppDashboard: React.FC = () => {
       
       if (status.connected) {
         setIsConnecting(false);
-        setShowQRModal(false);
         // Carregar dados automaticamente após conexão
         setIsLoadingData(true);
         setLoadingMessage('Carregando dados...');
@@ -219,7 +216,6 @@ const WhatsAppDashboard: React.FC = () => {
 
     const handleQRCode = (data: { qr: string }) => {
       setQrCode(data.qr);
-      setShowQRModal(true);
     };
 
     socketService.on('socket-connected', handleSocketConnected);
@@ -351,8 +347,8 @@ const WhatsAppDashboard: React.FC = () => {
   };
 
   const handleAddWhatsApp = () => {
-    setShowQRModal(true);
-    setIsConnecting(true);
+    // Disparar evento para abrir modal de configuração
+    window.dispatchEvent(new CustomEvent('openWhatsAppConfig'));
   };
 
   const selectedContact = contacts.find(c => c.id === selectedContactId);
@@ -424,21 +420,6 @@ const WhatsAppDashboard: React.FC = () => {
           maxWidth: 500,
           width: '100%'
         }}>
-          {/* QR Code Modal */}
-          {showQRModal && qrCode && (
-            <Box sx={{ textAlign: 'center', mb: 4 }}>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                Escaneie o QR Code
-              </Typography>
-              <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-                <QRCodeSVG value={qrCode} size={200} />
-              </Box>
-              <Typography variant="body2" color="text.secondary">
-                Abra o WhatsApp no seu celular e escaneie o QR Code
-              </Typography>
-            </Box>
-          )}
-
           {/* Ícone WhatsApp */}
           <Box sx={{ 
             width: 100, 
