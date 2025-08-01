@@ -26,7 +26,6 @@ class ApiService {
   async getWhatsAppStatus() {
     try {
       const response = await this.api.get('/api/whatsapp/status');
-      console.log('📱 Status WhatsApp atualizado:', response.data);
       return response.data;
     } catch (error) {
       console.error('❌ Erro ao buscar status do WhatsApp:', error);
@@ -48,19 +47,17 @@ class ApiService {
   // Leads
   async getLeads() {
     try {
-      console.log('📋 Buscando leads via API...');
       const response = await this.api.get('/api/leads');
-      console.log('📋 Resposta da API de leads:', response.data);
-      console.log('📋 Número de leads recebidos:', response.data.length);
       
       const leads = response.data.map((lead: any) => {
-        console.log('📋 Lead bruto:', lead);
-        
         // Usar nome do lead se disponível, senão usar número
         const leadName = lead.metadata?.nome || `Cliente ${lead.numero}`;
         
+        // Garantir que o contactId tenha o formato correto para WhatsApp
+        const contactId = lead.numero.includes('@c.us') ? lead.numero : `${lead.numero}@c.us`;
+        
         const contact = {
-          id: lead.numero,
+          id: contactId,
           name: leadName,
           phone: lead.numero,
           lastMessage: lead.metadata?.ultima_mensagem || 'Nenhuma mensagem',
@@ -72,11 +69,9 @@ class ApiService {
                  lead.metadata?.status === 'lead_sem_interesse' ? 'finalizado' : 'bot',
           unreadCount: 0
         };
-        console.log('📋 Lead convertido:', contact);
         return contact;
       });
       
-      console.log('📋 Total de leads convertidos:', leads.length);
       return leads;
     } catch (error) {
       console.error('❌ Erro ao buscar leads:', error);
@@ -88,17 +83,22 @@ class ApiService {
   async getLeadsByStatus(status: string) {
     try {
       const response = await this.api.get(`/api/leads/status/${status}`);
-      return response.data.map((lead: any) => ({
-        id: lead.numero,
-        name: `Cliente ${lead.numero}`,
-        phone: lead.numero,
-        lastMessage: 'Nenhuma mensagem',
-        lastMessageTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-        status: lead.metadata?.status === 'lead_novo' ? 'bot' : 
-               lead.metadata?.status === 'lead_avancado' ? 'humano' : 
-               lead.metadata?.status === 'lead_sem_interesse' ? 'finalizado' : 'bot',
-        unreadCount: 0
-      }));
+      return response.data.map((lead: any) => {
+        // Garantir que o contactId tenha o formato correto para WhatsApp
+        const contactId = lead.numero.includes('@c.us') ? lead.numero : `${lead.numero}@c.us`;
+        
+        return {
+          id: contactId,
+          name: `Cliente ${lead.numero}`,
+          phone: lead.numero,
+          lastMessage: 'Nenhuma mensagem',
+          lastMessageTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          status: lead.metadata?.status === 'lead_novo' ? 'bot' : 
+                 lead.metadata?.status === 'lead_avancado' ? 'humano' : 
+                 lead.metadata?.status === 'lead_sem_interesse' ? 'finalizado' : 'bot',
+          unreadCount: 0
+        };
+      });
     } catch (error) {
       console.error('❌ Erro ao buscar leads por status:', error);
       return [];
@@ -149,6 +149,7 @@ class ApiService {
         to: formattedContactId,
         message: message
       });
+      
       return response.data.success;
     } catch (error) {
       console.error('❌ Erro ao enviar mensagem:', error);

@@ -5,7 +5,7 @@ import { ConnectivityTest } from '../utils/connectivityTest';
 
 const ConnectivityStatus: React.FC = () => {
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
-  const [lastTest, setLastTest] = useState<string>('');
+  const [showAlert, setShowAlert] = useState(false);
   const [testing, setTesting] = useState(false);
 
   const runConnectivityTest = async () => {
@@ -18,45 +18,55 @@ const ConnectivityStatus: React.FC = () => {
       const allTestsPassed = results.apiHealth && results.socketConnection && results.qrTest;
       setIsConnected(allTestsPassed);
       
-      const summary = `API: ${results.apiHealth ? '✅' : '❌'}, Socket: ${results.socketConnection ? '✅' : '❌'}, QR: ${results.qrTest ? '✅' : '❌'}`;
-      setLastTest(summary);
+      // Só mostrar alerta se houver problemas
+      if (!allTestsPassed) {
+        setShowAlert(true);
+        // Auto-hide após 15 segundos
+        setTimeout(() => setShowAlert(false), 15000);
+      } else {
+        setShowAlert(false);
+      }
       
       console.log('📊 Resultados do teste:', results);
     } catch (error) {
       console.error('❌ Erro no teste de conectividade:', error);
       setIsConnected(false);
-      setLastTest('Erro no teste');
+      setShowAlert(true);
     } finally {
       setTesting(false);
     }
   };
 
   useEffect(() => {
-    // Executar teste inicial
-    runConnectivityTest();
+    // Executar teste inicial após 10 segundos
+    const initialTest = setTimeout(runConnectivityTest, 10000);
     
-    // Executar teste a cada 30 segundos
-    const interval = setInterval(runConnectivityTest, 30000);
+    // Executar teste a cada 5 minutos (muito menos frequente)
+    const interval = setInterval(runConnectivityTest, 300000);
     
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(initialTest);
+      clearInterval(interval);
+    };
   }, []);
 
-  if (isConnected === null) {
-    return (
-      <Box sx={{ p: 2, textAlign: 'center' }}>
-        <CircularProgress size={20} />
-        <Typography variant="body2" sx={{ mt: 1 }}>
-          Verificando conectividade...
-        </Typography>
-      </Box>
-    );
+  // Não mostrar nada se não há problemas
+  if (!showAlert && isConnected !== false) {
+    return null;
   }
 
   return (
-    <Box sx={{ p: 2 }}>
+    <Box sx={{ 
+      position: 'fixed',
+      top: 16,
+      right: 16,
+      zIndex: 1000,
+      maxWidth: 350
+    }}>
       <Alert 
-        severity={isConnected ? 'success' : 'error'}
-        icon={isConnected ? <WifiIcon /> : <WifiOffIcon />}
+        severity="error"
+        icon={<WifiOffIcon />}
+        onClose={() => setShowAlert(false)}
         action={
           <Button 
             color="inherit" 
@@ -69,13 +79,11 @@ const ConnectivityStatus: React.FC = () => {
         }
       >
         <Typography variant="body2">
-          {isConnected ? 'Conectado' : 'Desconectado'}
+          Problemas de conectividade detectados
         </Typography>
-        {lastTest && (
-          <Typography variant="caption" display="block">
-            {lastTest}
-          </Typography>
-        )}
+        <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
+          Verifique sua conexão com a internet
+        </Typography>
       </Alert>
     </Box>
   );

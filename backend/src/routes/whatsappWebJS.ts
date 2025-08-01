@@ -2,7 +2,7 @@ import { Client, LocalAuth, Message } from 'whatsapp-web.js';
 import { buscarHistoricoCliente, salvarInteracaoHistorico } from '../services/historicoService';
 import { gerarPromptCerebro } from '../services/cerebroService';
 import { salvarMensagemLead, buscarLead } from '../services/leadService';
-import axios from 'axios';
+import { callInternalWebhook } from '../config/api';
 
 // Interface para múltiplos WhatsApp
 interface WhatsAppInstance {
@@ -163,10 +163,7 @@ export async function startBot(instanceId: string, number: string): Promise<void
     whatsappInstances.set(instanceId, instance);
 
     client.on('qr', (qr) => {
-      console.log(`\n=== QR Code para ${number} (${instanceId}) ===`);
-      console.log('QR Code disponível no frontend');
-      console.log(`Tamanho do QR: ${qr.length} caracteres`);
-      console.log(`SocketIO disponível: ${socketIO ? 'Sim' : 'Não'}`);
+      console.log(`QR Code disponível para ${number} (${instanceId})`);
       instance.qrDisplayed = true;
       
       // Limpar timeout anterior se existir
@@ -190,9 +187,6 @@ export async function startBot(instanceId: string, number: string): Promise<void
       
       // Emitir QR para frontend
       if (socketIO) {
-        console.log(`Emitindo QR para frontend: ${instanceId}`);
-        console.log(`Dados do QR: { qr: "${qr.substring(0, 50)}...", instanceId: "${instanceId}", number: "${number}" }`);
-        
         // Emitir para todos os clientes conectados
         socketIO.emit('qr', { 
           qr, 
@@ -204,34 +198,70 @@ export async function startBot(instanceId: string, number: string): Promise<void
         socketIO.emit('qr-code', { 
           qr 
         });
-        
-        console.log('✅ QR Code emitido com sucesso para todos os clientes');
-        console.log(`📊 Total de clientes conectados: ${socketIO.sockets.sockets.size}`);
-      } else {
-        console.error('❌ SocketIO não está disponível para emitir QR');
-        console.error('SocketIO object:', socketIO);
       }
     });
 
-    client.on('ready', () => {
-      console.log(`WhatsApp ${number} conectado!`);
-      instance.isConnected = true;
-      instance.qrDisplayed = false;
-      
-      if (instance.qrTimeout) {
-        clearTimeout(instance.qrTimeout);
-        instance.qrTimeout = undefined;
+    client.on('ready', async () => {
+      try {
+        // Obter informações do cliente para pegar o número real
+        const clientInfo = await client.getProfilePictureUrl(client.info.wid._serialized);
+        const realNumber = client.info.wid.user;
+        
+        console.log(`WhatsApp conectado! Número real: ${realNumber}`);
+        
+        // Atualizar o número da instância com o número real
+        instance.number = realNumber;
+        instance.isConnected = true;
+        instance.qrDisplayed = false;
+        
+        if (instance.qrTimeout) {
+          clearTimeout(instance.qrTimeout);
+          instance.qrTimeout = undefined;
+        }
+        
+        if (socketIO) {
+          socketIO.emit('wpp-status', { status: 'open', instanceId, number: realNumber });
+          // Emitir status geral do WhatsApp com número real
+          socketIO.emit('whatsapp-status', { 
+            connected: true, 
+            number: realNumber,
+            aiActive: true 
+          });
+        }
+      } catch (error) {
+        console.log(`WhatsApp ${number} conectado! (não foi possível obter número real)`);
+        instance.isConnected = true;
+        instance.qrDisplayed = false;
+        
+        if (instance.qrTimeout) {
+          clearTimeout(instance.qrTimeout);
+          instance.qrTimeout = undefined;
+        }
+        
+        if (socketIO) {
+          socketIO.emit('wpp-status', { status: 'open', instanceId, number });
+          socketIO.emit('whatsapp-status', { 
+            connected: true, 
+            number: number,
+            aiActive: true 
+          });
+        }
       }
-      
-      if (socketIO) {
-        socketIO.emit('wpp-status', { status: 'open', instanceId, number });
-        // Emitir status geral do WhatsApp
-        socketIO.emit('whatsapp-status', { 
-          connected: true, 
-          number: number,
-          aiActive: true 
-        });
-      }
+    });
+
+    // Capturar o número real do WhatsApp quando autenticado
+    client.on('authenticated', () => {
+      console.log(`WhatsApp ${instanceId} autenticado`);
+    });
+
+    // Capturar informações do cliente quando disponíveis
+    client.on('auth_failure', (msg) => {
+      console.log(`Falha na autenticação do WhatsApp ${instanceId}:`, msg);
+    });
+
+    // Evento para capturar informações do cliente
+    client.on('loading_screen', (percent, message) => {
+      console.log(`Carregando WhatsApp ${instanceId}: ${percent}% - ${message}`);
     });
 
     client.on('disconnected', (reason) => {
@@ -266,18 +296,10 @@ export async function startBot(instanceId: string, number: string): Promise<void
 
       if (!from || !text) return;
 
-      console.log(`Mensagem recebida de ${from} via ${number}: ${text}`);
-
       const lead = await buscarLead(from);
       await salvarMensagemLead(from, text, 'usuario');
 
       if (socketIO) {
-        console.log('📨 Emitindo evento new-message para mensagem do usuário (WebJS)');
-        console.log('📨 Dados do lead encontrado:', lead);
-        console.log('📨 ContactId:', from);
-        console.log('📨 InstanceId:', instanceId);
-        console.log('📨 Number:', number);
-        
         const eventData = {
           contactId: from,
           message: {
@@ -296,9 +318,7 @@ export async function startBot(instanceId: string, number: string): Promise<void
           number
         };
         
-        console.log('📨 Dados do evento new-message (WebJS):', eventData);
         socketIO.emit('new-message', eventData);
-        console.log('✅ Evento new-message emitido com sucesso (WebJS)');
       }
 
       if (!historicoPorUsuario[from]) historicoPorUsuario[from] = [];
@@ -317,7 +337,6 @@ export async function startBot(instanceId: string, number: string): Promise<void
       });
 
       if (instance.sdrMode.has(from.replace('@c.us', ''))) {
-        console.log(`Conversa ${from} está em modo SDR - IA desligada`);
         return;
       }
 
@@ -339,12 +358,8 @@ export async function startBot(instanceId: string, number: string): Promise<void
           const promptCerebro = gerarPromptCerebro(historicoFinal);
           let resposta = 'Desculpe, não consegui responder.';
 
-          const baseUrl = process.env.NODE_ENV === 'production' 
-            ? 'https://resoluty.onrender.com' 
-            : 'https://resoluty.onrender.com';
-          
-          const iaResp = await axios.post(`${baseUrl}/webhook/ia`, { message: promptCerebro });
-          resposta = iaResp.data.resposta || resposta;
+          const iaResp = await callInternalWebhook('/webhook/ia', { message: promptCerebro });
+          resposta = iaResp.resposta || resposta;
 
           historicoPorUsuario[from].push({
             texto: resposta,
@@ -374,8 +389,6 @@ export async function startBot(instanceId: string, number: string): Promise<void
               number
             });
           }
-
-          console.log(`Resposta enviada via ${number}: ${resposta}`);
         } catch (error) {
           console.error('Erro ao processar mensagem:', error);
         }

@@ -148,7 +148,6 @@ const WhatsAppDashboard: React.FC = () => {
       
       // Verificar se a mensagem tem dados válidos
       if (!data.message || !data.message.texto) {
-        console.warn('⚠️ Mensagem inválida recebida:', data);
         return;
       }
 
@@ -249,7 +248,6 @@ const WhatsAppDashboard: React.FC = () => {
     };
 
     const handleStatusUpdated = (data: { contactId: string; status: string }) => {
-      console.log('🔄 Status atualizado:', data);
       setContacts(prev => prev.map(contact => 
         contact.id === data.contactId
           ? { ...contact, status: data.status as any }
@@ -258,8 +256,6 @@ const WhatsAppDashboard: React.FC = () => {
     };
 
     const handleWhatsAppStatusUpdate = (data: { status: string; instanceId: string; number: string }) => {
-      console.log('📱 Status WhatsApp atualizado:', data);
-      
       // Atualizar status do WhatsApp quando receber eventos
       if (data.status === 'open' || data.status === 'close') {
         checkWhatsAppStatus();
@@ -267,13 +263,10 @@ const WhatsAppDashboard: React.FC = () => {
     };
 
     const handleQRExpired = (data: { instanceId: string; number: string }) => {
-      console.log('⏰ QR Code expirado, aguardando novo QR...');
       // O backend irá automaticamente gerar um novo QR Code
     };
 
     const handleWhatsAppInstancesUpdated = (instances: any[]) => {
-      console.log('📱 Instâncias WhatsApp atualizadas:', instances);
-      
       // Verificar se há instâncias conectadas
       const hasConnectedInstances = instances.some(instance => instance.isConnected && instance.enabled);
       
@@ -285,18 +278,14 @@ const WhatsAppDashboard: React.FC = () => {
 
     // Novos listeners para QR code e status
     const handleQRCode = (data: { qr: string }) => {
-      console.log('📱 QR Code recebido:', data);
       setQrCode(data.qr);
-      console.log('📱 QR Code definido no estado:', data.qr);
     };
 
     const handleWhatsAppStatus = (status: { connected: boolean; number: string }) => {
-      console.log('📱 Status WhatsApp atualizado:', status);
       setWhatsappStatus(status);
       
       // Se o WhatsApp se conectou, recarregar leads
       if (status.connected) {
-        console.log('📱 WhatsApp conectado, recarregando leads...');
         setWhatsappConnecting(false);
         initializeApp();
       } else {
@@ -305,12 +294,10 @@ const WhatsAppDashboard: React.FC = () => {
     };
 
     const handleAIStatus = (status: { active: boolean }) => {
-      console.log('🤖 Status IA atualizado:', status);
       setAiStatus(status.active);
     };
 
     const handleWhatsAppLoading = (data: { percent: number; message: string }) => {
-      console.log('📱 Carregando WhatsApp:', data.percent, data.message);
       setLoadingProgress(data);
       setWhatsappConnecting(true);
       
@@ -362,8 +349,6 @@ const WhatsAppDashboard: React.FC = () => {
     setLoadingMessages(true);
     socketService.joinRoom(contactId);
 
-    console.log('👤 Contato selecionado:', contactId);
-
     // Marcar mensagens como lidas
     setContacts(prev => prev.map(contact => 
       contact.id === contactId
@@ -374,8 +359,6 @@ const WhatsAppDashboard: React.FC = () => {
     try {
       // Carregar mensagens do contato
       const contactMessages = await ApiService.getContactMessages(contactId);
-      console.log('💬 Mensagens carregadas:', contactMessages.length);
-      console.log('💬 Primeiras mensagens:', contactMessages.slice(0, 3));
       
       // Garantir que as mensagens tenham o formato correto
       const formattedMessages = contactMessages.map((msg: any) => ({
@@ -398,15 +381,11 @@ const WhatsAppDashboard: React.FC = () => {
   const handleSendMessage = async (message: string) => {
     if (!selectedContactId) return;
 
-    console.log('📤 Enviando mensagem:', message);
-
     try {
       // Enviar via API
       const success = await ApiService.sendMessage(selectedContactId, message);
       
       if (success) {
-        console.log('✅ Mensagem enviada com sucesso');
-        
         // Adicionar mensagem otimisticamente
         const newMessage: Message = {
           id: `local-${Date.now()}`,
@@ -438,8 +417,6 @@ const WhatsAppDashboard: React.FC = () => {
   };
 
   const handleStatusChange = async (contactId: string, newStatus: 'bot' | 'humano' | 'aguardando' | 'finalizado') => {
-    console.log('🔄 Alterando status:', contactId, newStatus);
-    
     try {
       // Converter status do frontend para status do lead
       let leadStatus: 'lead_novo' | 'lead_avancado' | 'lead_sem_interesse';
@@ -464,7 +441,6 @@ const WhatsAppDashboard: React.FC = () => {
       const success = await ApiService.updateLeadStatus(numero, leadStatus);
       
       if (success) {
-        console.log('✅ Status atualizado com sucesso');
         setContacts(prev => prev.map(contact => 
           contact.id === contactId
             ? { ...contact, status: newStatus }
@@ -480,7 +456,6 @@ const WhatsAppDashboard: React.FC = () => {
   };
 
   const handleRetry = () => {
-    console.log('🔄 Tentando reconectar...');
     initializeApp();
   };
 
@@ -502,11 +477,8 @@ const WhatsAppDashboard: React.FC = () => {
 
   const handleRefreshWhatsAppStatus = async () => {
     try {
-      console.log('🔄 Verificando status do WhatsApp...');
-      
       // Reconectar Socket.IO se necessário
       if (!socketService.isConnected()) {
-        console.log('🔌 Reconectando Socket.IO...');
         socketService.reconnect();
       }
       
@@ -515,10 +487,7 @@ const WhatsAppDashboard: React.FC = () => {
       
       // Se conectou, recarregar dados
       if (hasConnected) {
-        console.log('✅ WhatsApp conectado, recarregando dados...');
         await initializeApp();
-      } else {
-        console.log('❌ WhatsApp ainda não conectado');
       }
     } catch (error) {
       console.error('❌ Erro ao verificar status:', error);
@@ -617,7 +586,7 @@ const WhatsAppDashboard: React.FC = () => {
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         display: 'flex', 
         flexDirection: 'column',
-        alignItems: 'center', 
+        alignItems: 'center',
         justifyContent: 'center',
         gap: 4,
         p: 4,
@@ -739,11 +708,6 @@ const WhatsAppDashboard: React.FC = () => {
               </Typography>
             </Box>
           )}
-          
-          {/* Debug info */}
-          <Box sx={{ textAlign: 'center', mb: 2, fontSize: '12px', color: 'text.secondary' }}>
-            Debug: qrCode={!!qrCode}, connected={whatsappStatus.connected}, isConnecting={isConnecting}
-          </Box>
 
           {/* Controle da IA */}
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 3 }}>
@@ -753,7 +717,7 @@ const WhatsAppDashboard: React.FC = () => {
                   checked={aiStatus}
                   onChange={() => {
                     // Toggle IA via API
-                                         fetch(`${process.env.REACT_APP_API_URL || 'https://resoluty.onrender.com'}/api/ai/toggle`, {
+                    fetch(`${process.env.REACT_APP_API_URL || 'https://resoluty.onrender.com'}/api/ai/toggle`, {
                       method: 'POST'
                     });
                   }}

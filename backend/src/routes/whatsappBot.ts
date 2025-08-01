@@ -1,10 +1,10 @@
 import { Client, LocalAuth, Message } from 'whatsapp-web.js';
 import { Boom } from '@hapi/boom';
-import axios from 'axios';
 import { buscarHistoricoCliente, salvarInteracaoHistorico } from '../services/historicoService';
 import { gerarPromptCerebro } from '../services/cerebroService';
 import { salvarMensagemLead, buscarLead, extrairInformacoesCliente, criarOuAtualizarLead } from '../services/leadService';
 import { supabase } from '../config/supabase';
+import { callInternalWebhook } from '../config/api';
 import fs from 'fs';
 import path from 'path';
 
@@ -363,43 +363,61 @@ async function startBot(instanceId: string, number: string): Promise<void> {
 
     // Handler para quando o cliente está pronto
     client.on('ready', async () => {
-      console.log(`✅ WhatsApp ${instanceId} (${number}) está pronto e conectado`);
-      instance.isConnected = true;
-      
-      // Salvar dados de autenticação no Supabase em produção (backup)
-      if (process.env.NODE_ENV === 'production') {
-        try {
-          const sessionPath = path.join(process.cwd(), '.wwebjs_auth', instanceId, 'session.json');
-          if (fs.existsSync(sessionPath)) {
-            const sessionData = fs.readFileSync(sessionPath, 'utf8');
-            
-            const { error } = await supabase
-              .from('whatsapp_auth')
-              .upsert({
-                instance_id: instanceId,
-                file_name: 'session',
-                data: sessionData,
-                updated_at: new Date().toISOString()
-              });
+      try {
+        // Obter informações do cliente para pegar o número real
+        const realNumber = client.info.wid.user;
+        
+        console.log(`WhatsApp ${instanceId} conectado! Número real: ${realNumber}`);
+        
+        // Atualizar o número da instância com o número real
+        instance.number = realNumber;
+        instance.isConnected = true;
+        
+        // Salvar dados de autenticação no Supabase em produção (backup)
+        if (process.env.NODE_ENV === 'production') {
+          try {
+            const sessionPath = path.join(process.cwd(), '.wwebjs_auth', instanceId, 'session.json');
+            if (fs.existsSync(sessionPath)) {
+              const sessionData = fs.readFileSync(sessionPath, 'utf8');
+              
+              const { error } = await supabase
+                .from('whatsapp_auth')
+                .upsert({
+                  instance_id: instanceId,
+                  file_name: 'session',
+                  data: sessionData,
+                  updated_at: new Date().toISOString()
+                });
 
-            if (error) {
-              console.error('Erro ao salvar dados de autenticação no Supabase (ready):', error);
-            } else {
-              console.log(`✅ Dados de autenticação salvos no Supabase para ${instanceId} (ready)`);
+              if (error) {
+                console.error('Erro ao salvar dados de autenticação no Supabase (ready):', error);
+              }
             }
+          } catch (error) {
+            console.error('Erro ao processar dados de autenticação (ready):', error);
           }
-        } catch (error) {
-          console.error('Erro ao processar dados de autenticação (ready):', error);
         }
-      }
-      
-      // Emitir status atualizado
-      if (socketIO) {
-        socketIO.emit('whatsapp-status', {
-          connected: true,
-          number: number,
-          instanceId: instanceId
-        });
+        
+        // Emitir status atualizado
+        if (socketIO) {
+          socketIO.emit('whatsapp-status', {
+            connected: true,
+            number: realNumber,
+            instanceId: instanceId
+          });
+        }
+      } catch (error) {
+        console.log(`WhatsApp ${instanceId} conectado! (não foi possível obter número real)`);
+        instance.isConnected = true;
+        
+        // Emitir status atualizado
+        if (socketIO) {
+          socketIO.emit('whatsapp-status', {
+            connected: true,
+            number: number,
+            instanceId: instanceId
+          });
+        }
       }
     });
 
@@ -430,10 +448,7 @@ async function startBot(instanceId: string, number: string): Promise<void> {
 
     // Evento QR Code
     client.on('qr', (qr: string) => {
-      console.log(`\n=== QR Code para ${number} (${instanceId}) ===`);
-      console.log('QR Code disponível no frontend');
-      console.log(`Tamanho do QR: ${qr.length} caracteres`);
-      console.log(`SocketIO disponível: ${socketIO ? 'Sim' : 'Não'}`);
+      console.log(`QR Code disponível para ${number} (${instanceId})`);
       instance.qrDisplayed = true;
       
       // Limpar timeout anterior se existir
@@ -457,9 +472,6 @@ async function startBot(instanceId: string, number: string): Promise<void> {
       
       // Emitir QR para frontend
       if (socketIO) {
-        console.log(`Emitindo QR para frontend: ${instanceId}`);
-        console.log(`Dados do QR: { qr: "${qr.substring(0, 50)}...", instanceId: "${instanceId}", number: "${number}" }`);
-        
         // Emitir para todos os clientes conectados
         socketIO.emit('qr', { 
           qr, 
@@ -471,11 +483,6 @@ async function startBot(instanceId: string, number: string): Promise<void> {
         socketIO.emit('qr-code', { 
           qr 
         });
-        
-        console.log('✅ QR Code emitido com sucesso para todos os clientes');
-      } else {
-        console.error('❌ SocketIO não está disponível para emitir QR');
-        console.error('SocketIO object:', socketIO);
       }
     });
 
@@ -488,8 +495,6 @@ async function startBot(instanceId: string, number: string): Promise<void> {
 
       if (!from || !text) return;
 
-      console.log(`Mensagem recebida de ${from} via ${number}: ${text}`);
-
       // Buscar informações do lead
       const lead = await buscarLead(from);
 
@@ -498,12 +503,6 @@ async function startBot(instanceId: string, number: string): Promise<void> {
 
       // Emitir evento via Socket.IO para mensagem do usuário
       if (socketIO) {
-        console.log('📨 Emitindo evento new-message para mensagem do usuário');
-        console.log('📨 Dados do lead encontrado:', lead);
-        console.log('📨 ContactId:', from);
-        console.log('📨 InstanceId:', instanceId);
-        console.log('📨 Number:', number);
-        
         const eventData = {
           contactId: from,
           message: {
@@ -522,9 +521,7 @@ async function startBot(instanceId: string, number: string): Promise<void> {
           number
         };
         
-        console.log('📨 Dados do evento new-message:', eventData);
         socketIO.emit('new-message', eventData);
-        console.log('✅ Evento new-message emitido com sucesso');
       }
 
       // Acumula histórico estruturado por usuário
@@ -546,7 +543,6 @@ async function startBot(instanceId: string, number: string): Promise<void> {
 
       // Verificar se está em modo SDR
       if (instance.sdrMode.has(from.replace('@c.us', ''))) {
-        console.log(`Conversa ${from} está em modo SDR - IA desligada`);
         return;
       }
 
@@ -558,7 +554,7 @@ async function startBot(instanceId: string, number: string): Promise<void> {
         (async () => {
           try {
             // Buscar histórico do banco antes de montar o prompt
-            const { data: historicoDB } = await buscarHistoricoCliente(from, 20); // Aumentar para 20 mensagens
+            const { data: historicoDB } = await buscarHistoricoCliente(from, 20);
             
             // Montar histórico estruturado para o cérebro
             const historicoEstruturado = (historicoDB || []).flatMap((item: any) => [
@@ -571,9 +567,6 @@ async function startBot(instanceId: string, number: string): Promise<void> {
               ...historicoEstruturado.filter((msg: any) => msg !== null),
               ...(historicoPorUsuario[from] || [])
             ];
-            
-            console.log(`🧠 Histórico final para ${from}:`, historicoFinal.length, 'mensagens');
-            console.log(`🧠 Últimas mensagens:`, historicoFinal.slice(-5));
             
             // Buscar informações do lead para contexto
             const lead = await buscarLead(from);
@@ -588,17 +581,8 @@ async function startBot(instanceId: string, number: string): Promise<void> {
             
             let resposta = 'Desculpe, não consegui responder.';
             try {
-              // Usar URL de produção ou localhost baseado no ambiente
-              const baseUrl = process.env.NODE_ENV === 'production' 
-                ? 'https://resoluty.onrender.com' 
-                : 'https://resoluty.onrender.com';
-              
-              console.log(`Chamando IA em ${baseUrl}/webhook/ia`);
-              console.log(`🧠 Prompt gerado pelo cérebro:`, promptCerebro);
-              
-              const iaResp = await axios.post(`${baseUrl}/webhook/ia`, { message: promptCerebro });
-              console.log('Resposta recebida da IA:', iaResp.data);
-              resposta = iaResp.data.resposta || resposta;
+              const iaResp = await callInternalWebhook('/webhook/ia', { message: promptCerebro });
+              resposta = iaResp.resposta || resposta;
               
               // Adiciona resposta ao histórico em memória
               historicoPorUsuario[from].push({
@@ -612,7 +596,6 @@ async function startBot(instanceId: string, number: string): Promise<void> {
               
               // Atualizar lead com informações extraídas
               if (informacoesCliente) {
-                console.log('📋 Atualizando lead com informações extraídas:', informacoesCliente);
                 await criarOuAtualizarLead(from, informacoesCliente);
               }
 
@@ -630,7 +613,6 @@ async function startBot(instanceId: string, number: string): Promise<void> {
 
               // Emitir evento via Socket.IO para resposta da IA
               if (socketIO) {
-                console.log('📨 Emitindo evento new-message para resposta da IA');
                 socketIO.emit('new-message', {
                   contactId: from,
                   message: {
@@ -641,10 +623,7 @@ async function startBot(instanceId: string, number: string): Promise<void> {
                   instanceId,
                   number
                 });
-                console.log('✅ Evento new-message emitido com sucesso para resposta da IA');
               }
-
-              console.log(`Resposta enviada via ${number}: ${resposta}`);
             } catch (error) {
               console.error('Erro ao processar mensagem:', error);
             }

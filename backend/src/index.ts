@@ -6,8 +6,9 @@ import dotenv from 'dotenv';
 import { listarLeads, buscarLeadsPorStatus, atualizarStatusLead, buscarLead } from './services/leadService';
 import { supabase } from './config/supabase';
 import { startWhatsAppService, getWhatsAppStatus, toggleAI, sendMessage, setSocketIO as setWhatsAppServiceSocketIO } from './whatsappService';
-import { setSocketIO as setWhatsAppWebJSSocketIO } from './routes/whatsappWebJS';
-import { setSocketIO as setWhatsAppBotSocketIO } from './routes/whatsappBot';
+import { setSocketIO as setWhatsAppWebJSSocketIO, sendWhatsAppMessage as sendWhatsAppWebJSMessage } from './routes/whatsappWebJS';
+import { setSocketIO as setWhatsAppBotSocketIO, sendWhatsAppMessage as sendWhatsAppBotMessage } from './routes/whatsappBot';
+import webhookGHL from './routes/webhookGHL';
 
 dotenv.config();
 
@@ -21,6 +22,9 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// Registrar rotas do webhook
+app.use('/webhook', webhookGHL);
 
 // Socket.IO
 const io = new Server(server, {
@@ -308,14 +312,22 @@ app.post('/api/whatsapp/send', async (req, res) => {
   const { to, message } = req.body;
   
   try {
-    const success = await sendMessage(to, message);
+    // Tentar enviar via WhatsApp Web JS primeiro
+    let success = await sendWhatsAppWebJSMessage(to, message);
+    
+    // Se falhar, tentar via WhatsApp Bot
+    if (!success) {
+      success = await sendWhatsAppBotMessage(to, message);
+    }
+    
     if (success) {
       res.json({ success: true });
     } else {
-      res.status(400).json({ error: 'Erro ao enviar mensagem' });
+      res.status(400).json({ error: 'Erro ao enviar mensagem - WhatsApp não está conectado' });
     }
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao enviar mensagem' });
+    console.error('❌ Erro ao enviar mensagem:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
 
