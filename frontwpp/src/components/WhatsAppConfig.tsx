@@ -17,7 +17,8 @@ import {
 } from '@mui/material';
 import {
   WhatsApp as WhatsAppIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  Add as AddIcon
 } from '@mui/icons-material';
 import { QRCodeSVG } from 'qrcode.react';
 import socketService from '../services/socketService';
@@ -267,6 +268,14 @@ const WhatsAppConfig: React.FC = () => {
           <WhatsAppIcon color="primary" />
           Configuração do WhatsApp
         </Typography>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={handleAddWhatsApp}
+          sx={{ background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)' }}
+        >
+          Adicionar WhatsApp
+        </Button>
       </Box>
 
       {/* Alertas */}

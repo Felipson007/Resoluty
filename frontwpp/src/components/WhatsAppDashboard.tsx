@@ -747,9 +747,36 @@ const WhatsAppDashboard: React.FC = () => {
           </Typography>
 
           {!whatsappStatus.connected && (
-            <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
-              Após conectar o WhatsApp, você poderá ver e gerenciar seus contatos aqui.
-            </Typography>
+            <>
+              <Box sx={{ display: 'flex', gap: 2, flexDirection: 'column', alignItems: 'center' }}>
+                <Button 
+                  variant="contained" 
+                  size="large"
+                  onClick={handleGoToWhatsAppConfig}
+                  sx={{ 
+                    background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+                    '&:hover': { 
+                      background: 'linear-gradient(135deg, #128C7E 0%, #075E54 100%)',
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 8px 25px rgba(37, 211, 102, 0.4)'
+                    },
+                    px: 5,
+                    py: 2,
+                    fontSize: '1.1rem',
+                    fontWeight: 600,
+                    borderRadius: 3,
+                    transition: 'all 0.3s ease',
+                    minWidth: 200
+                  }}
+                >
+                  Configurar WhatsApp
+                </Button>
+              </Box>
+
+              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 2 }}>
+                Após conectar o WhatsApp, você poderá ver e gerenciar seus contatos aqui.
+              </Typography>
+            </>
           )}
         </Box>
       </Box>
