@@ -26,12 +26,12 @@ class SocketService {
     this.socket = io(url, {
       transports: ['websocket', 'polling'],
       withCredentials: true,
-      timeout: 30000, // Aumentado para 30 segundos
+      timeout: 30000,
       forceNew: false,
       reconnection: true,
-      reconnectionAttempts: 5, // Reduzido de 10 para 5
-      reconnectionDelay: 2000, // Aumentado de 1 para 2 segundos
-      reconnectionDelayMax: 10000, // Aumentado de 5 para 10 segundos
+      reconnectionAttempts: 5,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000,
       autoConnect: true,
     });
 
@@ -39,12 +39,14 @@ class SocketService {
       this.isConnecting = false;
       this.reconnectAttempts = 0;
       this.clearReconnectInterval();
-      this.emit('socket-connected');
+      // Emitir evento de conexão apenas se não estava conectado antes
+      if (this.reconnectAttempts > 0) {
+        this.emit('socket-connected');
+      }
     });
 
     this.socket.on('disconnect', (reason) => {
       this.isConnecting = false;
-      this.emit('socket-disconnected');
       
       // Só tentar reconectar se não foi uma desconexão intencional
       if (reason !== 'io client disconnect') {
@@ -55,7 +57,9 @@ class SocketService {
     this.socket.on('connect_error', (error) => {
       this.isConnecting = false;
       this.reconnectAttempts++;
-      this.emit('socket-error', error);
+      
+      // Não emitir erro para não causar desconforto visual
+      // this.emit('socket-error', error);
       
       if (this.reconnectAttempts < this.maxReconnectAttempts) {
         this.scheduleReconnect();

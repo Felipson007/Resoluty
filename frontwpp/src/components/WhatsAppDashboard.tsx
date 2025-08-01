@@ -522,7 +522,7 @@ const WhatsAppDashboard: React.FC = () => {
               variant="outlined"
               size="small"
               startIcon={<SettingsIcon />}
-              onClick={() => setShowConfig(!showConfig)}
+              onClick={() => window.dispatchEvent(new CustomEvent('changeView', { detail: 'config' }))}
               sx={{ minWidth: 'auto' }}
             >
               Config
@@ -664,18 +664,6 @@ const WhatsAppDashboard: React.FC = () => {
           {error}
         </Alert>
       </Snackbar>
-
-      {/* Indicador de conexão Socket.IO */}
-      {!socketConnected && (
-        <Snackbar 
-          open={true}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-        >
-          <Alert severity="warning">
-            Desconectado do servidor
-          </Alert>
-        </Snackbar>
-      )}
     </Box>
   );
 };
