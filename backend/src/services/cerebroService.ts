@@ -62,7 +62,9 @@ Cliente: ${mensagemAtual}
 ` : '';
 
   // Prompt simplificado apenas com contexto
-  const prompt = `${infoCliente}${statusInfo}${mensagemCliente}
+  const prompt = `A mensagem recebida foi: ${mensagemCliente}
+  baseado na mensagem recebida e no histórico das mensagens, siga para o próximo passo que consta no documento SCRIPT SDR
+
 === HISTÓRICO DA CONVERSA ===
 ${historicoFormatado}`;
 
