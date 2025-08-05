@@ -81,7 +81,11 @@ export const PERFORMANCE_CONFIG = {
     memory: 0.8,
     cpu: 0.7,
     connections: 0.9
-  }
+  },
+  
+  // Timeouts e limites adicionais
+  INACTIVITY_TIMEOUT: 300000, // 5 minutos
+  MAX_ERROR_COUNT: 5
 };
 
 // Função para verificar se o sistema está saudável

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import whatsappManager from '../services/whatsappManager';
 import { salvarMensagemLead, buscarLead } from '../services/leadService';
+import { buscarHistoricoCliente } from '../services/historicoService';
 import { gerarPromptCerebro } from '../services/cerebroService';
 import { callInternalWebhook } from '../config/api';
 
@@ -264,32 +265,33 @@ whatsappManager.on('message-received', async ({ instanceId, message }) => {
 // Função para processar mensagem com IA
 async function processMessageWithAI(message: any, instanceId: string): Promise<string | null> {
   try {
-    // Buscar histórico do cliente
-    const historico = await buscarHistoricoCliente(message.from);
-    
-    // Gerar resposta com IA
-    const prompt = await gerarPromptCerebro(message.body, historico);
+         // Buscar histórico do cliente
+     const historicoResult = await buscarHistoricoCliente(message.from);
+     const historico = historicoResult.data || [];
+     
+     // Gerar resposta com IA
+     const prompt = await gerarPromptCerebro(historico, undefined, message.body);
     
     if (prompt) {
       // Enviar resposta
       const success = await whatsappManager.sendMessage(instanceId, message.from, prompt);
       
       if (success) {
-        // Salvar resposta no banco
-        await salvarMensagemLead(message.from, prompt, 'sistema', instanceId);
+                 // Salvar resposta no banco
+         await salvarMensagemLead(message.from, prompt, 'ai', instanceId);
         
         // Emitir para frontend
         if (socketIO) {
-          socketIO.emit('new-message', {
-            contactId: message.from,
-            message: {
-              id: `ai-${Date.now()}`,
-              texto: prompt,
-              timestamp: new Date().toISOString(),
-              autor: 'sistema'
-            },
-            instanceId
-          });
+                     socketIO.emit('new-message', {
+             contactId: message.from,
+             message: {
+               id: `ai-${Date.now()}`,
+               texto: prompt,
+               timestamp: new Date().toISOString(),
+               autor: 'ai'
+             },
+             instanceId
+           });
         }
         
         return prompt;
