@@ -160,19 +160,19 @@ export function aggressiveMemoryCleanup() {
     cleanupLogs();
     
     // Limpar cache de conversas antigas
-    if (global.conversationCache) {
-      const cacheSize = Object.keys(global.conversationCache).length;
+    if ((global as any).conversationCache) {
+      const cacheSize = Object.keys((global as any).conversationCache).length;
       if (cacheSize > 20) {
-        const keys = Object.keys(global.conversationCache);
+        const keys = Object.keys((global as any).conversationCache);
         const keysToDelete = keys.slice(0, Math.floor(cacheSize * 0.5)); // Remover 50% mais antigas
-        keysToDelete.forEach(key => delete global.conversationCache[key]);
-        console.log(`🗑️ Cache de conversas limpo: ${cacheSize} -> ${Object.keys(global.conversationCache).length}`);
+        keysToDelete.forEach(key => delete (global as any).conversationCache[key]);
+        console.log(`🗑️ Cache de conversas limpo: ${cacheSize} -> ${Object.keys((global as any).conversationCache).length}`);
       }
     }
     
     // Limpar variáveis não utilizadas
-    if (global.whatsappInstances) {
-      const instanceCount = Object.keys(global.whatsappInstances).length;
+    if ((global as any).whatsappInstances) {
+      const instanceCount = Object.keys((global as any).whatsappInstances).length;
       if (instanceCount > 5) {
         console.log(`🗑️ Instâncias WhatsApp ativas: ${instanceCount}`);
       }
