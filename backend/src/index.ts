@@ -44,29 +44,36 @@ setWhatsAppBotSocketIO(io);
 let lastEmittedStatus = { connected: false, number: '' };
 let statusCheckInProgress = false;
 let lastStatusCheck = 0;
+let statusCheckCount = 0;
+const MAX_STATUS_CHECKS_PER_MINUTE = 2; // Máximo 2 verificações por minuto
 
-// Função para verificar status do WhatsApp com debounce
+// Função para verificar status do WhatsApp com debounce otimizado
 function checkWhatsAppStatus() {
   const now = Date.now();
   
   // Evitar verificações simultâneas
   if (statusCheckInProgress) {
-    if (STARTUP_CONFIG.ENABLE_DEBUG_LOGS) {
-      console.log('📱 Verificação de status já em andamento, ignorando...');
-    }
-    return;
+    return; // Silenciar para não poluir logs
   }
   
   // Verificar se passou tempo suficiente desde a última verificação
   if (now - lastStatusCheck < STARTUP_CONFIG.STATUS_CHECK_INTERVAL) {
-    if (STARTUP_CONFIG.ENABLE_DEBUG_LOGS) {
-      console.log('📱 Verificação de status muito frequente, aguardando...');
-    }
-    return;
+    return; // Silenciar para não poluir logs
+  }
+  
+  // Limitar número de verificações por minuto
+  if (statusCheckCount >= MAX_STATUS_CHECKS_PER_MINUTE) {
+    return; // Silenciar para não poluir logs
   }
   
   statusCheckInProgress = true;
   lastStatusCheck = now;
+  statusCheckCount++;
+  
+  // Reset contador a cada minuto
+  setTimeout(() => {
+    statusCheckCount = 0;
+  }, 60000);
   
   try {
     const { getWhatsAppInstances } = require('./routes/whatsappWebJS');
@@ -95,8 +102,8 @@ function checkWhatsAppStatus() {
       }
     }
     
-    // Log das instâncias apenas quando há mudança
-    if (instances.length > 0 && JSON.stringify(currentStatus) !== JSON.stringify(lastEmittedStatus)) {
+    // Log das instâncias apenas quando há mudança e em desenvolvimento
+    if (instances.length > 0 && JSON.stringify(currentStatus) !== JSON.stringify(lastEmittedStatus) && STARTUP_CONFIG.ENABLE_DEBUG_LOGS) {
       console.log('📱 Instâncias WhatsApp:', instances.map((i: any) => ({
         id: i.id,
         number: i.number,
@@ -112,7 +119,7 @@ function checkWhatsAppStatus() {
   }
 }
 
-// Verificar status a cada 30 segundos
+// Verificar status a cada 1 minuto (aumentado)
 setInterval(checkWhatsAppStatus, STARTUP_CONFIG.STATUS_CHECK_INTERVAL);
 
 // Verificação inicial com delay maior

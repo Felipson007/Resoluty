@@ -4,8 +4,8 @@ import { EventEmitter } from 'events';
 export const STARTUP_CONFIG = {
   // Delays em milissegundos
   INITIAL_DELAY: 5000,
-  STATUS_CHECK_INTERVAL: 30000,
-  HEALTH_CHECK_INTERVAL: 60000,
+  STATUS_CHECK_INTERVAL: 60000, // Aumentado para 1 minuto
+  HEALTH_CHECK_INTERVAL: 120000, // Aumentado para 2 minutos
   RECONNECT_DELAY: 10000,
   
   // Tentativas de reconexão
@@ -81,37 +81,80 @@ export function restartSystem(): void {
   startupEvents.emit('restart');
 }
 
-// Configurações de monitoramento
+// Configurações de monitoramento otimizadas para baixo uso de memória
 export const MONITORING_CONFIG = {
-  // Intervalos de verificação
-  STATUS_CHECK_INTERVAL: 30000,
-  HEALTH_CHECK_INTERVAL: 60000,
+  // Intervalos de verificação (aumentados para reduzir CPU)
+  STATUS_CHECK_INTERVAL: 60000, // 1 minuto
+  HEALTH_CHECK_INTERVAL: 120000, // 2 minutos
   
-  // Configurações de log
-  ENABLE_PERFORMANCE_LOGS: true,
+  // Configurações de log (reduzidas)
+  ENABLE_PERFORMANCE_LOGS: false, // Desabilitado para economizar memória
   ENABLE_CONNECTION_LOGS: true,
   
-  // Thresholds
-  MAX_MEMORY_USAGE: 0.8, // 80% da memória
-  MAX_CPU_USAGE: 0.9, // 90% da CPU
-  MAX_CONNECTION_ATTEMPTS: 5
+  // Thresholds mais conservadores
+  MAX_MEMORY_USAGE: 0.7, // Reduzido para 70%
+  MAX_CPU_USAGE: 0.8, // Reduzido para 80%
+  MAX_CONNECTION_ATTEMPTS: 3, // Reduzido para 3
+  
+  // Configurações de limpeza
+  MEMORY_CLEANUP_INTERVAL: 300000, // 5 minutos
+  LOG_CLEANUP_INTERVAL: 600000, // 10 minutos
+  MAX_LOG_ENTRIES: 100 // Limitar logs em memória
 };
 
-// Função para monitorar recursos do sistema
+// Cache para logs (limitado)
+let logCache: string[] = [];
+let lastMemoryCheck = 0;
+const MEMORY_CHECK_INTERVAL = 300000; // 5 minutos
+
+// Função para monitorar recursos do sistema (otimizada)
 export function monitorSystemResources(): void {
-  if (!MONITORING_CONFIG.ENABLE_PERFORMANCE_LOGS) return;
+  const now = Date.now();
   
-  const usage = process.memoryUsage();
-  const memoryUsagePercent = usage.heapUsed / usage.heapTotal;
-  
-  if (memoryUsagePercent > MONITORING_CONFIG.MAX_MEMORY_USAGE) {
-    console.warn(`⚠️ Uso de memória alto: ${(memoryUsagePercent * 100).toFixed(2)}%`);
+  // Verificar apenas a cada 5 minutos para economizar recursos
+  if (now - lastMemoryCheck < MEMORY_CHECK_INTERVAL) {
+    return;
   }
   
-  if (MONITORING_CONFIG.ENABLE_PERFORMANCE_LOGS) {
-    console.log(`📊 Uso de memória: ${(memoryUsagePercent * 100).toFixed(2)}%`);
+  lastMemoryCheck = now;
+  
+  try {
+    const usage = process.memoryUsage();
+    const memoryUsagePercent = usage.heapUsed / usage.heapTotal;
+    
+    // Só alertar se realmente alto
+    if (memoryUsagePercent > MONITORING_CONFIG.MAX_MEMORY_USAGE) {
+      console.warn(`⚠️ Uso de memória alto: ${(memoryUsagePercent * 100).toFixed(2)}%`);
+      
+      // Forçar garbage collection se disponível
+      if (global.gc) {
+        global.gc();
+        console.log('🗑️ Garbage collection forçado');
+      }
+    }
+    
+    // Log apenas se habilitado e em desenvolvimento
+    if (MONITORING_CONFIG.ENABLE_PERFORMANCE_LOGS && STARTUP_CONFIG.ENABLE_DEBUG_LOGS) {
+      console.log(`📊 Uso de memória: ${(memoryUsagePercent * 100).toFixed(2)}%`);
+    }
+  } catch (error) {
+    // Silenciar erros de monitoramento para não poluir logs
   }
 }
 
-// Inicializar monitoramento
-setInterval(monitorSystemResources, 60000); // Verificar a cada minuto 
+// Função para limpar logs antigos
+export function cleanupLogs(): void {
+  if (logCache.length > MONITORING_CONFIG.MAX_LOG_ENTRIES) {
+    logCache = logCache.slice(-MONITORING_CONFIG.MAX_LOG_ENTRIES);
+  }
+}
+
+// Função para adicionar log com controle de memória
+export function addLog(message: string): void {
+  logCache.push(`${new Date().toISOString()}: ${message}`);
+  cleanupLogs();
+}
+
+// Inicializar monitoramento com intervalos maiores
+setInterval(monitorSystemResources, MONITORING_CONFIG.MEMORY_CLEANUP_INTERVAL);
+setInterval(cleanupLogs, MONITORING_CONFIG.LOG_CLEANUP_INTERVAL); 

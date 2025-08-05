@@ -24,8 +24,10 @@ let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 3;
 const RECONNECT_DELAY = 10000; // 10 segundos
 
-// Histórico de mensagens
+// Histórico de mensagens (limitado para economizar memória)
 const messageHistory: { [key: string]: any[] } = {};
+const MAX_HISTORY_PER_CHAT = 50; // Limitar histórico por chat
+const MAX_TOTAL_CHATS = 20; // Limitar número total de chats
 
 // Controle de debounce para IA por número
 const aiReplyTimeouts: { [key: string]: NodeJS.Timeout } = {};
@@ -110,6 +112,31 @@ async function carregarSessaoWhatsApp() {
   }
   return false;
 }
+
+// Função para limpar histórico antigo
+function cleanupMessageHistory() {
+  const chatIds = Object.keys(messageHistory);
+  
+  // Se exceder o limite de chats, remover os mais antigos
+  if (chatIds.length > MAX_TOTAL_CHATS) {
+    const chatsToRemove = chatIds.slice(0, chatIds.length - MAX_TOTAL_CHATS);
+    chatsToRemove.forEach(chatId => {
+      delete messageHistory[chatId];
+      delete aiReplyTimeouts[chatId];
+    });
+    console.log(`🧹 Limpeza: ${chatsToRemove.length} chats removidos do histórico`);
+  }
+  
+  // Limitar histórico por chat
+  chatIds.forEach(chatId => {
+    if (messageHistory[chatId].length > MAX_HISTORY_PER_CHAT) {
+      messageHistory[chatId] = messageHistory[chatId].slice(-MAX_HISTORY_PER_CHAT);
+    }
+  });
+}
+
+// Limpeza automática a cada 10 minutos
+setInterval(cleanupMessageHistory, 600000);
 
 // Inicializar WhatsApp
 async function initializeWhatsApp() {
@@ -213,11 +240,16 @@ async function initializeWhatsApp() {
         isFromMe: false
       };
 
-      // Salvar no histórico
+      // Salvar no histórico (limitado)
       if (!messageHistory[msg.from]) {
         messageHistory[msg.from] = [];
       }
       messageHistory[msg.from].push(message);
+      
+      // Limitar histórico por chat
+      if (messageHistory[msg.from].length > MAX_HISTORY_PER_CHAT) {
+        messageHistory[msg.from] = messageHistory[msg.from].slice(-MAX_HISTORY_PER_CHAT);
+      }
 
       console.log(`💾 Mensagem salva no histórico. Total para ${msg.from}: ${messageHistory[msg.from].length}`);
 
@@ -283,6 +315,11 @@ async function initializeWhatsApp() {
           messageHistory[msg.to] = [];
         }
         messageHistory[msg.to].push(message);
+        
+        // Limitar histórico por chat
+        if (messageHistory[msg.to].length > MAX_HISTORY_PER_CHAT) {
+          messageHistory[msg.to] = messageHistory[msg.to].slice(-MAX_HISTORY_PER_CHAT);
+        }
 
         console.log(`💾 Mensagem enviada salva no histórico. Total para ${msg.to}: ${messageHistory[msg.to].length}`);
 
