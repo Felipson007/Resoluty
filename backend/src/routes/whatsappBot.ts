@@ -579,7 +579,7 @@ async function startBot(instanceId: string, number: string): Promise<void> {
             } : undefined;
             
             // Gera prompt usando o cérebro com a mensagem atual
-            const promptCerebro = gerarPromptCerebro(historicoFinal, clienteInfo, text);
+            const promptCerebro = gerarPromptCerebro(historicoFinal, text);
             
             let resposta = 'Desculpe, não consegui responder.';
             try {
