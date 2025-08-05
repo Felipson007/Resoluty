@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 import { listarLeads, buscarLeadsPorStatus, atualizarStatusLead, buscarLead } from './services/leadService';
 import { supabase } from './config/supabase';
 import { startWhatsAppService, getWhatsAppStatus, toggleAI, sendMessage, setSocketIO as setWhatsAppServiceSocketIO } from './whatsappService';
-import { setSocketIO as setWhatsAppWebJSSocketIO, sendWhatsAppMessage as sendWhatsAppWebJSMessage } from './routes/whatsappWebJS';
+import { setSocketIO as setWhatsAppWebJSSocketIO, sendWhatsAppMessage as sendWhatsAppWebJSMessage, requestQRCode } from './routes/whatsappWebJS';
 import { setSocketIO as setWhatsAppBotSocketIO, sendWhatsAppMessage as sendWhatsAppBotMessage } from './routes/whatsappBot';
 import webhookGHL from './routes/webhookGHL';
 import { STARTUP_CONFIG, startupEvents, setStartupState, StartupState, MONITORING_CONFIG } from './config/startup';
@@ -388,6 +388,33 @@ app.post('/api/whatsapp/send', async (req, res) => {
   } catch (error) {
     console.error('❌ Erro ao enviar mensagem:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Endpoint para solicitar QR Code manualmente
+app.post('/api/whatsapp/request-qr', async (req, res) => {
+  try {
+    const { instanceId, number } = req.body;
+    
+    if (!instanceId || !number) {
+      return res.status(400).json({
+        success: false,
+        error: 'instanceId e number são obrigatórios'
+      });
+    }
+    
+    console.log(`📱 Solicitação de QR Code recebida: ${instanceId} (${number})`);
+    
+    const result = await requestQRCode(instanceId, number);
+    
+    res.json(result);
+    
+  } catch (error) {
+    console.error('❌ Erro ao solicitar QR Code:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
   }
 });
 

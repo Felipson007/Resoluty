@@ -134,146 +134,186 @@ export async function removeWhatsApp(instanceId: string): Promise<boolean> {
 
 export async function startBot(instanceId: string, number: string): Promise<void> {
   try {
-    const client = new Client({
-      authStrategy: new LocalAuth({ clientId: instanceId }),
-      puppeteer: {
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--disable-gpu'
-        ]
-      }
-    });
-
-    const instance: WhatsAppInstance = {
-      id: instanceId,
-      number: number,
-      client,
-      qrDisplayed: false,
-      isConnected: false,
-      sdrMode: new Set(),
-      enabled: true
-    };
-
-    whatsappInstances.set(instanceId, instance);
-
-    client.on('qr', (qr) => {
-      console.log(`📱 QR Code disponível para ${number} (${instanceId})`);
-      console.log(`📡 SocketIO disponível: ${socketIO ? 'Sim' : 'Não'}`);
-      console.log(`📊 Total de clientes conectados: ${socketIO ? socketIO.sockets.sockets.size : 0}`);
-      
-      instance.qrDisplayed = true;
-      
-      // Limpar timeout anterior se existir
-      if (instance.qrTimeout) {
-        clearTimeout(instance.qrTimeout);
-      }
-      
-      // Configurar timeout para detectar expiração do QR (60 segundos)
-      instance.qrTimeout = setTimeout(() => {
-        console.log(`QR Code para ${number} (${instanceId}) expirou. Regenerando...`);
-        instance.qrDisplayed = false;
-        
-        // Emitir evento de QR expirado
-        if (socketIO) {
-          socketIO.emit('qr-expired', { 
-            instanceId, 
-            number 
-          });
+    console.log(`📱 Configurando instância WhatsApp: ${instanceId} (${number})`);
+    
+    // Verificar se a instância já existe
+    let instance = whatsappInstances.get(instanceId);
+    
+    if (!instance) {
+      console.log(`📱 Criando nova instância: ${instanceId}`);
+      const client = new Client({
+        authStrategy: new LocalAuth({ clientId: instanceId }),
+        puppeteer: {
+          headless: true,
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--disable-gpu'
+          ]
         }
-      }, 60000); // 60 segundos
+      });
+
+      instance = {
+        id: instanceId,
+        number: number,
+        client,
+        qrDisplayed: false,
+        isConnected: false,
+        sdrMode: new Set(),
+        enabled: true
+      };
+
+      whatsappInstances.set(instanceId, instance);
       
-      // Emitir QR para frontend
+      // Configurar eventos do cliente
+      setupClientEvents(instance);
+    }
+    
+    console.log(`✅ Instância ${instanceId} configurada. Use requestQRCode() para gerar QR Code.`);
+    
+  } catch (error) {
+    console.error(`❌ Erro ao configurar instância ${instanceId}:`, error);
+    throw error;
+  }
+}
+
+export async function initializeWhatsApp(): Promise<void> {
+  console.log('Inicializando WhatsApp Web JS...');
+  // Implementar inicialização se necessário
+} 
+
+// Função para solicitar QR Code manualmente
+export async function requestQRCode(instanceId: string, number: string): Promise<{ success: boolean; message: string; instanceId?: string }> {
+  try {
+    console.log(`📱 Solicitando QR Code para instância: ${instanceId} (${number})`);
+    
+    // Verificar se a instância já existe
+    let instance = whatsappInstances.get(instanceId);
+    
+    if (!instance) {
+      console.log(`📱 Criando nova instância: ${instanceId}`);
+      // Criar nova instância sem iniciar automaticamente
+      const client = new Client({
+        authStrategy: new LocalAuth({ clientId: instanceId }),
+        puppeteer: {
+          headless: true,
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--disable-gpu'
+          ]
+        }
+      });
+
+      instance = {
+        id: instanceId,
+        number: number,
+        client,
+        qrDisplayed: false,
+        isConnected: false,
+        sdrMode: new Set(),
+        enabled: true
+      };
+
+      whatsappInstances.set(instanceId, instance);
+      
+      // Configurar eventos do cliente
+      setupClientEvents(instance);
+    }
+    
+    // Verificar se já está conectado
+    if (instance.isConnected) {
+      return {
+        success: true,
+        message: 'WhatsApp já está conectado',
+        instanceId
+      };
+    }
+    
+    // Iniciar o cliente para gerar QR Code
+    console.log(`🚀 Iniciando cliente para gerar QR Code: ${instanceId}`);
+    await instance.client.initialize();
+    
+    return {
+      success: true,
+      message: 'QR Code solicitado com sucesso',
+      instanceId
+    };
+    
+  } catch (error) {
+    console.error(`❌ Erro ao solicitar QR Code para ${instanceId}:`, error);
+    return {
+      success: false,
+      message: `Erro ao solicitar QR Code: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
+    };
+  }
+}
+
+// Função para configurar eventos do cliente
+function setupClientEvents(instance: WhatsAppInstance) {
+  const { client, id: instanceId, number } = instance;
+  
+  client.on('qr', (qr) => {
+    console.log(`📱 QR Code disponível para ${number} (${instanceId})`);
+    console.log(`📡 SocketIO disponível: ${socketIO ? 'Sim' : 'Não'}`);
+    console.log(`📊 Total de clientes conectados: ${socketIO ? socketIO.sockets.sockets.size : 0}`);
+    
+    instance.qrDisplayed = true;
+    
+    // Limpar timeout anterior se existir
+    if (instance.qrTimeout) {
+      clearTimeout(instance.qrTimeout);
+    }
+    
+    // Configurar timeout para detectar expiração do QR (60 segundos)
+    instance.qrTimeout = setTimeout(() => {
+      console.log(`QR Code para ${number} (${instanceId}) expirou. Regenerando...`);
+      instance.qrDisplayed = false;
+      
+      // Emitir evento de QR expirado
       if (socketIO) {
-        // Emitir para todos os clientes conectados
-        console.log(`📤 Emitindo QR para frontend: ${instanceId}`);
-        socketIO.emit('qr', { 
-          qr, 
+        socketIO.emit('qr-expired', { 
           instanceId, 
           number 
         });
-        
-        // Também emitir o evento alternativo para compatibilidade
-        socketIO.emit('qr-code', { 
-          qr 
-        });
-        
-        console.log(`✅ QR Code emitido com sucesso para ${instanceId}`);
-      } else {
-        console.error(`❌ SocketIO não está disponível para emitir QR Code`);
       }
-    });
+    }, 60000); // 60 segundos
+    
+    // Emitir QR para frontend
+    if (socketIO) {
+      console.log(`📤 Emitindo QR para frontend: ${instanceId}`);
+      socketIO.emit('qr', { 
+        qr, 
+        instanceId, 
+        number 
+      });
+      
+      socketIO.emit('qr-code', { 
+        qr 
+      });
+      
+      console.log(`✅ QR Code emitido com sucesso para ${instanceId}`);
+    } else {
+      console.error(`❌ SocketIO não está disponível para emitir QR Code`);
+    }
+  });
 
-    client.on('ready', async () => {
-      try {
-        // Obter informações do cliente para pegar o número real
-        const realNumber = client.info.wid.user;
-        
-        console.log(`WhatsApp conectado! Número real: ${realNumber}`);
-        
-        // Atualizar o número da instância com o número real
-        instance.number = realNumber;
-        instance.isConnected = true;
-        instance.qrDisplayed = false;
-        
-        if (instance.qrTimeout) {
-          clearTimeout(instance.qrTimeout);
-          instance.qrTimeout = undefined;
-        }
-        
-        if (socketIO) {
-          socketIO.emit('wpp-status', { status: 'open', instanceId, number: realNumber });
-          // Emitir status geral do WhatsApp com número real
-          socketIO.emit('whatsapp-status', { 
-            connected: true, 
-            number: realNumber,
-            aiActive: true 
-          });
-        }
-      } catch (error) {
-        console.log(`WhatsApp ${number} conectado! (não foi possível obter número real)`);
-        instance.isConnected = true;
-        instance.qrDisplayed = false;
-        
-        if (instance.qrTimeout) {
-          clearTimeout(instance.qrTimeout);
-          instance.qrTimeout = undefined;
-        }
-        
-        if (socketIO) {
-          socketIO.emit('wpp-status', { status: 'open', instanceId, number });
-          socketIO.emit('whatsapp-status', { 
-            connected: true, 
-            number: number,
-            aiActive: true 
-          });
-        }
-      }
-    });
-
-    // Capturar o número real do WhatsApp quando autenticado
-    client.on('authenticated', () => {
-      console.log(`WhatsApp ${instanceId} autenticado`);
-    });
-
-    // Capturar informações do cliente quando disponíveis
-    client.on('auth_failure', (msg) => {
-      console.log(`Falha na autenticação do WhatsApp ${instanceId}:`, msg);
-    });
-
-    // Evento para capturar informações do cliente
-    client.on('loading_screen', (percent, message) => {
-      console.log(`Carregando WhatsApp ${instanceId}: ${percent}% - ${message}`);
-    });
-
-    client.on('disconnected', (reason) => {
-      console.log(`WhatsApp ${number} desconectado: ${reason}`);
-      instance.isConnected = false;
+  client.on('ready', async () => {
+    try {
+      const realNumber = client.info.wid.user;
+      
+      console.log(`WhatsApp conectado! Número real: ${realNumber}`);
+      
+      instance.number = realNumber;
+      instance.isConnected = true;
       instance.qrDisplayed = false;
       
       if (instance.qrTimeout) {
@@ -282,135 +322,47 @@ export async function startBot(instanceId: string, number: string): Promise<void
       }
       
       if (socketIO) {
-        socketIO.emit('wpp-status', { status: 'close', instanceId, number });
-        // Verificar se ainda há outras instâncias conectadas
-        const connectedInstances = Array.from(whatsappInstances.values()).filter(i => i.isConnected);
-        const connectedInstance = connectedInstances[0];
-        
+        socketIO.emit('wpp-status', { status: 'open', instanceId, number: realNumber });
         socketIO.emit('whatsapp-status', { 
-          connected: connectedInstances.length > 0, 
-          number: connectedInstance ? connectedInstance.number : '',
+          connected: true, 
+          number: realNumber,
           aiActive: true 
         });
       }
-    });
+      
+      console.log(`✅ Instância ${instanceId} conectada com sucesso`);
+      
+    } catch (error) {
+      console.error(`❌ Erro ao processar conexão da instância ${instanceId}:`, error);
+    }
+  });
 
-    client.on('message', async (message: Message) => {
-      if (message.fromMe) return;
-
-      const from = message.from;
-      const text = message.body;
-
-      if (!from || !text) return;
-
-      const lead = await buscarLead(from);
-      await salvarMensagemLead(from, text, 'usuario');
-
-      if (socketIO) {
-        const eventData = {
-          contactId: from,
-          message: {
-            texto: text,
-            timestamp: new Date().toISOString(),
-            autor: 'usuario'
-          },
-          lead: lead ? {
-            id: lead.id,
-            numero: lead.numero,
-            status: lead.metadata.status,
-            total_mensagens: (lead.metadata as any).total_mensagens,
-            ultima_interacao: (lead.metadata as any).ultima_interacao
-          } : null,
-          instanceId,
-          number
-        };
-        
-        socketIO.emit('new-message', eventData);
-      }
-
-      if (!historicoPorUsuario[from]) historicoPorUsuario[from] = [];
-      historicoPorUsuario[from].push({
-        texto: text,
-        timestamp: new Date().toISOString(),
-        autor: 'usuario',
+  client.on('disconnected', (reason) => {
+    console.log(`📱 WhatsApp desconectado (${instanceId}): ${reason}`);
+    instance.isConnected = false;
+    instance.qrDisplayed = false;
+    
+    if (instance.qrTimeout) {
+      clearTimeout(instance.qrTimeout);
+      instance.qrTimeout = undefined;
+    }
+    
+    if (socketIO) {
+      socketIO.emit('wpp-status', { status: 'disconnected', instanceId, number });
+      socketIO.emit('whatsapp-status', { 
+        connected: false, 
+        number: '',
+        aiActive: true 
       });
+    }
+  });
 
-      await salvarInteracaoHistorico({
-        cliente_id: from.replace('@c.us', ''),
-        mensagem_usuario: text,
-        resposta_ia: '',
-        data: new Date().toISOString(),
-        canal: 'whatsapp',
-      });
-
-      if (instance.sdrMode.has(from.replace('@c.us', ''))) {
-        return;
-      }
-
-      if (timeoutsPorUsuario[from]) clearTimeout(timeoutsPorUsuario[from]);
-
-      timeoutsPorUsuario[from] = setTimeout(async () => {
-        try {
-          // Extrair apenas o número do telefone do from (remover @c.us se presente)
-          const numeroTelefone = from.replace('@c.us', '');
-          const { data: historicoDB } = await buscarHistoricoCliente(numeroTelefone, 10);
-          const historicoEstruturado = (historicoDB || []).flatMap((item: any) => [
-            { texto: item.mensagem_usuario, timestamp: item.data, autor: 'usuario' },
-            item.resposta_ia ? { texto: item.resposta_ia, timestamp: item.data, autor: 'sistema' } : null
-          ]).filter(Boolean);
-
-          const historicoFinal = [
-            ...historicoEstruturado.filter((msg: any) => msg !== null),
-            ...(historicoPorUsuario[from] || [])
-          ];
-
-          const promptCerebro = gerarPromptCerebro(historicoFinal);
-          let resposta = 'Desculpe, não consegui responder.';
-
-          const iaResp = await callInternalWebhook('/webhook/ia', { message: promptCerebro });
-          resposta = iaResp.resposta || resposta;
-
-          historicoPorUsuario[from].push({
-            texto: resposta,
-            timestamp: new Date().toISOString(),
-            autor: 'sistema',
-          });
-
-          await salvarInteracaoHistorico({
-            cliente_id: from.replace('@c.us', ''),
-            mensagem_usuario: '',
-            resposta_ia: resposta,
-            data: new Date().toISOString(),
-            canal: 'whatsapp',
-          });
-
-          await instance.client.sendMessage(from, resposta);
-
-          if (socketIO) {
-            socketIO.emit('new-message', {
-              contactId: from,
-              message: {
-                texto: resposta,
-                timestamp: new Date().toISOString(),
-                autor: 'sistema'
-              },
-              instanceId,
-              number
-            });
-          }
-        } catch (error) {
-          console.error('Erro ao processar mensagem:', error);
-        }
-      }, 15000);
-    });
-
-    await client.initialize();
-  } catch (error) {
-    console.error('Erro ao iniciar WhatsApp:', error);
-  }
-}
-
-export async function initializeWhatsApp(): Promise<void> {
-  console.log('Inicializando WhatsApp Web JS...');
-  // Implementar inicialização se necessário
+  client.on('auth_failure', (message) => {
+    console.error(`❌ Falha de autenticação (${instanceId}): ${message}`);
+    instance.isConnected = false;
+    
+    if (socketIO) {
+      socketIO.emit('wpp-status', { status: 'auth_failure', instanceId, number });
+    }
+  });
 } 

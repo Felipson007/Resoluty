@@ -154,9 +154,10 @@ const WhatsAppConfig: React.FC = () => {
       const instanceId = `instance_${Date.now()}`;
       const number = '5511999999999'; // Número padrão, pode ser alterado depois
       
-      console.log('📱 Solicitando QR code ao backend...');
+      console.log('📱 Configurando instância WhatsApp...');
       
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/whatsapp/add`, {
+      // Primeiro, configurar a instância
+      const configResponse = await fetch(`${API_CONFIG.BASE_URL}/api/whatsapp/add`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -167,14 +168,40 @@ const WhatsAppConfig: React.FC = () => {
         })
       });
       
-      const data = await response.json();
-      console.log('📱 Resposta do backend:', data);
+      const configData = await configResponse.json();
+      console.log('📱 Resposta da configuração:', configData);
       
-      if (data.success) {
-        setDebugInfo('WhatsApp iniciado, aguardando QR code...');
+      if (configData.success) {
+        setDebugInfo('Instância configurada, solicitando QR Code...');
+        
+        // Aguardar um pouco para garantir que a instância foi configurada
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Agora solicitar o QR Code
+        console.log('📱 Solicitando QR Code...');
+        const qrResponse = await fetch(`${API_CONFIG.BASE_URL}/api/whatsapp/request-qr`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            instanceId,
+            number
+          })
+        });
+        
+        const qrData = await qrResponse.json();
+        console.log('📱 Resposta do QR Code:', qrData);
+        
+        if (qrData.success) {
+          setDebugInfo('QR Code solicitado com sucesso, aguardando...');
+        } else {
+          setError(`Erro ao solicitar QR Code: ${qrData.message}`);
+          setDebugInfo(`Erro: ${qrData.message}`);
+        }
       } else {
-        setError('Erro ao iniciar WhatsApp');
-        setDebugInfo(`Erro: ${data.error}`);
+        setError('Erro ao configurar WhatsApp');
+        setDebugInfo(`Erro: ${configData.error}`);
       }
     } catch (error) {
       console.error('❌ Erro ao adicionar WhatsApp:', error);
