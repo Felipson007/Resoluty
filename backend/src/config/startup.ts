@@ -83,23 +83,16 @@ export function restartSystem(): void {
 
 // Configurações de monitoramento otimizadas para baixo uso de memória
 export const MONITORING_CONFIG = {
-  // Intervalos de verificação (aumentados para reduzir CPU)
-  STATUS_CHECK_INTERVAL: 60000, // 1 minuto
-  HEALTH_CHECK_INTERVAL: 120000, // 2 minutos
-  
-  // Configurações de log (reduzidas)
+  STATUS_CHECK_INTERVAL: 120000, // Aumentado para 2 minutos
+  HEALTH_CHECK_INTERVAL: 300000, // Aumentado para 5 minutos
   ENABLE_PERFORMANCE_LOGS: false, // Desabilitado para economizar memória
-  ENABLE_CONNECTION_LOGS: true,
-  
-  // Thresholds mais conservadores
-  MAX_MEMORY_USAGE: 0.7, // Reduzido para 70%
-  MAX_CPU_USAGE: 0.8, // Reduzido para 80%
-  MAX_CONNECTION_ATTEMPTS: 3, // Reduzido para 3
-  
-  // Configurações de limpeza
-  MEMORY_CLEANUP_INTERVAL: 300000, // 5 minutos
-  LOG_CLEANUP_INTERVAL: 600000, // 10 minutos
-  MAX_LOG_ENTRIES: 100 // Limitar logs em memória
+  ENABLE_CONNECTION_LOGS: false, // Desabilitado para economizar memória
+  MAX_MEMORY_USAGE: 0.5, // Reduzido para 50%
+  MAX_CPU_USAGE: 0.7, // Reduzido para 70%
+  MAX_CONNECTION_ATTEMPTS: 2, // Reduzido para 2 tentativas
+  MEMORY_CLEANUP_INTERVAL: 120000, // 2 minutos
+  LOG_CLEANUP_INTERVAL: 300000, // 5 minutos
+  MAX_LOG_ENTRIES: 50 // Reduzido para 50 logs
 };
 
 // Cache para logs (limitado)
@@ -108,37 +101,32 @@ let lastMemoryCheck = 0;
 const MEMORY_CHECK_INTERVAL = 300000; // 5 minutos
 
 // Função para monitorar recursos do sistema (otimizada)
-export function monitorSystemResources(): void {
-  const now = Date.now();
-  
-  // Verificar apenas a cada 5 minutos para economizar recursos
-  if (now - lastMemoryCheck < MEMORY_CHECK_INTERVAL) {
-    return;
-  }
-  
-  lastMemoryCheck = now;
-  
+export function monitorSystemResources() {
   try {
-    const usage = process.memoryUsage();
-    const memoryUsagePercent = usage.heapUsed / usage.heapTotal;
+    const memUsage = process.memoryUsage();
+    const memUsagePercent = memUsage.heapUsed / memUsage.heapTotal;
     
-    // Só alertar se realmente alto
-    if (memoryUsagePercent > MONITORING_CONFIG.MAX_MEMORY_USAGE) {
-      console.warn(`⚠️ Uso de memória alto: ${(memoryUsagePercent * 100).toFixed(2)}%`);
+    if (MONITORING_CONFIG.ENABLE_PERFORMANCE_LOGS) {
+      console.log(`📊 Uso de memória: ${(memUsagePercent * 100).toFixed(2)}%`);
+    }
+    
+    // Se o uso de memória estiver alto, fazer limpeza agressiva
+    if (memUsagePercent > MONITORING_CONFIG.MAX_MEMORY_USAGE) {
+      console.log(`⚠️ Uso de memória alto: ${(memUsagePercent * 100).toFixed(2)}%`);
+      aggressiveMemoryCleanup();
       
-      // Forçar garbage collection se disponível
-      if (global.gc) {
-        global.gc();
-        console.log('🗑️ Garbage collection forçado');
+      // Se ainda estiver alto após limpeza, reiniciar
+      const newMemUsage = process.memoryUsage();
+      const newMemUsagePercent = newMemUsage.heapUsed / newMemUsage.heapTotal;
+      
+      if (newMemUsagePercent > MONITORING_CONFIG.MAX_MEMORY_USAGE) {
+        console.log(`🚨 Memória ainda alta após limpeza: ${(newMemUsagePercent * 100).toFixed(2)}%`);
+        console.log('🔄 Reiniciando sistema devido ao alto uso de memória...');
+        restartSystem();
       }
     }
-    
-    // Log apenas se habilitado e em desenvolvimento
-    if (MONITORING_CONFIG.ENABLE_PERFORMANCE_LOGS && STARTUP_CONFIG.ENABLE_DEBUG_LOGS) {
-      console.log(`📊 Uso de memória: ${(memoryUsagePercent * 100).toFixed(2)}%`);
-    }
   } catch (error) {
-    // Silenciar erros de monitoramento para não poluir logs
+    console.error('❌ Erro no monitoramento de recursos:', error);
   }
 }
 
@@ -158,3 +146,41 @@ export function addLog(message: string): void {
 // Inicializar monitoramento com intervalos maiores
 setInterval(monitorSystemResources, MONITORING_CONFIG.MEMORY_CLEANUP_INTERVAL);
 setInterval(cleanupLogs, MONITORING_CONFIG.LOG_CLEANUP_INTERVAL); 
+
+// Função para limpeza agressiva de memória
+export function aggressiveMemoryCleanup() {
+  try {
+    // Forçar garbage collection
+    if (global.gc) {
+      global.gc();
+      console.log('🗑️ Garbage collection forçado (agressivo)');
+    }
+    
+    // Limpar logs antigos
+    cleanupLogs();
+    
+    // Limpar cache de conversas antigas
+    if (global.conversationCache) {
+      const cacheSize = Object.keys(global.conversationCache).length;
+      if (cacheSize > 20) {
+        const keys = Object.keys(global.conversationCache);
+        const keysToDelete = keys.slice(0, Math.floor(cacheSize * 0.5)); // Remover 50% mais antigas
+        keysToDelete.forEach(key => delete global.conversationCache[key]);
+        console.log(`🗑️ Cache de conversas limpo: ${cacheSize} -> ${Object.keys(global.conversationCache).length}`);
+      }
+    }
+    
+    // Limpar variáveis não utilizadas
+    if (global.whatsappInstances) {
+      const instanceCount = Object.keys(global.whatsappInstances).length;
+      if (instanceCount > 5) {
+        console.log(`🗑️ Instâncias WhatsApp ativas: ${instanceCount}`);
+      }
+    }
+    
+  } catch (error) {
+    console.error('❌ Erro na limpeza agressiva de memória:', error);
+  }
+}
+
+// Monitoramento de recursos com limpeza agressiva 

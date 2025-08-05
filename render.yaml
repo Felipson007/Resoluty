@@ -10,9 +10,9 @@ services:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 4000
+        value: 10000
       - key: NODE_OPTIONS
-        value: "--max-old-space-size=512 --expose-gc"
+        value: "--max-old-space-size=256 --expose-gc"
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_ASSISTANT_ID

@@ -7,6 +7,7 @@ import { supabase } from './config/supabase';
 import fs from 'fs';
 import path from 'path';
 const qrcode = require('qrcode-terminal');
+import { aggressiveMemoryCleanup } from './config/startup';
 
 dotenv.config();
 
@@ -539,3 +540,36 @@ setInterval(() => {
 if (require.main === module) {
   startWhatsAppService().catch(console.error);
 } 
+
+// Função para limpeza de memória do WhatsApp
+function cleanupWhatsAppMemory() {
+  try {
+    // Limpar instâncias antigas
+    if (whatsappInstances) {
+      const instanceIds = Object.keys(whatsappInstances);
+      const now = Date.now();
+      
+      instanceIds.forEach(instanceId => {
+        const instance = whatsappInstances[instanceId];
+        if (instance && instance.lastActivity) {
+          const timeSinceLastActivity = now - instance.lastActivity;
+          // Remover instâncias inativas há mais de 30 minutos
+          if (timeSinceLastActivity > 30 * 60 * 1000) {
+            delete whatsappInstances[instanceId];
+            console.log(`🗑️ Instância WhatsApp removida por inatividade: ${instanceId}`);
+          }
+        }
+      });
+    }
+    
+    // Forçar garbage collection
+    if (global.gc) {
+      global.gc();
+    }
+  } catch (error) {
+    console.error('❌ Erro na limpeza de memória do WhatsApp:', error);
+  }
+}
+
+// Agendar limpeza de memória a cada 5 minutos
+setInterval(cleanupWhatsAppMemory, 5 * 60 * 1000); 
