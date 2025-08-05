@@ -1,138 +1,142 @@
-import axios from 'axios';
-
-const API_BASE_URL = 'https://resoluty.onrender.com';
+import { API_BASE_URL } from '../config/api';
 
 class ApiService {
-  private api = axios.create({
-    baseURL: API_BASE_URL,
-    timeout: 60000,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
+  private baseURL: string;
+
+  constructor() {
+    this.baseURL = API_BASE_URL;
+  }
+
+  private async request(endpoint: string, options: RequestInit = {}): Promise<any> {
+    try {
+      const url = `${this.baseURL}${endpoint}`;
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('❌ Erro na requisição API:', error);
+      throw error;
+    }
+  }
 
   // Health check
   async checkHealth(): Promise<boolean> {
     try {
-      const response = await this.api.get('/health');
-      return response.status === 200;
+      const response = await this.request('/health');
+      return response.status === 'ok';
     } catch (error) {
-      console.error('❌ Erro no health check:', error);
       return false;
     }
   }
 
-  // WhatsApp status
-  async getWhatsAppStatus() {
+  // WhatsApp Instances
+  async getWhatsAppInstances(): Promise<any[]> {
     try {
-      const response = await this.api.get('/api/whatsapp/status');
-      return response.data;
+      const response = await this.request('/api/whatsapp/instances');
+      return response.instances || [];
     } catch (error) {
-      console.error('❌ Erro ao buscar status do WhatsApp:', error);
-      return { connected: false, number: '', aiActive: true };
-    }
-  }
-
-  // WhatsApp instances
-  async getWhatsAppInstances() {
-    try {
-      const response = await this.api.get('/api/whatsapp/instances');
-      return response.data;
-    } catch (error) {
-      console.error('❌ Erro ao buscar instâncias do WhatsApp:', error);
+      console.error('❌ Erro ao buscar instâncias WhatsApp:', error);
       return [];
     }
   }
 
-  // Leads
-  async getLeads() {
+  async addWhatsAppInstance(instanceId: string, number: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const response = await this.api.get('/api/leads');
-      
-      const leads = response.data.map((lead: any) => {
-        // Usar nome do lead se disponível, senão usar número
-        const leadName = lead.metadata?.nome || `Cliente ${lead.numero}`;
-        
-        // Garantir que o contactId tenha o formato correto para WhatsApp
-        const contactId = lead.numero.includes('@c.us') ? lead.numero : `${lead.numero}@c.us`;
-        
-        const contact = {
-          id: contactId,
-          name: leadName,
-          phone: lead.numero,
-          lastMessage: lead.metadata?.ultima_mensagem || 'Nenhuma mensagem',
-          lastMessageTime: lead.metadata?.ultima_atividade ? 
-            new Date(lead.metadata.ultima_atividade).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) :
-            new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-          status: lead.metadata?.status === 'lead_novo' ? 'bot' : 
-                 lead.metadata?.status === 'lead_avancado' ? 'humano' : 
-                 lead.metadata?.status === 'lead_sem_interesse' ? 'finalizado' : 'bot',
-          unreadCount: 0
-        };
-        return contact;
+      const response = await this.request('/api/whatsapp/add', {
+        method: 'POST',
+        body: JSON.stringify({ instanceId, number }),
       });
-      
-      return leads;
+      return response;
+    } catch (error) {
+      console.error('❌ Erro ao adicionar instância WhatsApp:', error);
+      return { success: false, error: 'Erro ao adicionar instância' };
+    }
+  }
+
+  async removeWhatsAppInstance(instanceId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const response = await this.request(`/api/whatsapp/instances/${instanceId}`, {
+        method: 'DELETE',
+      });
+      return response;
+    } catch (error) {
+      console.error('❌ Erro ao remover instância WhatsApp:', error);
+      return { success: false, error: 'Erro ao remover instância' };
+    }
+  }
+
+  async requestQRCode(instanceId: string, number: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const response = await this.request('/api/whatsapp/request-qr', {
+        method: 'POST',
+        body: JSON.stringify({ instanceId, number }),
+      });
+      return response;
+    } catch (error) {
+      console.error('❌ Erro ao solicitar QR Code:', error);
+      return { success: false, error: 'Erro ao solicitar QR Code' };
+    }
+  }
+
+  // Leads
+  async getLeads(): Promise<any[]> {
+    try {
+      const response = await this.request('/api/leads');
+      return response || [];
     } catch (error) {
       console.error('❌ Erro ao buscar leads:', error);
       return [];
     }
   }
 
-  // Get leads by status
-  async getLeadsByStatus(status: string) {
+  async getLeadsByStatus(status: string): Promise<any[]> {
     try {
-      const response = await this.api.get(`/api/leads/status/${status}`);
-      return response.data.map((lead: any) => {
-        // Garantir que o contactId tenha o formato correto para WhatsApp
-        const contactId = lead.numero.includes('@c.us') ? lead.numero : `${lead.numero}@c.us`;
-        
-        return {
-          id: contactId,
-          name: `Cliente ${lead.numero}`,
-          phone: lead.numero,
-          lastMessage: 'Nenhuma mensagem',
-          lastMessageTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-          status: lead.metadata?.status === 'lead_novo' ? 'bot' : 
-                 lead.metadata?.status === 'lead_avancado' ? 'humano' : 
-                 lead.metadata?.status === 'lead_sem_interesse' ? 'finalizado' : 'bot',
-          unreadCount: 0
-        };
-      });
+      const response = await this.request(`/api/leads/status/${status}`);
+      return response || [];
     } catch (error) {
       console.error('❌ Erro ao buscar leads por status:', error);
       return [];
     }
   }
 
-  // Update lead status
-  async updateLeadStatus(numero: string, status: string) {
+  async updateLeadStatus(numero: string, status: string): Promise<boolean> {
     try {
-      // Remover @c.us se presente para o endpoint de leads
-      const cleanNumero = numero.replace('@c.us', '');
-      
-      const response = await this.api.put(`/api/leads/${cleanNumero}/status`, { status });
-      return response.data;
+      const response = await this.request(`/api/leads/${numero}/status`, {
+        method: 'PUT',
+        body: JSON.stringify({ status }),
+      });
+      return response.success;
     } catch (error) {
       console.error('❌ Erro ao atualizar status do lead:', error);
       return false;
     }
   }
 
-  // Get contact messages
-  async getContactMessages(contactId: string) {
+  // Conversations
+  async getConversations(): Promise<any[]> {
     try {
-      // Garantir que o contactId tenha o formato correto para WhatsApp
-      const formattedContactId = contactId.includes('@c.us') ? contactId : `${contactId}@c.us`;
-      
-      const response = await this.api.get(`/api/conversations/${formattedContactId}/messages`);
-      return response.data.map((msg: any) => ({
-        id: msg.id,
-        texto: msg.texto || msg.body || 'Mensagem sem texto',
-        timestamp: msg.timestamp,
-        autor: msg.autor || (msg.isFromMe ? 'sistema' : 'usuario'),
-        contactId: contactId
-      }));
+      const response = await this.request('/api/conversations');
+      return response || [];
+    } catch (error) {
+      console.error('❌ Erro ao buscar conversas:', error);
+      return [];
+    }
+  }
+
+  async getContactMessages(contactId: string): Promise<any[]> {
+    try {
+      const response = await this.request(`/api/conversations/${contactId}/messages`);
+      return response || [];
     } catch (error) {
       console.error('❌ Erro ao buscar mensagens do contato:', error);
       return [];
@@ -140,82 +144,54 @@ class ApiService {
   }
 
   // Send message
-  async sendMessage(contactId: string, message: string) {
+  async sendMessage(to: string, message: string, instanceId?: string): Promise<boolean> {
     try {
-      // Garantir que o contactId tenha o formato correto para WhatsApp
-      const formattedContactId = contactId.includes('@c.us') ? contactId : `${contactId}@c.us`;
-      
-      const response = await this.api.post('/api/whatsapp/send', {
-        to: formattedContactId,
-        message: message
+      const body: any = { to, message };
+      if (instanceId) {
+        body.instanceId = instanceId;
+      }
+
+      const response = await this.request('/api/whatsapp/send', {
+        method: 'POST',
+        body: JSON.stringify(body),
       });
-      
-      return response.data.success;
+      return response.success;
     } catch (error) {
       console.error('❌ Erro ao enviar mensagem:', error);
       return false;
     }
   }
 
-  // Test connection
-  async testConnection() {
+  // AI Control
+  async toggleAI(): Promise<boolean> {
     try {
-      const response = await this.api.get('/api/test');
-      return response.data;
-    } catch (error) {
-      console.error('❌ Erro no teste de conexão:', error);
-      throw error;
-    }
-  }
-
-  // Toggle SDR mode
-  async toggleSdr(contactId: string, instanceId: string) {
-    try {
-      const response = await this.api.post('/api/whatsapp/toggle-sdr', {
-        contactId,
-        instanceId
+      const response = await this.request('/api/ai/toggle', {
+        method: 'POST',
       });
-      return response.data.success;
+      return response.active;
     } catch (error) {
-      console.error('❌ Erro ao alternar modo SDR:', error);
+      console.error('❌ Erro ao alternar IA:', error);
       return false;
     }
   }
 
-  // Remove WhatsApp instance
-  async removeWhatsApp(instanceId: string) {
+  // Test endpoints
+  async testConnection(): Promise<boolean> {
     try {
-      const response = await this.api.delete(`/api/whatsapp/instances/${instanceId}`);
-      return response.data.success;
+      const response = await this.request('/api/test');
+      return response.success;
     } catch (error) {
-      console.error('❌ Erro ao remover WhatsApp:', error);
       return false;
     }
   }
 
-  // Configure WhatsApp instance
-  async configureWhatsApp(instanceId: string, number: string, enabled: boolean) {
+  async getSystemHealth(): Promise<any> {
     try {
-      const response = await this.api.post(`/api/whatsapp/instances/${instanceId}`, {
-        number,
-        enabled
-      });
-      return response.data.success;
+      const response = await this.request('/health');
+      return response;
     } catch (error) {
-      console.error('❌ Erro ao configurar WhatsApp:', error);
-      return false;
-    }
-  }
-
-  // Force check WhatsApp status
-  async forceCheckStatus() {
-    try {
-      const response = await this.api.post('/api/whatsapp/check-status');
-      console.log('🔍 Verificação forçada executada:', response.data);
-      return response.data;
-    } catch (error) {
-      console.error('❌ Erro na verificação forçada:', error);
-      return false;
+      console.error('❌ Erro ao obter saúde do sistema:', error);
+      return null;
     }
   }
 }

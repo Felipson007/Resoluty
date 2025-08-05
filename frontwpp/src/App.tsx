@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Box, CssBaseline, ThemeProvider, createTheme, useMediaQuery } from '@mui/material';
 import WhatsAppDashboard from './components/WhatsAppDashboard';
+import WhatsAppOptimized from './components/WhatsAppOptimized';
 import MultiWhatsAppQR from './components/MultiWhatsAppQR';
 import WhatsAppConfig from './components/WhatsAppConfig';
 
-// Tema personalizado
+// Tema personalizado otimizado
 const theme = createTheme({
   palette: {
     primary: {
@@ -36,14 +37,25 @@ const theme = createTheme({
         },
       },
     },
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          borderRadius: 12,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+        },
+      },
+    },
   },
 });
 
-type ViewType = 'dashboard' | 'qr' | 'config';
+type ViewType = 'dashboard' | 'optimized' | 'qr' | 'config';
 
 function App() {
-  const [currentView, setCurrentView] = useState<ViewType>('dashboard');
+  const [currentView, setCurrentView] = useState<ViewType>('optimized');
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  // Memoizar view para evitar re-renders desnecessários
+  const memoizedView = useMemo(() => currentView, [currentView]);
 
   // Escutar eventos de mudança de view
   React.useEffect(() => {
@@ -65,37 +77,47 @@ function App() {
   }, []);
 
   const renderCurrentView = () => {
-    switch (currentView) {
+    switch (memoizedView) {
+      case 'optimized':
+        return <WhatsAppOptimized />;
+      case 'dashboard':
+        return <WhatsAppDashboard />;
       case 'qr':
         return <MultiWhatsAppQR />;
       case 'config':
         return <WhatsAppConfig />;
       default:
-        return <WhatsAppDashboard />;
+        return <WhatsAppOptimized />;
     }
   };
 
   const getViewIcon = () => {
-    switch (currentView) {
+    switch (memoizedView) {
+      case 'optimized':
+        return '⚡';
+      case 'dashboard':
+        return '📱';
       case 'qr':
         return '💬';
       case 'config':
         return '⚙️';
       default:
-        return '📱';
+        return '⚡';
     }
   };
 
   const getNextView = (): ViewType => {
-    switch (currentView) {
+    switch (memoizedView) {
+      case 'optimized':
+        return 'dashboard';
       case 'dashboard':
         return 'qr';
       case 'qr':
         return 'config';
       case 'config':
-        return 'dashboard';
+        return 'optimized';
       default:
-        return 'dashboard';
+        return 'optimized';
     }
   };
 
@@ -145,6 +167,7 @@ function App() {
                 transform: 'scale(1.1)',
               },
               transition: 'all 0.2s ease-in-out',
+              fontSize: '1.5rem',
             }}
           >
             {getViewIcon()}
