@@ -63,7 +63,7 @@ const WhatsAppConfig: React.FC = () => {
 
     // Listener para QR Code (evento principal)
     const handleQRCode = (data: { qr: string; instanceId?: string; number?: string }) => {
-      console.log('📱 QR Code recebido no WhatsAppConfig:', data);
+      console.log('🔍 WhatsAppConfig recebeu QR Code:', data);
       setQrCode(data.qr);
       setIsConnecting(false);
       setDebugInfo(`QR recebido: ${data.qr ? 'Sim' : 'Não'}, Tamanho: ${data.qr?.length || 0}`);
@@ -71,7 +71,7 @@ const WhatsAppConfig: React.FC = () => {
 
     // Listener alternativo para QR Code
     const handleQRCodeAlt = (data: { qr: string }) => {
-      console.log('📱 QR Code recebido (alt) no WhatsAppConfig:', data);
+      console.log('🔍 WhatsAppConfig recebeu QR Code (alt):', data);
       setQrCode(data.qr);
       setIsConnecting(false);
       setDebugInfo(`QR recebido (alt): ${data.qr ? 'Sim' : 'Não'}, Tamanho: ${data.qr?.length || 0}`);

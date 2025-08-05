@@ -163,7 +163,10 @@ export async function startBot(instanceId: string, number: string): Promise<void
     whatsappInstances.set(instanceId, instance);
 
     client.on('qr', (qr) => {
-      console.log(`QR Code disponível para ${number} (${instanceId})`);
+      console.log(`📱 QR Code disponível para ${number} (${instanceId})`);
+      console.log(`📡 SocketIO disponível: ${socketIO ? 'Sim' : 'Não'}`);
+      console.log(`📊 Total de clientes conectados: ${socketIO ? socketIO.sockets.sockets.size : 0}`);
+      
       instance.qrDisplayed = true;
       
       // Limpar timeout anterior se existir
@@ -188,6 +191,7 @@ export async function startBot(instanceId: string, number: string): Promise<void
       // Emitir QR para frontend
       if (socketIO) {
         // Emitir para todos os clientes conectados
+        console.log(`📤 Emitindo QR para frontend: ${instanceId}`);
         socketIO.emit('qr', { 
           qr, 
           instanceId, 
@@ -198,6 +202,10 @@ export async function startBot(instanceId: string, number: string): Promise<void
         socketIO.emit('qr-code', { 
           qr 
         });
+        
+        console.log(`✅ QR Code emitido com sucesso para ${instanceId}`);
+      } else {
+        console.error(`❌ SocketIO não está disponível para emitir QR Code`);
       }
     });
 

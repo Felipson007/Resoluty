@@ -68,14 +68,17 @@ class SocketService {
 
     // Eventos do WhatsApp - Melhorados com logs detalhados
     this.socket.on('qr', (data: { qr: string; instanceId?: string; number?: string }) => {
+      console.log('📱 Frontend recebeu evento QR:', data);
       this.emit('qr', data);
     });
 
     this.socket.on('qr-code', (data: { qr: string }) => {
+      console.log('📱 Frontend recebeu evento QR-CODE:', data);
       this.emit('qr-code', data);
     });
 
     this.socket.on('whatsapp-status', (data: { connected: boolean; number: string }) => {
+      console.log('📱 Frontend recebeu status WhatsApp:', data);
       this.emit('whatsapp-status', data);
     });
 
@@ -96,10 +99,12 @@ class SocketService {
     });
 
     this.socket.on('qr-expired', (data: { instanceId: string; number: string }) => {
+      console.log('⏰ Frontend recebeu QR expirado:', data);
       this.emit('qr-expired', data);
     });
 
     this.socket.on('wpp-status', (data: { status: string; instanceId: string; number: string }) => {
+      console.log('📱 Frontend recebeu WPP-STATUS:', data);
       this.emit('wpp-status', data);
     });
 

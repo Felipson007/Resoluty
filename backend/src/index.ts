@@ -142,9 +142,11 @@ async function initializeWhatsAppService() {
 // Socket.IO connections
 io.on('connection', (socket) => {
   console.log('🔌 Cliente conectado:', socket.id);
+  console.log(`📊 Total de clientes conectados: ${io.sockets.sockets.size}`);
 
   socket.on('disconnect', () => {
     console.log('🔌 Cliente desconectado:', socket.id);
+    console.log(`📊 Total de clientes conectados: ${io.sockets.sockets.size}`);
   });
 
   // Enviar status atual
@@ -171,12 +173,20 @@ app.post('/api/test/qr', (req, res) => {
       return res.status(500).json({ error: 'SocketIO não configurado' });
     }
     
+    console.log(`📊 Total de clientes conectados: ${io.sockets.sockets.size}`);
+    
     // Emitir um QR code de teste
     const testQR = 'test-qr-code-data';
+    const testInstanceId = 'test-instance-123';
+    const testNumber = '5511999999999';
+    
+    console.log(`📤 Emitindo QR de teste para ${io.sockets.sockets.size} clientes`);
+    
+    // Emitir para todos os clientes
     io.emit('qr', { 
       qr: testQR, 
-      instanceId: 'test-instance', 
-      number: 'test-number' 
+      instanceId: testInstanceId, 
+      number: testNumber 
     });
     
     // Também emitir o evento alternativo
@@ -186,7 +196,8 @@ app.post('/api/test/qr', (req, res) => {
     res.json({ 
       success: true, 
       message: 'QR Code de teste emitido',
-      qr: testQR
+      qr: testQR,
+      clientsConnected: io.sockets.sockets.size
     });
   } catch (error) {
     console.error('❌ Erro no teste de QR Code:', error);
