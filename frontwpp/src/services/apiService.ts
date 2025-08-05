@@ -42,7 +42,7 @@ class ApiService {
   // WhatsApp Instances
   async getWhatsAppInstances(): Promise<any[]> {
     try {
-      const response = await this.request('/api/whatsapp/optimized/instances');
+      const response = await this.request('/api/whatsapp/instances');
       return response.instances || [];
     } catch (error) {
       console.error('❌ Erro ao buscar instâncias WhatsApp:', error);
@@ -52,7 +52,7 @@ class ApiService {
 
   async addWhatsAppInstance(instanceId: string, number: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const response = await this.request('/api/whatsapp/optimized/add', {
+      const response = await this.request('/api/whatsapp/add', {
         method: 'POST',
         body: JSON.stringify({ instanceId, number }),
       });
@@ -65,7 +65,7 @@ class ApiService {
 
   async removeWhatsAppInstance(instanceId: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const response = await this.request(`/api/whatsapp/optimized/instances/${instanceId}`, {
+      const response = await this.request(`/api/whatsapp/instances/${instanceId}`, {
         method: 'DELETE',
       });
       return response;
@@ -77,7 +77,7 @@ class ApiService {
 
   async requestQRCode(instanceId: string, number: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const response = await this.request('/api/whatsapp/optimized/request-qr', {
+      const response = await this.request('/api/whatsapp/request-qr', {
         method: 'POST',
         body: JSON.stringify({ instanceId, number }),
       });
@@ -151,7 +151,7 @@ class ApiService {
         body.instanceId = instanceId;
       }
 
-      const response = await this.request('/api/whatsapp/optimized/send', {
+      const response = await this.request('/api/whatsapp/send', {
         method: 'POST',
         body: JSON.stringify(body),
       });
