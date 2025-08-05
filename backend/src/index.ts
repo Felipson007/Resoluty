@@ -9,6 +9,7 @@ import { startWhatsAppService, getWhatsAppStatus, toggleAI, sendMessage, setSock
 import { setSocketIO as setWhatsAppWebJSSocketIO, sendWhatsAppMessage as sendWhatsAppWebJSMessage } from './routes/whatsappWebJS';
 import { setSocketIO as setWhatsAppBotSocketIO, sendWhatsAppMessage as sendWhatsAppBotMessage } from './routes/whatsappBot';
 import webhookGHL from './routes/webhookGHL';
+import { STARTUP_CONFIG, startupEvents, setStartupState, StartupState, MONITORING_CONFIG } from './config/startup';
 
 dotenv.config();
 
@@ -41,9 +42,32 @@ setWhatsAppBotSocketIO(io);
 
 // Status do WhatsApp
 let lastEmittedStatus = { connected: false, number: '' };
+let statusCheckInProgress = false;
+let lastStatusCheck = 0;
 
-// Função para verificar status do WhatsApp
+// Função para verificar status do WhatsApp com debounce
 function checkWhatsAppStatus() {
+  const now = Date.now();
+  
+  // Evitar verificações simultâneas
+  if (statusCheckInProgress) {
+    if (STARTUP_CONFIG.ENABLE_DEBUG_LOGS) {
+      console.log('📱 Verificação de status já em andamento, ignorando...');
+    }
+    return;
+  }
+  
+  // Verificar se passou tempo suficiente desde a última verificação
+  if (now - lastStatusCheck < STARTUP_CONFIG.STATUS_CHECK_INTERVAL) {
+    if (STARTUP_CONFIG.ENABLE_DEBUG_LOGS) {
+      console.log('📱 Verificação de status muito frequente, aguardando...');
+    }
+    return;
+  }
+  
+  statusCheckInProgress = true;
+  lastStatusCheck = now;
+  
   try {
     const { getWhatsAppInstances } = require('./routes/whatsappWebJS');
     const instances = getWhatsAppInstances();
@@ -57,15 +81,22 @@ function checkWhatsAppStatus() {
       aiActive: true // Por enquanto sempre ativo
     };
     
-    // Emitir status apenas se mudou
+    // Emitir status apenas se mudou significativamente
     if (JSON.stringify(currentStatus) !== JSON.stringify(lastEmittedStatus)) {
       console.log('📱 Status WhatsApp mudou:', currentStatus);
       io.emit('whatsapp-status', currentStatus);
       lastEmittedStatus = currentStatus;
+      
+      // Atualizar estado de inicialização
+      if (currentStatus.connected) {
+        setStartupState(StartupState.READY);
+      } else {
+        setStartupState(StartupState.INITIALIZING);
+      }
     }
     
-    // Log das instâncias para debug
-    if (instances.length > 0) {
+    // Log das instâncias apenas quando há mudança
+    if (instances.length > 0 && JSON.stringify(currentStatus) !== JSON.stringify(lastEmittedStatus)) {
       console.log('📱 Instâncias WhatsApp:', instances.map((i: any) => ({
         id: i.id,
         number: i.number,
@@ -75,19 +106,30 @@ function checkWhatsAppStatus() {
     }
   } catch (error) {
     console.error('❌ Erro ao verificar status do WhatsApp:', error);
+    setStartupState(StartupState.ERROR);
+  } finally {
+    statusCheckInProgress = false;
   }
 }
 
-// Verificar status a cada 5 segundos
-setInterval(checkWhatsAppStatus, 5000);
+// Verificar status a cada 30 segundos
+setInterval(checkWhatsAppStatus, STARTUP_CONFIG.STATUS_CHECK_INTERVAL);
 
-// Verificação inicial
-setTimeout(checkWhatsAppStatus, 2000);
+// Verificação inicial com delay maior
+setTimeout(checkWhatsAppStatus, STARTUP_CONFIG.INITIAL_DELAY);
 
 // Inicializar WhatsApp Service
 async function initializeWhatsAppService() {
   console.log('🚀 Iniciando WhatsApp Service...');
-  // await startWhatsAppService(); // Desabilitado para evitar duplicação de mensagens
+  setStartupState(StartupState.INITIALIZING);
+  
+  try {
+    // await startWhatsAppService(); // Desabilitado para evitar duplicação de mensagens
+    setStartupState(StartupState.READY);
+  } catch (error) {
+    console.error('❌ Erro ao inicializar WhatsApp Service:', error);
+    setStartupState(StartupState.ERROR);
+  }
 }
 
 // Socket.IO connections
@@ -454,29 +496,20 @@ app.put('/api/leads/:numero/status', async (req, res) => {
 // Health check
 app.get('/health', (req, res) => {
   const status = getWhatsAppStatus();
+  const startupState = require('./config/startup').getStartupState();
+  
   res.json({
     status: 'ok',
+    startupState,
     whatsapp: status.connected,
     ai: status.aiActive,
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
     timestamp: new Date().toISOString()
   });
 });
 
-// Verificação periódica do status do WhatsApp (silenciosa)
-setInterval(async () => {
-  try {
-    const currentStatus = getWhatsAppStatus();
-    
-    // Só emitir se houve mudança de status
-    if (JSON.stringify(currentStatus) !== JSON.stringify(lastEmittedStatus)) {
-      io.emit('whatsapp-status', currentStatus);
-      lastEmittedStatus = currentStatus;
-      console.log('📱 Status atualizado:', currentStatus);
-    }
-  } catch (error: any) {
-    console.error('❌ Erro ao verificar status do WhatsApp:', error?.message || error);
-  }
-}, 30000); // Verificar a cada 30 segundos
+// Verificação periódica removida - agora usa a função checkWhatsAppStatus otimizada
 
 const PORT = process.env.PORT || 4000;
 

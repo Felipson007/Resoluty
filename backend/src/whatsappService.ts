@@ -19,6 +19,10 @@ const openai = new OpenAI({
 let whatsappClient: Client | null = null;
 let isAIActive = true;
 let socketIO: any = null;
+let isInitializing = false;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 3;
+const RECONNECT_DELAY = 10000; // 10 segundos
 
 // Histórico de mensagens
 const messageHistory: { [key: string]: any[] } = {};
@@ -109,7 +113,11 @@ async function carregarSessaoWhatsApp() {
 
 // Inicializar WhatsApp
 async function initializeWhatsApp() {
-  console.log('🚀 Iniciando WhatsApp Service...');
+  // Evitar inicializações simultâneas
+  if (isInitializing) {
+    console.log('🚀 Inicialização já em andamento, ignorando...');
+    return;
+  }
   
   // Verificar se já existe uma instância ativa
   if (whatsappClient && whatsappClient.info) {
@@ -117,182 +125,208 @@ async function initializeWhatsApp() {
     return;
   }
   
-  // Tentar carregar sessão salva
-  await carregarSessaoWhatsApp();
+  isInitializing = true;
+  console.log('🚀 Iniciando WhatsApp Service...');
   
-  whatsappClient = new Client({
-    authStrategy: new LocalAuth({ 
-      clientId: 'resoluty-ai',
-      dataPath: './.wwebjs_auth'
-    }),
-    puppeteer: {
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--disable-web-security'
-      ]
-    }
-  });
-
-  whatsappClient.on('qr', (qr) => {
-    console.log('📱 QR Code disponível - escaneie no WhatsApp');
-    qrcode.generate(qr, { small: true }); // Mostra QR no terminal
-    if (socketIO) {
-      socketIO.emit('qr', { qr });
-      console.log('📱 QR Code emitido para frontend');
-    }
-  });
-
-  whatsappClient.on('loading_screen', (percent, message) => {
-    console.log('📱 Carregando WhatsApp:', percent, message);
-  });
-
-  whatsappClient.on('authenticated', () => {
-    console.log('🔐 WhatsApp autenticado!');
+  try {
+    // Tentar carregar sessão salva
+    await carregarSessaoWhatsApp();
     
-    // Emitir status atualizado
-    if (socketIO) {
-      const status = getWhatsAppStatus();
-      socketIO.emit('whatsapp-status', status);
-      console.log('📱 Status atualizado após autenticação:', status);
-    }
-  });
-
-  whatsappClient.on('ready', () => {
-    console.log('✅ WhatsApp conectado!');
-    
-    // Salvar sessão após estar pronto
-    setTimeout(() => {
-      salvarSessaoWhatsApp();
-    }, 2000);
-    
-    // Emitir status atualizado
-    if (socketIO) {
-      const status = getWhatsAppStatus();
-      socketIO.emit('whatsapp-status', status);
-      console.log('📱 Status atualizado após conexão:', status);
-    }
-  });
-
-  whatsappClient.on('auth_failure', (msg) => {
-    console.log('❌ Falha na autenticação WhatsApp:', msg);
-  });
-
-  whatsappClient.on('logout', () => {
-    console.log('🚪 WhatsApp logout realizado');
-  });
-
-  whatsappClient.on('change_state', (state) => {
-    console.log('🔄 Estado do WhatsApp mudou:', state);
-  });
-
-  // Processar mensagens
-  whatsappClient.on('message', async (msg) => {
-    console.log(`📨 Nova mensagem recebida de ${msg.from}: ${msg.body}`);
-    
-    const message = {
-      id: msg.id._serialized,
-      from: msg.from,
-      body: msg.body,
-      timestamp: new Date().toISOString(),
-      isFromMe: false
-    };
-
-    // Salvar no histórico
-    if (!messageHistory[msg.from]) {
-      messageHistory[msg.from] = [];
-    }
-    messageHistory[msg.from].push(message);
-
-    console.log(`💾 Mensagem salva no histórico. Total para ${msg.from}: ${messageHistory[msg.from].length}`);
-
-    // Buscar dados do lead do banco
-    const numeroCliente = msg.from.replace('@c.us', '');
-    let leadData = null;
-    try {
-      leadData = await buscarLead(numeroCliente);
-    } catch (error) {
-      console.log('Lead não encontrado, será criado automaticamente');
-    }
-
-    // Salvar no Supabase
-    try {
-      await supabase.from('mensagens_leads').insert({
-        mensagem: msg.body,
-        autor: 'usuario',
-        numero: msg.from,
-        timestamp: message.timestamp
-      });
-      console.log('✅ Mensagem salva no Supabase');
-    } catch (error) {
-      console.error('❌ Erro ao salvar mensagem no Supabase:', error);
-    }
-
-    // IA responder automaticamente (com debounce de 30s) - apenas se status permitir
-    if (isAIActive && !msg.fromMe) {
-      // Verificar status do lead antes de responder
-      const numeroCliente = msg.from.replace('@c.us', '');
-      const lead = await buscarLead(numeroCliente);
-      
-      // Só responder se o lead não existir (novo) ou se o status for 'lead_novo'
-      const podeResponder = !lead || lead.metadata.status === 'lead_novo';
-      
-      if (podeResponder) {
-        if (aiReplyTimeouts[msg.from]) {
-          clearTimeout(aiReplyTimeouts[msg.from]);
-        }
-        aiReplyTimeouts[msg.from] = setTimeout(async () => {
-          await handleAIAutoReply(msg);
-          delete aiReplyTimeouts[msg.from];
-        }, 30000);
-      } else {
-        console.log(`🤖 IA não responderá para ${numeroCliente} - status: ${lead.metadata.status}`);
+    whatsappClient = new Client({
+      authStrategy: new LocalAuth({ 
+        clientId: 'resoluty-ai',
+        dataPath: './.wwebjs_auth'
+      }),
+      puppeteer: {
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--disable-web-security'
+        ]
       }
-    }
-  });
+    });
 
-  // Mensagens enviadas
-  whatsappClient.on('message_create', async (msg) => {
-    if (msg.fromMe) {
-      console.log(`📤 Mensagem enviada para ${msg.to}: ${msg.body}`);
+    whatsappClient.on('qr', (qr) => {
+      console.log('📱 QR Code disponível - escaneie no WhatsApp');
+      qrcode.generate(qr, { small: true }); // Mostra QR no terminal
+      if (socketIO) {
+        socketIO.emit('qr', { qr });
+        console.log('📱 QR Code emitido para frontend');
+      }
+    });
+
+    whatsappClient.on('loading_screen', (percent, message) => {
+      console.log('📱 Carregando WhatsApp:', percent, message);
+    });
+
+    whatsappClient.on('authenticated', () => {
+      console.log('🔐 WhatsApp autenticado!');
+      
+      // Emitir status atualizado
+      if (socketIO) {
+        const status = getWhatsAppStatus();
+        socketIO.emit('whatsapp-status', status);
+        console.log('📱 Status atualizado após autenticação:', status);
+      }
+    });
+
+    whatsappClient.on('ready', () => {
+      console.log('✅ WhatsApp conectado!');
+      
+      // Salvar sessão após estar pronto
+      setTimeout(() => {
+        salvarSessaoWhatsApp();
+      }, 2000);
+      
+      // Emitir status atualizado
+      if (socketIO) {
+        const status = getWhatsAppStatus();
+        socketIO.emit('whatsapp-status', status);
+        console.log('📱 Status atualizado após conexão:', status);
+      }
+    });
+
+    whatsappClient.on('auth_failure', (msg) => {
+      console.log('❌ Falha na autenticação WhatsApp:', msg);
+    });
+
+    whatsappClient.on('logout', () => {
+      console.log('🚪 WhatsApp logout realizado');
+    });
+
+    whatsappClient.on('change_state', (state) => {
+      console.log('🔄 Estado do WhatsApp mudou:', state);
+    });
+
+    // Processar mensagens
+    whatsappClient.on('message', async (msg) => {
+      console.log(`📨 Nova mensagem recebida de ${msg.from}: ${msg.body}`);
       
       const message = {
         id: msg.id._serialized,
-        from: msg.to,
+        from: msg.from,
         body: msg.body,
         timestamp: new Date().toISOString(),
-        isFromMe: true
+        isFromMe: false
       };
 
-      if (!messageHistory[msg.to]) {
-        messageHistory[msg.to] = [];
+      // Salvar no histórico
+      if (!messageHistory[msg.from]) {
+        messageHistory[msg.from] = [];
       }
-      messageHistory[msg.to].push(message);
+      messageHistory[msg.from].push(message);
 
-      console.log(`💾 Mensagem enviada salva no histórico. Total para ${msg.to}: ${messageHistory[msg.to].length}`);
+      console.log(`💾 Mensagem salva no histórico. Total para ${msg.from}: ${messageHistory[msg.from].length}`);
+
+      // Buscar dados do lead do banco
+      const numeroCliente = msg.from.replace('@c.us', '');
+      let leadData = null;
+      try {
+        leadData = await buscarLead(numeroCliente);
+      } catch (error) {
+        console.log('Lead não encontrado, será criado automaticamente');
+      }
 
       // Salvar no Supabase
       try {
         await supabase.from('mensagens_leads').insert({
           mensagem: msg.body,
-          autor: 'sistema',
-          numero: msg.to,
+          autor: 'usuario',
+          numero: msg.from,
           timestamp: message.timestamp
         });
-        console.log('✅ Mensagem enviada salva no Supabase');
+        console.log('✅ Mensagem salva no Supabase');
       } catch (error) {
-        console.error('❌ Erro ao salvar mensagem enviada no Supabase:', error);
+        console.error('❌ Erro ao salvar mensagem no Supabase:', error);
       }
-    }
-  });
 
-  try {
-    await whatsappClient.initialize();
+      // IA responder automaticamente (com debounce de 30s) - apenas se status permitir
+      if (isAIActive && !msg.fromMe) {
+        // Verificar status do lead antes de responder
+        const numeroCliente = msg.from.replace('@c.us', '');
+        const lead = await buscarLead(numeroCliente);
+        
+        // Só responder se o lead não existir (novo) ou se o status for 'lead_novo'
+        const podeResponder = !lead || lead.metadata.status === 'lead_novo';
+        
+        if (podeResponder) {
+          if (aiReplyTimeouts[msg.from]) {
+            clearTimeout(aiReplyTimeouts[msg.from]);
+          }
+          aiReplyTimeouts[msg.from] = setTimeout(async () => {
+            await handleAIAutoReply(msg);
+            delete aiReplyTimeouts[msg.from];
+          }, 30000);
+        } else {
+          console.log(`🤖 IA não responderá para ${numeroCliente} - status: ${lead.metadata.status}`);
+        }
+      }
+    });
+
+    // Mensagens enviadas
+    whatsappClient.on('message_create', async (msg) => {
+      if (msg.fromMe) {
+        console.log(`📤 Mensagem enviada para ${msg.to}: ${msg.body}`);
+        
+        const message = {
+          id: msg.id._serialized,
+          from: msg.to,
+          body: msg.body,
+          timestamp: new Date().toISOString(),
+          isFromMe: true
+        };
+
+        if (!messageHistory[msg.to]) {
+          messageHistory[msg.to] = [];
+        }
+        messageHistory[msg.to].push(message);
+
+        console.log(`💾 Mensagem enviada salva no histórico. Total para ${msg.to}: ${messageHistory[msg.to].length}`);
+
+        // Salvar no Supabase
+        try {
+          await supabase.from('mensagens_leads').insert({
+            mensagem: msg.body,
+            autor: 'sistema',
+            numero: msg.to,
+            timestamp: message.timestamp
+          });
+          console.log('✅ Mensagem enviada salva no Supabase');
+        } catch (error) {
+          console.error('❌ Erro ao salvar mensagem enviada no Supabase:', error);
+        }
+      }
+    });
+
+    try {
+      await whatsappClient.initialize();
+      reconnectAttempts = 0; // Reset contador de tentativas
+    } catch (error) {
+      console.error('❌ Erro ao inicializar WhatsApp:', error);
+      handleReconnect();
+    }
   } catch (error) {
-    console.error('❌ Erro ao inicializar WhatsApp:', error);
+    console.error('❌ Erro na configuração do WhatsApp:', error);
+    handleReconnect();
+  } finally {
+    isInitializing = false;
+  }
+}
+
+// Função para lidar com reconexão
+function handleReconnect() {
+  if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+    reconnectAttempts++;
+    console.log(`🔄 Tentativa de reconexão ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} em ${RECONNECT_DELAY/1000} segundos...`);
+    
+    setTimeout(() => {
+      initializeWhatsApp();
+    }, RECONNECT_DELAY);
+  } else {
+    console.log('❌ Máximo de tentativas de reconexão atingido. Aguardando intervenção manual.');
   }
 }
 
@@ -428,6 +462,41 @@ export async function sendMessage(to: string, message: string) {
     return false;
   }
 }
+
+// Função para verificar se o WhatsApp está saudável
+function checkWhatsAppHealth() {
+  if (!whatsappClient) {
+    console.log('📱 WhatsApp não está inicializado');
+    return false;
+  }
+  
+  try {
+    // Verificar se o cliente tem informações válidas
+    if (!whatsappClient.info || !whatsappClient.info.wid) {
+      console.log('📱 WhatsApp não está autenticado');
+      return false;
+    }
+    
+    // Verificar se o cliente está pronto
+    if (!whatsappClient.pupPage || !whatsappClient.pupPage.url()) {
+      console.log('📱 WhatsApp não está pronto');
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.log('📱 Erro ao verificar saúde do WhatsApp:', error);
+    return false;
+  }
+}
+
+// Monitoramento de saúde periódico
+setInterval(() => {
+  if (!isInitializing && !checkWhatsAppHealth()) {
+    console.log('📱 WhatsApp não está saudável, tentando reconectar...');
+    handleReconnect();
+  }
+}, 60000); // Verificar a cada 1 minuto
 
 // Iniciar o serviço se executado diretamente
 if (require.main === module) {

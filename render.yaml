@@ -30,7 +30,18 @@ services:
       - key: GOOGLE_SHEETS_CREDENTIALS
         sync: false
     healthCheckPath: /health
+    healthCheckTimeout: 300
     autoDeploy: true
+    # Configurações para evitar reinicializações desnecessárias
+    buildFilter:
+      paths:
+        - backend/**
+        - package.json
+        - render.yaml
+    # Configurações de recursos
+    scaling:
+      minInstances: 1
+      maxInstances: 1
 
   # Frontend Service
   - type: web
@@ -44,3 +55,9 @@ services:
         value: https://resoluty.onrender.com
     autoDeploy: true
     staticPublishPath: ./frontwpp/build
+    # Configurações para evitar reinicializações desnecessárias
+    buildFilter:
+      paths:
+        - frontwpp/**
+        - package.json
+        - render.yaml
