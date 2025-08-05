@@ -52,6 +52,11 @@ const WhatsAppConfig: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  // Monitorar mudanças no QR Code
+  useEffect(() => {
+    console.log('🔍 Estado do QR Code mudou:', { qrCode: qrCode ? 'Presente' : 'Ausente', isConnecting });
+  }, [qrCode, isConnecting]);
+
   const setupSocket = useCallback(() => {
     console.log('🔌 Configurando Socket.IO para WhatsAppConfig...');
     
@@ -64,17 +69,19 @@ const WhatsAppConfig: React.FC = () => {
     // Listener para QR Code (evento principal)
     const handleQRCode = (data: { qr: string; instanceId?: string; number?: string }) => {
       console.log('🔍 WhatsAppConfig recebeu QR Code:', data);
+      console.log('🔍 QR Code antes de setar:', qrCode);
       setQrCode(data.qr);
       setIsConnecting(false);
-      setDebugInfo(`QR recebido: ${data.qr ? 'Sim' : 'Não'}, Tamanho: ${data.qr?.length || 0}`);
+      console.log('🔍 QR Code após setar:', data.qr);
     };
 
     // Listener alternativo para QR Code
     const handleQRCodeAlt = (data: { qr: string }) => {
       console.log('🔍 WhatsAppConfig recebeu QR Code (alt):', data);
+      console.log('🔍 QR Code antes de setar (alt):', qrCode);
       setQrCode(data.qr);
       setIsConnecting(false);
-      setDebugInfo(`QR recebido (alt): ${data.qr ? 'Sim' : 'Não'}, Tamanho: ${data.qr?.length || 0}`);
+      console.log('🔍 QR Code após setar (alt):', data.qr);
     };
 
     // Listener para status do WhatsApp
@@ -377,7 +384,17 @@ const WhatsAppConfig: React.FC = () => {
                   Escaneie o QR Code
                 </Typography>
                 <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                  <QRCodeSVG value={qrCode} size={200} />
+                  {qrCode && qrCode.length > 0 ? (
+                    <QRCodeSVG 
+                      value={qrCode} 
+                      size={200}
+                      onError={(error) => console.error('❌ Erro ao renderizar QR Code:', error)}
+                    />
+                  ) : (
+                    <Typography color="error">
+                      QR Code inválido
+                    </Typography>
+                  )}
                 </Box>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
                   Abra o WhatsApp no seu celular e escaneie o QR Code
@@ -396,6 +413,13 @@ const WhatsAppConfig: React.FC = () => {
                 </Typography>
               </Box>
             )}
+
+            {/* Debug info */}
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+              <Typography variant="caption" color="text.secondary">
+                Debug: isConnecting={isConnecting.toString()}, qrCode={qrCode ? 'Presente' : 'Ausente'}
+              </Typography>
+            </Box>
           </Box>
         </DialogContent>
         <DialogActions>
