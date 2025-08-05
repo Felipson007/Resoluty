@@ -391,7 +391,7 @@ async function handleAIAutoReply(msg: any) {
     };
 
     // Gerar prompt usando o cérebro
-    const promptCerebro = gerarPromptCerebro(
+    const promptCerebro = await gerarPromptCerebro(
       historicoFormatado,
       msg.body
     );
