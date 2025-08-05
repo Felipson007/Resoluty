@@ -7,6 +7,9 @@ import { listarLeads, buscarLeadsPorStatus, atualizarStatusLead, buscarLead } fr
 import { supabase } from './config/supabase';
 import { startWhatsAppService, getWhatsAppStatus, toggleAI, sendMessage, setSocketIO as setWhatsAppServiceSocketIO } from './whatsappService';
 import { setSocketIO as setWhatsAppWebJSSocketIO, sendWhatsAppMessage as sendWhatsAppWebJSMessage, requestQRCode } from './routes/whatsappWebJS';
+
+// Verificar se a função foi importada corretamente
+console.log('🔍 Verificando importação de requestQRCode:', typeof requestQRCode);
 import { setSocketIO as setWhatsAppBotSocketIO, sendWhatsAppMessage as sendWhatsAppBotMessage } from './routes/whatsappBot';
 import webhookGHL from './routes/webhookGHL';
 import { STARTUP_CONFIG, startupEvents, setStartupState, StartupState, MONITORING_CONFIG } from './config/startup';
@@ -26,6 +29,12 @@ app.use(express.json());
 
 // Registrar rotas do webhook
 app.use('/webhook', webhookGHL);
+
+// Endpoint de teste simples
+app.get('/api/test', (req, res) => {
+  console.log('🔍 Endpoint de teste foi chamado');
+  res.json({ success: true, message: 'Backend funcionando!' });
+});
 
 // Endpoint para solicitar QR Code manualmente (colocado no início para evitar conflitos)
 app.post('/api/whatsapp/request-qr', async (req, res) => {
