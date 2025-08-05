@@ -27,6 +27,38 @@ app.use(express.json());
 // Registrar rotas do webhook
 app.use('/webhook', webhookGHL);
 
+// Endpoint para solicitar QR Code manualmente (colocado no início para evitar conflitos)
+app.post('/api/whatsapp/request-qr', async (req, res) => {
+  console.log('🔍 Endpoint /api/whatsapp/request-qr foi chamado');
+  console.log('📦 Body recebido:', req.body);
+  
+  try {
+    const { instanceId, number } = req.body;
+    
+    if (!instanceId || !number) {
+      console.log('❌ Dados inválidos:', { instanceId, number });
+      return res.status(400).json({
+        success: false,
+        error: 'instanceId e number são obrigatórios'
+      });
+    }
+    
+    console.log(`📱 Solicitação de QR Code recebida: ${instanceId} (${number})`);
+    
+    const result = await requestQRCode(instanceId, number);
+    console.log('✅ Resultado da solicitação:', result);
+    
+    res.json(result);
+    
+  } catch (error) {
+    console.error('❌ Erro ao solicitar QR Code:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+});
+
 // Socket.IO
 const io = new Server(server, {
   cors: {
@@ -388,33 +420,6 @@ app.post('/api/whatsapp/send', async (req, res) => {
   } catch (error) {
     console.error('❌ Erro ao enviar mensagem:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
-  }
-});
-
-// Endpoint para solicitar QR Code manualmente
-app.post('/api/whatsapp/request-qr', async (req, res) => {
-  try {
-    const { instanceId, number } = req.body;
-    
-    if (!instanceId || !number) {
-      return res.status(400).json({
-        success: false,
-        error: 'instanceId e number são obrigatórios'
-      });
-    }
-    
-    console.log(`📱 Solicitação de QR Code recebida: ${instanceId} (${number})`);
-    
-    const result = await requestQRCode(instanceId, number);
-    
-    res.json(result);
-    
-  } catch (error) {
-    console.error('❌ Erro ao solicitar QR Code:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor'
-    });
   }
 });
 
