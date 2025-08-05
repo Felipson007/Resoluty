@@ -7,10 +7,7 @@ import {
   Menu,
   MenuItem,
   Divider,
-  Tooltip,
   Paper,
-  Switch,
-  FormControlLabel,
 } from '@mui/material';
 import {
   Send as SendIcon,
@@ -22,10 +19,8 @@ import {
   CheckCircle as CheckCircleIcon,
   LocalOffer as TagIcon,
   MoreVert as MoreVertIcon,
-  Support as SupportIcon,
 } from '@mui/icons-material';
 import { Contact } from './WhatsAppDashboard';
-import ApiService from '../services/apiService';
 
 interface MessageInputProps {
   onSendMessage: (message: string) => void;
@@ -42,7 +37,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
 }) => {
   const [message, setMessage] = useState('');
   const [actionsMenuAnchor, setActionsMenuAnchor] = useState<null | HTMLElement>(null);
-  const [sdrMode, setSdrMode] = useState(false);
 
   const handleSendMessage = () => {
     if (message.trim()) {
@@ -71,18 +65,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
     handleActionsMenuClose();
   };
 
-  const handleSDRToggle = async () => {
-    if (!selectedInstanceId) return;
-    
-    try {
-      const success = await ApiService.toggleSdr(contact.id, selectedInstanceId);
-      if (success) {
-        setSdrMode((prev) => !prev);
-      }
-    } catch (error) {
-      console.error('Erro ao alternar modo SDR:', error);
-    }
-  };
+
 
   const sendQuickResponse = (quickMessage: string) => {
     onSendMessage(quickMessage);
@@ -132,24 +115,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           </Button>
         </Box>
 
-        {/* SDR Ativo Switch */}
-        <FormControlLabel
-          control={
-            <Switch
-              checked={sdrMode}
-              onChange={handleSDRToggle}
-              color="primary"
-              size="small"
-            />
-          }
-          label={
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.75rem' }}>
-              <SupportIcon fontSize="small" />
-              SDR Ativo
-            </Box>
-          }
-          sx={{ ml: 0 }}
-        />
+
       </Box>
 
       {/* Respostas Rápidas */}

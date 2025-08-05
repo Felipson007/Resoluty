@@ -1,10 +1,10 @@
-import { API_BASE_URL } from '../config/api';
+import { API_CONFIG } from '../config/api';
 
 class ApiService {
   private baseURL: string;
 
   constructor() {
-    this.baseURL = API_BASE_URL;
+    this.baseURL = API_CONFIG.BASE_URL;
   }
 
   private async request(endpoint: string, options: RequestInit = {}): Promise<any> {

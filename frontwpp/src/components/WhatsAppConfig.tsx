@@ -97,9 +97,18 @@ const WhatsAppConfig: React.FC = () => {
     };
 
     // Listener para status de instâncias
-    const handleInstancesUpdated = (instances: any[]) => {
-      console.log('📱 Instâncias atualizadas no WhatsAppConfig:', instances);
-      setInstances(instances);
+    const handleInstancesUpdated = (data: any) => {
+      console.log('📱 Instâncias atualizadas no WhatsAppConfig:', data);
+      
+      // Verificar se data.instances existe e é um array
+      if (data && Array.isArray(data.instances)) {
+        setInstances(data.instances);
+      } else if (Array.isArray(data)) {
+        setInstances(data);
+      } else {
+        console.warn('📱 Formato inesperado de instâncias:', data);
+        setInstances([]);
+      }
     };
 
     // Adicionar listeners
@@ -130,11 +139,19 @@ const WhatsAppConfig: React.FC = () => {
       setLoading(true);
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/whatsapp/instances`);
       const data = await response.json();
-      setInstances(data);
-      console.log('📱 Instâncias carregadas:', data);
+      
+      // Verificar se data.instances existe e é um array
+      if (data.success && Array.isArray(data.instances)) {
+        setInstances(data.instances);
+        console.log('📱 Instâncias carregadas:', data.instances);
+      } else {
+        console.warn('📱 Resposta inesperada da API:', data);
+        setInstances([]);
+      }
     } catch (error) {
       console.error('Erro ao buscar instâncias:', error);
       setError('Erro ao carregar instâncias do WhatsApp');
+      setInstances([]);
     } finally {
       setLoading(false);
     }
@@ -281,29 +298,7 @@ const WhatsAppConfig: React.FC = () => {
     }
   };
 
-  const handleForceCheckStatus = async () => {
-    try {
-      console.log('🔍 Forçando verificação de status...');
-      setDebugInfo('Verificando status do WhatsApp...');
-      
-      const apiService = await import('../services/apiService');
-      const result = await apiService.default.forceCheckStatus();
-      
-      if (result.success) {
-        setDebugInfo('Verificação executada com sucesso');
-        setSuccess('Status verificado com sucesso!');
-        // Recarregar instâncias após verificação
-        fetchInstances();
-      } else {
-        setDebugInfo('Erro na verificação de status');
-        setError('Erro ao verificar status');
-      }
-    } catch (error) {
-      console.error('❌ Erro na verificação forçada:', error);
-      setDebugInfo('Erro na verificação de status');
-      setError('Erro ao verificar status');
-    }
-  };
+
 
   return (
     <Box sx={{ p: 3 }}>
@@ -336,7 +331,7 @@ const WhatsAppConfig: React.FC = () => {
 
       {/* Lista de Instâncias */}
       <Grid container spacing={2}>
-        {instances.map((instance) => (
+        {Array.isArray(instances) && instances.map((instance) => (
           <Grid item xs={12} sm={6} md={4} key={instance.id}>
             <Card>
               <CardContent>
@@ -374,7 +369,7 @@ const WhatsAppConfig: React.FC = () => {
         ))}
       </Grid>
 
-      {instances.length === 0 && !loading && (
+      {(!Array.isArray(instances) || instances.length === 0) && !loading && (
         <Box sx={{ textAlign: 'center', py: 4 }}>
           <WhatsAppIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
           <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>

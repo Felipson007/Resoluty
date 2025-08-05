@@ -7,7 +7,6 @@ import { API_CONFIG } from '../config/api';
 
 // Configuração da URL do Socket e API
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'https://resoluty.onrender.com';
-const API_BASE_URL = API_CONFIG.BASE_URL;
 
 const socket = io(SOCKET_URL);
 
@@ -69,7 +68,7 @@ export default function MultiWhatsAppQR() {
 
   const fetchInstances = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/whatsapp/instances`);
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/whatsapp/instances`);
       const data = await response.json();
       if (data.ok) {
         setInstances(data.data);
