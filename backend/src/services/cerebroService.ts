@@ -1,27 +1,11 @@
 import { Mensagem } from '../types/conversa';
 
-interface ClienteInfo {
-  nome?: string;
-  numero?: string;
-  status?: string;
-}
-
-interface ConversaStatus {
-  isPrimeiraInteracao: boolean;
-  etapaProcesso?: string;
-  totalMensagens: number;
-  tempoConversa?: string;
-}
-
 /**
- * Fornece contexto da conversa e informações do cliente para a IA generativa.
- * A IA já foi treinada com o prompt específico da Resoluty, este serviço apenas
- * complementa com o contexto da conversa atual.
+ * Gera prompt para o cérebro da IA com o contexto da conversa
  */
 export function gerarPromptCerebro(
   historico: Mensagem[], 
-  clienteInfo?: ClienteInfo,
-  mensagemAtual?: string
+  mensagemCliente: string
 ): string {
   // Filtra mensagens muito curtas ou vazias
   const historicoFiltrado = historico.filter(msg => msg.texto && msg.texto.length > 2);
@@ -29,92 +13,28 @@ export function gerarPromptCerebro(
   // Filtra mensagens muito antigas (mantém apenas últimas 50 mensagens)
   const historicoLimitado = historicoFiltrado.slice(-50);
   
-  // Analisa status da conversa
-  const statusConversa = analisarStatusConversa(historicoLimitado);
-  
   // Formata o histórico com timestamps
   const historicoFormatado = historicoLimitado.map((msg) => {
     const timestamp = msg.timestamp ? new Date(msg.timestamp).toLocaleString('pt-BR') : 'Sem timestamp';
     return `[${timestamp}] ${msg.autor === 'usuario' ? 'Cliente' : 'Clara'}: ${msg.texto}`;
   }).join('\n');
 
-  // Informações do cliente
-  const infoCliente = clienteInfo ? `
-=== INFORMAÇÕES DO CLIENTE ===
-Nome: ${clienteInfo.nome || 'Não informado'}
-Número: ${clienteInfo.numero || 'Não informado'}
-Status: ${clienteInfo.status || 'Não informado'}
-` : '';
-
-  // Status da conversa
-  const statusInfo = `
-=== STATUS DA CONVERSA ===
-Primeira interação: ${statusConversa.isPrimeiraInteracao ? 'Sim' : 'Não'}
-Total de mensagens: ${statusConversa.totalMensagens}
-${statusConversa.etapaProcesso ? `Etapa do processo: ${statusConversa.etapaProcesso}` : ''}
-${statusConversa.tempoConversa ? `Tempo de conversa: ${statusConversa.tempoConversa}` : ''}
-`;
-
-  // Mensagem atual do cliente
-  const mensagemCliente = mensagemAtual ? `
-=== MENSAGEM ATUAL ===
-Cliente: ${mensagemAtual}
-` : '';
-
   // Prompt simplificado apenas com contexto
-  const prompt = `A mensagem recebida foi: ${mensagemCliente}
-  baseado na mensagem recebida e no histórico das mensagens, siga para o próximo passo que consta no documento SCRIPT SDR
+  const prompt = `Leia a seguinte mensagem do Cliente: ${mensagemCliente}
+
+Baseado na mensagem recebida e no histórico das mensagens, detecte a intenção do cliente
+
+Caso o Cliente tenha dito o valor total da divida, responda apenas o seguinte: "O Valor da Divida do Cliente é de" e adicione o valor da Divida
+
+Caso o Cliente tenha sugerido claramente um horário para Reunião, responda apenas o seguinte: "Agendar Google Meet "
+
+Caso o cliente tenha dito que recebe salário em conta responda apenas o seguinte: "Abrir para Atendente"
+
+Caso não seja nenhuma das intenções citadas, apenas consulte o documento SCRIPT SDR PDE e mande a mensagem prevista, lembre se, mande somente a mensagem pronta, para que ela seja encaminhada diretamente para o cliente
 
 === HISTÓRICO DA CONVERSA ===
 ${historicoFormatado}`;
 
   console.log('🧠 Contexto fornecido (primeiros 500 chars):', prompt.substring(0, 500) + '...');
   return prompt;
-}
-
-/**
- * Analisa o status da conversa baseado no histórico
- */
-function analisarStatusConversa(historico: Mensagem[]): ConversaStatus {
-  const totalMensagens = historico.length;
-  const isPrimeiraInteracao = totalMensagens <= 2; // Considera primeira se tem 2 ou menos mensagens
-  
-  // Calcula tempo de conversa se houver timestamps
-  let tempoConversa: string | undefined;
-  if (historico.length >= 2 && historico[0].timestamp && historico[historico.length - 1].timestamp) {
-    const inicio = new Date(historico[0].timestamp);
-    const fim = new Date(historico[historico.length - 1].timestamp);
-    const diffMs = fim.getTime() - inicio.getTime();
-    const diffMin = Math.floor(diffMs / (1000 * 60));
-    const diffHoras = Math.floor(diffMin / 60);
-    
-    if (diffHoras > 0) {
-      tempoConversa = `${diffHoras}h ${diffMin % 60}min`;
-    } else {
-      tempoConversa = `${diffMin}min`;
-    }
-  }
-  
-  // Determina etapa do processo baseado no conteúdo das mensagens
-  let etapaProcesso: string | undefined;
-  const ultimasMensagens = historico.slice(-5).map(msg => msg.texto.toLowerCase());
-  
-  if (ultimasMensagens.some(msg => msg.includes('nome') || msg.includes('chama'))) {
-    etapaProcesso = 'Coleta de informações iniciais';
-  } else if (ultimasMensagens.some(msg => msg.includes('dívida') || msg.includes('banco') || msg.includes('fatura'))) {
-    etapaProcesso = 'Análise de dívidas';
-  } else if (ultimasMensagens.some(msg => msg.includes('agendar') || msg.includes('reunião') || msg.includes('consulta'))) {
-    etapaProcesso = 'Agendamento';
-  } else if (ultimasMensagens.some(msg => msg.includes('valor') || msg.includes('desconto') || msg.includes('negociação'))) {
-    etapaProcesso = 'Negociação';
-  } else if (ultimasMensagens.some(msg => msg.includes('obrigado') || msg.includes('tchau') || msg.includes('até'))) {
-    etapaProcesso = 'Encerramento';
-  }
-  
-  return {
-    isPrimeiraInteracao,
-    etapaProcesso,
-    totalMensagens,
-    tempoConversa
-  };
 }

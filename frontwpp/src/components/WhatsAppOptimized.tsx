@@ -148,6 +148,13 @@ const WhatsAppOptimized: React.FC = () => {
         ...status,
         timestamp: Date.now()
       }));
+      
+      // Navegar automaticamente para dashboard se conectado
+      if (status.connected && status.number) {
+        console.log('✅ WhatsApp conectado, navegando para dashboard...');
+        // Disparar evento para mudar para dashboard
+        window.dispatchEvent(new CustomEvent('changeView', { detail: 'dashboard' }));
+      }
     };
 
     const handleQRCode = (data: { qr: string; instanceId?: string; number?: string }) => {
@@ -166,6 +173,18 @@ const WhatsAppOptimized: React.FC = () => {
       checkSystemStatus(); // Atualizar lista de instâncias
     };
 
+    const handleInstanceConnected = (data: { instanceId: string; number: string }) => {
+      console.log('✅ Instância conectada:', data);
+      // Navegar automaticamente para dashboard quando uma instância se conectar
+      window.dispatchEvent(new CustomEvent('changeView', { detail: 'dashboard' }));
+    };
+
+    const handleInstanceReady = (data: { instanceId: string; number: string }) => {
+      console.log('✅ Instância pronta:', data);
+      // Navegar automaticamente para dashboard quando uma instância estiver pronta
+      window.dispatchEvent(new CustomEvent('changeView', { detail: 'dashboard' }));
+    };
+
     const handleInstanceRemoved = (data: { instanceId: string }) => {
       checkSystemStatus(); // Atualizar lista de instâncias
     };
@@ -176,6 +195,8 @@ const WhatsAppOptimized: React.FC = () => {
     socketService.on('qr', handleQRCode);
     socketService.on('qr-expired', handleQRExpired);
     socketService.on('whatsapp-instance-added', handleInstanceAdded);
+    socketService.on('whatsapp-instance-connected', handleInstanceConnected);
+    socketService.on('instance-connected', handleInstanceReady);
     socketService.on('whatsapp-instance-removed', handleInstanceRemoved);
 
     return () => {
@@ -185,6 +206,8 @@ const WhatsAppOptimized: React.FC = () => {
       socketService.off('qr', handleQRCode);
       socketService.off('qr-expired', handleQRExpired);
       socketService.off('whatsapp-instance-added', handleInstanceAdded);
+      socketService.off('whatsapp-instance-connected', handleInstanceConnected);
+      socketService.off('instance-connected', handleInstanceReady);
       socketService.off('whatsapp-instance-removed', handleInstanceRemoved);
     };
   }, [checkSystemStatus]);

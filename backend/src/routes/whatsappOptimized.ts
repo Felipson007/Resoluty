@@ -270,7 +270,7 @@ async function processMessageWithAI(message: any, instanceId: string): Promise<s
      const historico = historicoResult.data || [];
      
      // Gerar resposta com IA
-     const prompt = await gerarPromptCerebro(historico, undefined, message.body);
+     const prompt = await gerarPromptCerebro(historico, message.body);
     
     if (prompt) {
       // Enviar resposta
