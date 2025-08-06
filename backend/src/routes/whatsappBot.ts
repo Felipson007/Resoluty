@@ -561,7 +561,7 @@ async function startBot(instanceId: string, number: string): Promise<void> {
             // Montar histórico estruturado para o cérebro
             const historicoEstruturado = (historicoDB || []).flatMap((item: any) => [
               { texto: item.mensagem_usuario, timestamp: item.data, autor: 'usuario' },
-              item.resposta_ia ? { texto: item.resposta_ia, timestamp: item.data, autor: 'sistema' } : null
+              item.resposta_ia ? { texto: item.resposta_ia, timestamp: item.data, autor: 'ai' } : null
             ]).filter(Boolean);
             
             // Combinar histórico do banco com histórico em memória
@@ -586,7 +586,7 @@ async function startBot(instanceId: string, number: string): Promise<void> {
               historicoPorUsuario[from].push({
                 texto: resposta,
                 timestamp: new Date().toISOString(),
-                autor: 'sistema',
+                autor: 'ai',
               });
 
               // Extrair informações do cliente da conversa
@@ -616,7 +616,7 @@ async function startBot(instanceId: string, number: string): Promise<void> {
                   message: {
                     texto: resposta,
                     timestamp: new Date().toISOString(),
-                    autor: 'sistema'
+                    autor: 'ai'
                   },
                   instanceId,
                   number

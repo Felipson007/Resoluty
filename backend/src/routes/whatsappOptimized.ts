@@ -278,7 +278,7 @@ async function processMessageWithAI(message: any, instanceId: string): Promise<s
       
       if (success) {
         // Salvar resposta no banco
-        await salvarMensagemLead(message.from, resposta, 'sistema', instanceId);
+        await salvarMensagemLead(message.from, resposta, 'ai', instanceId);
         
         // Emitir para frontend
         if (socketIO) {
@@ -288,7 +288,7 @@ async function processMessageWithAI(message: any, instanceId: string): Promise<s
               id: `ai-${Date.now()}`,
               texto: resposta,
               timestamp: new Date().toISOString(),
-              autor: 'sistema'
+              autor: 'ai'
             },
             instanceId
           });

@@ -288,7 +288,7 @@ app.get('/api/conversations/:contact/messages', async (req, res) => {
       id: msg.id,
       texto: msg.mensagem,
       timestamp: msg.timestamp,
-      autor: msg.autor === 'sistema' ? 'sistema' : 'usuario',
+              autor: msg.autor === 'ai' ? 'ai' : 'usuario',
       contactId: msg.numero
     }));
     

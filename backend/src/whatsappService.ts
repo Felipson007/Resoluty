@@ -328,7 +328,7 @@ async function initializeWhatsApp() {
         try {
           await supabase.from('mensagens_leads').insert({
             mensagem: msg.body,
-            autor: 'sistema',
+            autor: 'ai',
             numero: msg.to,
             timestamp: message.timestamp
           });
@@ -378,7 +378,7 @@ async function handleAIAutoReply(msg: any) {
     // Converter histórico para formato do cérebro
     const historicoFormatado = conversationHistory.map(m => ({
       texto: m.body,
-      autor: m.isFromMe ? 'sistema' as const : 'usuario' as const,
+      autor: m.isFromMe ? 'ai' as const : 'usuario' as const,
       timestamp: m.timestamp
     }));
 
@@ -406,7 +406,7 @@ async function handleAIAutoReply(msg: any) {
       // Salvar resposta no Supabase
       await supabase.from('mensagens_leads').insert({
         mensagem: aiResponse,
-        autor: 'sistema',
+        autor: 'ai',
         numero: msg.from,
         timestamp: new Date().toISOString()
       });

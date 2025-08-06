@@ -2,7 +2,7 @@ export interface Mensagem {
   id?: string;
   texto: string;
   timestamp: string; // ISO string
-  autor: 'usuario' | 'sistema';
+  autor: 'usuario' | 'ai';
 }
 
 export interface HistoricoConversa {
