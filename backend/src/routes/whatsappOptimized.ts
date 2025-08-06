@@ -241,6 +241,13 @@ whatsappManager.on('instance-destroyed', ({ instanceId }) => {
 whatsappManager.on('message-received', async ({ instanceId, message }) => {
   try {
     console.log(`📨 Mensagem recebida via ${instanceId}:`, message.body);
+    console.log(`📨 De: ${message.from}, Para: ${message.to}, FromMe: ${message.fromMe}`);
+    
+    // 🔧 CORREÇÃO: Verificação adicional para evitar processamento de mensagens próprias
+    if (message.fromMe) {
+      console.log(`📱 Ignorando mensagem própria no processamento:`, message.body);
+      return;
+    }
     
     // Processar mensagem com IA
     const processedMessage = await processMessageWithAI(message, instanceId);
@@ -333,18 +340,7 @@ async function processMessageWithAI(message: any, instanceId: string): Promise<s
     
   } catch (error) {
     console.error('❌ Erro ao processar mensagem com IA:', error);
-    
-    // Fallback em caso de erro
-    const fallbackResponse = 'Olá! Como posso ajudá-lo com suas dívidas bancárias hoje?';
-    
-    try {
-      await whatsappManager.sendMessage(instanceId, message.from, fallbackResponse);
-      console.log('✅ Resposta de fallback enviada');
-      return fallbackResponse;
-    } catch (fallbackError) {
-      console.error('❌ Erro ao enviar resposta de fallback:', fallbackError);
-      return null;
-    }
+    return null;
   }
 }
 

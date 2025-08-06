@@ -219,6 +219,14 @@ class WhatsAppManager extends EventEmitter {
     client.on('message', async (message) => {
       try {
         instance.lastActivity = Date.now();
+        
+        // 🔧 CORREÇÃO: Ignorar mensagens próprias para evitar loop
+        if (message.fromMe) {
+          console.log(`📱 Ignorando mensagem própria de ${instanceId}:`, message.body);
+          return;
+        }
+        
+        console.log(`📨 Mensagem recebida de ${message.from} via ${instanceId}:`, message.body);
         this.emit('message-received', { instanceId, message });
       } catch (error) {
         console.error(`❌ Erro ao processar mensagem ${instanceId}:`, error);
