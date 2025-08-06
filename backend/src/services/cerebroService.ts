@@ -9,6 +9,12 @@ export async function gerarPromptCerebro(
   mensagemCliente: string
 ): Promise<string | null> {
   try {
+    // Verificar se a API key está configurada
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('❌ Erro: OPENAI_API_KEY não está configurada');
+      return null;
+    }
+
     // Filtra mensagens muito curtas ou vazias
     const historicoFiltrado = historico.filter(msg => msg.texto && msg.texto.length > 2);
     
@@ -39,36 +45,43 @@ ${historicoFormatado}`;
 
     console.log('🧠 Contexto fornecido (primeiros 500 chars):', prompt.substring(0, 500) + '...');
 
-    // Verificar se a API key está configurada
-    if (!process.env.OPENAI_API_KEY) {
-      console.error('❌ Erro: OPENAI_API_KEY não está configurada');
-      return null;
-    }
-
-    // Chamar OpenAI API
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "system",
-          content: "Você é Clara, uma assistente virtual especializada em atendimento ao cliente. Responda de forma clara e direta, seguindo exatamente as instruções fornecidas."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      max_tokens: 500,
-      temperature: 0.7
+    // Criar um novo thread para cada conversa
+    const thread = await openai.beta.threads.create();
+    
+    // Adicionar mensagem ao thread
+    await openai.beta.threads.messages.create(thread.id, {
+      role: 'user',
+      content: prompt
     });
 
-    const aiResponse = completion.choices[0]?.message?.content?.trim();
+    // Executar o assistente com o ID específico
+    const run = await openai.beta.threads.runs.create(thread.id, {
+      assistant_id: 'asst_rPvHoutBw01eSySqhtTK4Iv7'
+    });
+
+    // Aguardar conclusão
+    let runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
     
-    if (aiResponse) {
-      console.log('🤖 Resposta da IA:', aiResponse);
-      return aiResponse;
+    while (runStatus.status === 'in_progress' || runStatus.status === 'queued') {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
+    }
+
+    if (runStatus.status === 'completed') {
+      // Buscar a resposta
+      const messages = await openai.beta.threads.messages.list(thread.id);
+      const lastMessage = messages.data[0];
+      
+      if (lastMessage && lastMessage.content[0].type === 'text') {
+        const aiResponse = lastMessage.content[0].text.value;
+        console.log('🤖 Resposta da IA:', aiResponse);
+        return aiResponse;
+      } else {
+        console.error('❌ Erro: IA não retornou resposta válida');
+        return null;
+      }
     } else {
-      console.error('❌ Erro: IA não retornou resposta');
+      console.error('❌ Erro na execução da IA:', runStatus.status);
       return null;
     }
 
