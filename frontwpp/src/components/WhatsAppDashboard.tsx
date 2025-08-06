@@ -95,8 +95,25 @@ const WhatsAppDashboard: React.FC = () => {
       
       // Buscar leads apenas se WhatsApp estiver conectado
       if (whatsappConnected) {
+        console.log('📋 Buscando leads...');
         const leads = await ApiService.getLeads();
-        setContacts(leads);
+        console.log('📋 Leads recebidos:', leads);
+        
+        // Converter leads para formato do frontend
+        const formattedContacts = leads.map((lead: any) => ({
+          id: lead.numero,
+          name: `Cliente ${lead.numero}`,
+          phone: lead.numero,
+          lastMessage: lead.metadata?.ultima_mensagem || 'Nenhuma mensagem',
+          lastMessageTime: lead.updated_at ? new Date(lead.updated_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
+          status: lead.metadata?.status === 'lead_novo' ? 'bot' : 
+                 lead.metadata?.status === 'lead_avancado' ? 'humano' : 
+                 lead.metadata?.status === 'lead_sem_interesse' ? 'finalizado' : 'bot',
+          unreadCount: 0
+        }));
+        
+        console.log('📋 Contatos formatados:', formattedContacts);
+        setContacts(formattedContacts);
       }
       
     } catch (err: any) {

@@ -13,25 +13,32 @@ export async function gerarPromptCerebro(
       return 'Olá! Como posso ajudá-lo com suas dívidas bancárias hoje?';
     }
 
-    // Formatar histórico fornecido para o prompt
+    console.log('🤖 Iniciando processamento da IA...');
+    console.log('📝 Mensagem do cliente:', mensagemCliente);
+    console.log('📋 Histórico:', historico.length, 'mensagens');
+
+    // Formatar histórico para o prompt
     const historicoFormatado = historico
       .map((msg: Mensagem) => `${msg.autor}: ${msg.texto}`)
       .join('\n');
 
-    console.log('📋 Histórico recebido:', historico);
-    console.log('📋 Histórico formatado:', historicoFormatado);
+    // Prompt simplificado e direto
+    const prompt = `Você é Clara, uma assistente virtual especializada em consultoria de dívidas bancárias da Resoluty Consultoria.
 
-    // Prompt específico para respostas concisas conforme solicitado
-    const prompt = `Leia a seguinte mensagem do Cliente: ${mensagemCliente}
+MENSAGEM DO CLIENTE: "${mensagemCliente}"
 
+HISTÓRICO DA CONVERSA:
+${historicoFormatado}
 
-Caso não seja nenhuma das intenções citadas, apenas consulte o documento SCRIPT SDR PDE e mande a mensagem prevista, lembre se, mande somente a mensagem pronta, para que ela seja encaminhada diretamente para o cliente
+INSTRUÇÕES:
+1. Se o cliente mencionar um valor específico de dívida, responda: "O Valor da Dívida do Cliente é de [VALOR]"
+2. Se o cliente sugerir um horário para reunião, responda: "Agendar Google Meet"
+3. Se o cliente mencionar que recebe salário em conta, responda: "Abrir para Atendente"
+4. Para outras situações, consulte o SCRIPT SDR PDE e responda adequadamente
 
-=== HISTÓRICO DA CONVERSA ===
-${historicoFormatado}`;
+IMPORTANTE: Responda de forma natural e conversacional, como uma consultora real.`;
 
-    console.log('🧠 Prompt completo:', prompt);
-    console.log('🧠 Assistant ID:', 'asst_rPvHoutBw01eSySqhtTK4Iv7');
+    console.log('🧠 Prompt criado, enviando para OpenAI...');
 
     // Usar o Assistant ID específico
     const assistantId = 'asst_rPvHoutBw01eSySqhtTK4Iv7';
@@ -45,7 +52,7 @@ ${historicoFormatado}`;
       return 'Olá! Como posso ajudá-lo com suas dívidas bancárias hoje?';
     }
     
-    // Criar um novo thread para cada conversa
+    // Criar um novo thread
     const thread = await openai.beta.threads.create();
     console.log('🧵 Thread criado:', thread.id);
     
@@ -62,14 +69,18 @@ ${historicoFormatado}`;
     });
     console.log('🤖 Run iniciado:', run.id);
 
-    // Aguardar conclusão
+    // Aguardar conclusão com timeout
     let runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
     console.log('📊 Status inicial do run:', runStatus.status);
     
-    while (runStatus.status === 'in_progress' || runStatus.status === 'queued') {
+    let attempts = 0;
+    const maxAttempts = 30; // 30 segundos máximo
+    
+    while ((runStatus.status === 'in_progress' || runStatus.status === 'queued') && attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 1000));
       runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
-      console.log('📊 Status do run:', runStatus.status);
+      attempts++;
+      console.log(`📊 Status do run (tentativa ${attempts}):`, runStatus.status);
     }
 
     console.log('📊 Status final do run:', runStatus.status);
@@ -83,17 +94,14 @@ ${historicoFormatado}`;
       
       if (lastMessage && lastMessage.content[0].type === 'text') {
         const resposta = lastMessage.content[0].text.value;
-        
         console.log('🤖 Resposta da IA:', resposta);
         return resposta;
       } else {
         console.error('❌ Erro: IA não retornou resposta válida');
-        console.error('❌ Última mensagem:', lastMessage);
         return 'Olá! Como posso ajudá-lo com suas dívidas bancárias hoje?';
       }
     } else {
       console.error('❌ Erro: Run falhou com status:', runStatus.status);
-      console.error('❌ Detalhes do erro:', runStatus);
       return 'Olá! Como posso ajudá-lo com suas dívidas bancárias hoje?';
     }
 
