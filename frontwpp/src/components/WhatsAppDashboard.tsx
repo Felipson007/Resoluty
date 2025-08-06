@@ -106,9 +106,9 @@ const WhatsAppDashboard: React.FC = () => {
           phone: lead.numero,
           lastMessage: lead.metadata?.ultima_mensagem || 'Nenhuma mensagem',
           lastMessageTime: lead.updated_at ? new Date(lead.updated_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
-          status: lead.metadata?.status === 'lead_novo' ? 'bot' : 
+          status: (lead.metadata?.status === 'lead_novo' ? 'bot' : 
                  lead.metadata?.status === 'lead_avancado' ? 'humano' : 
-                 lead.metadata?.status === 'lead_sem_interesse' ? 'finalizado' : 'bot',
+                 lead.metadata?.status === 'lead_sem_interesse' ? 'finalizado' : 'bot') as 'bot' | 'humano' | 'aguardando' | 'finalizado',
           unreadCount: 0
         }));
         
@@ -160,7 +160,7 @@ const WhatsAppDashboard: React.FC = () => {
         id: messageId,
         texto: data.message.texto || data.message.body || 'Mensagem sem texto',
         timestamp: data.message.timestamp || new Date().toISOString(),
-        autor: data.message.autor || (data.message.isFromMe ? 'sistema' : 'usuario'),
+        autor: data.message.autor || (data.message.isFromMe ? 'sistema' : 'usuario') as 'usuario' | 'sistema',
         contactId: data.contactId,
         instanceId: data.instanceId,
         number: data.number
@@ -205,9 +205,9 @@ const WhatsAppDashboard: React.FC = () => {
             ...(data.lead && {
               name: `Cliente ${data.lead.numero}`,
               phone: data.lead.numero,
-              status: data.lead.status === 'lead_novo' ? 'bot' : 
+              status: (data.lead.status === 'lead_novo' ? 'bot' : 
                      data.lead.status === 'lead_avancado' ? 'humano' : 
-                     data.lead.status === 'lead_sem_interesse' ? 'finalizado' : 'bot'
+                     data.lead.status === 'lead_sem_interesse' ? 'finalizado' : 'bot') as 'bot' | 'humano' | 'aguardando' | 'finalizado'
             })
           };
           return updatedContacts;
@@ -221,7 +221,7 @@ const WhatsAppDashboard: React.FC = () => {
             status: data.lead ? 
               (data.lead.status === 'lead_novo' ? 'bot' : 
                data.lead.status === 'lead_avancado' ? 'humano' : 
-               data.lead.status === 'lead_sem_interesse' ? 'finalizado' : 'bot') : 'bot',
+               data.lead.status === 'lead_sem_interesse' ? 'finalizado' : 'bot') as 'bot' | 'humano' | 'aguardando' | 'finalizado' : 'bot',
             unreadCount: data.contactId === selectedContactId ? 0 : 1,
             instanceId: data.instanceId,
             number: data.number
@@ -235,7 +235,7 @@ const WhatsAppDashboard: React.FC = () => {
     const handleStatusUpdated = (data: { contactId: string; status: string }) => {
       setContacts(prev => prev.map(contact => 
         contact.id === data.contactId
-          ? { ...contact, status: data.status as any }
+          ? { ...contact, status: data.status as 'bot' | 'humano' | 'aguardando' | 'finalizado' }
           : contact
       ));
     };
@@ -296,7 +296,7 @@ const WhatsAppDashboard: React.FC = () => {
         id: msg.id,
         texto: msg.texto || msg.body || 'Mensagem sem texto',
         timestamp: msg.timestamp,
-        autor: msg.autor || 'usuario',
+        autor: (msg.autor || 'usuario') as 'usuario' | 'sistema',
         contactId: contactId
       }));
       
@@ -320,7 +320,7 @@ const WhatsAppDashboard: React.FC = () => {
           id: `local-${Date.now()}`,
           texto: message,
           timestamp: new Date().toISOString(),
-          autor: 'sistema',
+          autor: 'sistema' as 'usuario' | 'sistema',
           contactId: selectedContactId,
         };
 
@@ -367,7 +367,7 @@ const WhatsAppDashboard: React.FC = () => {
       if (success) {
         setContacts(prev => prev.map(contact => 
           contact.id === contactId
-            ? { ...contact, status: newStatus }
+            ? { ...contact, status: newStatus as 'bot' | 'humano' | 'aguardando' | 'finalizado' }
             : contact
         ));
       } else {
