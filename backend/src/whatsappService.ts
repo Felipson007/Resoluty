@@ -390,60 +390,29 @@ async function handleAIAutoReply(msg: any) {
       status: 'ativo'
     };
 
-    // Gerar prompt usando o cérebro
-    const promptCerebro = await gerarPromptCerebro(
+    // Gerar resposta usando o cérebro
+    const aiResponse = await gerarPromptCerebro(
       historicoFormatado,
       msg.body
     );
 
-    console.log('🧠 Prompt gerado pelo cérebro:', promptCerebro.substring(0, 200) + '...');
-
-    // Criar um novo thread para cada conversa
-    const thread = await openai.beta.threads.create();
-    
-    // Adicionar mensagem ao thread
-    await openai.beta.threads.messages.create(thread.id, {
-      role: 'user',
-      content: promptCerebro
-    });
-
-    // Executar o assistente
-    const run = await openai.beta.threads.runs.create(thread.id, {
-      assistant_id: process.env.OPENAI_ASSISTANT_ID!
-    });
-
-    // Aguardar conclusão
-    let runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
-    
-    while (runStatus.status === 'in_progress' || runStatus.status === 'queued') {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
-    }
-
-    if (runStatus.status === 'completed') {
-      // Buscar a resposta
-      const messages = await openai.beta.threads.messages.list(thread.id);
-      const lastMessage = messages.data[0];
+    if (aiResponse) {
+      console.log('🤖 Resposta da IA:', aiResponse);
       
-      if (lastMessage && lastMessage.content[0].type === 'text') {
-        const aiResponse = lastMessage.content[0].text.value;
-        console.log('🤖 Resposta da IA:', aiResponse);
-        
-        // Enviar resposta via WhatsApp
-        await whatsappClient!.sendMessage(msg.from, aiResponse);
-        
-        // Salvar resposta no Supabase
-        await supabase.from('mensagens_leads').insert({
-          mensagem: aiResponse,
-          autor: 'sistema',
-          numero: msg.from,
-          timestamp: new Date().toISOString()
-        });
-        
-        console.log('✅ Resposta da IA enviada e salva');
-      }
+      // Enviar resposta via WhatsApp
+      await whatsappClient!.sendMessage(msg.from, aiResponse);
+      
+      // Salvar resposta no Supabase
+      await supabase.from('mensagens_leads').insert({
+        mensagem: aiResponse,
+        autor: 'sistema',
+        numero: msg.from,
+        timestamp: new Date().toISOString()
+      });
+      
+      console.log('✅ Resposta da IA enviada e salva');
     } else {
-      console.error('❌ Erro na execução da IA:', runStatus.status);
+      console.error('❌ Erro: IA não retornou resposta válida');
     }
   } catch (error) {
     console.error('❌ Erro ao processar resposta da IA:', error);
