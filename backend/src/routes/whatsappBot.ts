@@ -578,8 +578,8 @@ async function startBot(instanceId: string, number: string): Promise<void> {
               status: lead.metadata?.status || 'lead_novo'
             } : undefined;
             
-            // Gera prompt usando o cérebro com a mensagem atual
-            const promptCerebro = await gerarPromptCerebro(historicoFinal, text);
+                         // Gera prompt usando o cérebro com a mensagem atual
+             const promptCerebro = await gerarPromptCerebro(historicoFinal, text, from);
             
             let resposta = 'Desculpe, não consegui responder.';
             try {
