@@ -7,12 +7,6 @@ export async function gerarPromptCerebro(
   numeroCliente?: string
 ): Promise<string | null> {
   try {
-    // Verificar se a API key está configurada
-    if (!process.env.OPENAI_API_KEY) {
-      console.error('❌ OPENAI_API_KEY não configurada');
-      return 'Olá! Como posso ajudá-lo com suas dívidas bancárias hoje?';
-    }
-
     console.log('🤖 Iniciando processamento da IA...');
     console.log('📝 Mensagem do cliente:', mensagemCliente);
     console.log('📋 Histórico:', historico.length, 'mensagens');
@@ -43,20 +37,10 @@ IMPORTANTE: Responda de forma natural e conversacional, como uma consultora real
     // Usar o Assistant ID específico
     const assistantId = 'asst_rPvHoutBw01eSySqhtTK4Iv7';
     
-    // Verificar se o assistant existe
-    try {
-      const assistant = await openai.beta.assistants.retrieve(assistantId);
-      console.log('✅ Assistant encontrado:', assistant.name);
-    } catch (assistantError) {
-      console.error('❌ Erro ao verificar assistant:', assistantError);
-      return 'Olá! Como posso ajudá-lo com suas dívidas bancárias hoje?';
-    }
-    
     // Criar um novo thread
     const thread = await openai.beta.threads.create();
     console.log('🧵 Thread criado:', thread.id);
     
-    // Adicionar mensagem ao thread
     await openai.beta.threads.messages.create(thread.id, {
       role: 'user',
       content: prompt
@@ -69,7 +53,6 @@ IMPORTANTE: Responda de forma natural e conversacional, como uma consultora real
     });
     console.log('🤖 Run iniciado:', run.id);
 
-    // Aguardar conclusão com timeout
     let runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
     console.log('📊 Status inicial do run:', runStatus.status);
     
@@ -94,25 +77,22 @@ IMPORTANTE: Responda de forma natural e conversacional, como uma consultora real
       
       if (lastMessage && lastMessage.content[0].type === 'text') {
         const resposta = lastMessage.content[0].text.value;
+        
         console.log('🤖 Resposta da IA:', resposta);
         return resposta;
       } else {
         console.error('❌ Erro: IA não retornou resposta válida');
-        return 'Olá! Como posso ajudá-lo com suas dívidas bancárias hoje?';
+        console.error('❌ Última mensagem:', lastMessage);
+        return null;
       }
     } else {
       console.error('❌ Erro: Run falhou com status:', runStatus.status);
-      return 'Olá! Como posso ajudá-lo com suas dívidas bancárias hoje?';
+      console.error('❌ Detalhes do erro:', runStatus);
+      return null;
     }
 
   } catch (error) {
     console.error('❌ Erro ao gerar resposta da IA:', error);
-    
-    // Fallback simples e conciso
-    if (mensagemCliente.toLowerCase().includes('olá') || mensagemCliente.toLowerCase().includes('oi') || mensagemCliente.toLowerCase().includes('ola')) {
-      return 'Olá! Seja bem-vindo à Resoluty Consultoria! Meu nome é Clara e estou aqui para te ajudar na redução das suas dívidas bancárias. Como você se chama?';
-    }
-    
-    return 'Olá! Como posso ajudá-lo com suas dívidas bancárias hoje?';
+    return null;
   }
 }
