@@ -1,4 +1,5 @@
 import { Mensagem } from '../types/conversa';
+import openai from '../config/openai';
 
 export async function gerarPromptCerebro(
   historico: Mensagem[],
@@ -6,6 +7,12 @@ export async function gerarPromptCerebro(
   numeroCliente?: string
 ): Promise<string | null> {
   try {
+    // Verificar se a API key está configurada
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('❌ Erro: OPENAI_API_KEY não está configurada');
+      return null;
+    }
+
     // Formatar histórico para o prompt
     const historicoFormatado = historico
       .map(msg => `${msg.autor}: ${msg.texto}`)
@@ -28,11 +35,51 @@ Caso não seja nenhuma das intenções citadas, apenas consulte o documento SCRI
 ${historicoFormatado}`;
 
     console.log('🧠 Contexto fornecido (primeiros 500 chars):', prompt.substring(0, 500) + '...');
+
+    // Usar o Assistant ID específico
+    const assistantId = 'asst_rPvHoutBw01eSySqhtTK4Iv7';
     
-    return prompt;
+    // Criar um novo thread para cada conversa
+    const thread = await openai.beta.threads.create();
+    
+    // Adicionar mensagem ao thread
+    await openai.beta.threads.messages.create(thread.id, {
+      role: 'user',
+      content: prompt
+    });
+
+    // Executar o assistente
+    const run = await openai.beta.threads.runs.create(thread.id, {
+      assistant_id: assistantId
+    });
+
+    // Aguardar conclusão
+    let runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
+    
+    while (runStatus.status === 'in_progress' || runStatus.status === 'queued') {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
+    }
+
+    if (runStatus.status === 'completed') {
+      const messages = await openai.beta.threads.messages.list(thread.id);
+      const lastMessage = messages.data[0];
+      
+      if (lastMessage && lastMessage.content[0].type === 'text') {
+        const resposta = lastMessage.content[0].text.value;
+        console.log('🤖 Resposta da IA:', resposta);
+        return resposta;
+      } else {
+        console.error('❌ Erro: IA não retornou resposta válida');
+        return null;
+      }
+    } else {
+      console.error('❌ Erro: Run falhou com status:', runStatus.status);
+      return null;
+    }
 
   } catch (error) {
-    console.error('❌ Erro ao gerar prompt do cérebro:', error);
+    console.error('❌ Erro ao gerar resposta da IA:', error);
     return null;
   }
 }
