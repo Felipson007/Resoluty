@@ -249,7 +249,6 @@ export async function salvarMensagemLead(
         numero: numeroLimpo,
         mensagem,
         autor,
-        instance_id: instanceId,
         timestamp: new Date().toISOString()
       });
 

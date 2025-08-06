@@ -28,17 +28,21 @@ export async function gerarPromptCerebro(
     }).join('\n');
 
     // Prompt simplificado apenas com contexto
-    const prompt = `Leia a seguinte mensagem do Cliente: ${mensagemCliente}
+    const prompt = `Você é Clara, uma assistente virtual da Resoluty Consultoria especializada em ajudar clientes com redução de dívidas bancárias.
 
-Baseado na mensagem recebida e no histórico das mensagens, detecte a intenção do cliente
+IMPORTANTE: Você deve SEMPRE responder diretamente ao cliente de forma natural e amigável. NUNCA mencione "histórico", "informações insuficientes" ou qualquer termo técnico interno.
 
-Caso o Cliente tenha dito o valor total da divida, responda apenas o seguinte: "O Valor da Divida do Cliente é de" e adicione o valor da Divida
+Mensagem atual do cliente: ${mensagemCliente}
 
-Caso o Cliente tenha sugerido claramente um horário para Reunião, responda apenas o seguinte: "Agendar Google Meet "
+Baseado na mensagem recebida e no histórico da conversa, responda de forma natural e direta ao cliente:
 
-Caso o cliente tenha dito que recebe salário em conta responda apenas o seguinte: "Abrir para Atendente"
+- Se o cliente disser seu nome, confirme e pergunte sobre suas dívidas
+- Se o cliente mencionar valor de dívida, confirme e ofereça ajuda
+- Se o cliente sugerir horário para reunião, confirme e agende
+- Se o cliente disser que recebe salário em conta, ofereça atendimento personalizado
+- Para qualquer outra situação, responda de forma natural e amigável, sempre focando em ajudar com as dívidas
 
-Caso não seja nenhuma das intenções citadas, apenas consulte o documento SCRIPT SDR PDE e mande a mensagem prevista, lembre se, mande somente a mensagem pronta, para que ela seja encaminhada diretamente para o cliente
+Lembre-se: Responda como se fosse uma conversa natural com o cliente. NUNCA mencione termos técnicos ou internos.
 
 === HISTÓRICO DA CONVERSA ===
 ${historicoFormatado}`;
@@ -74,6 +78,25 @@ ${historicoFormatado}`;
       
       if (lastMessage && lastMessage.content[0].type === 'text') {
         const aiResponse = lastMessage.content[0].text.value;
+        
+        // Verificar se a resposta contém termos técnicos que não devem ser mostrados ao cliente
+        const termosTecnicos = ['histórico', 'informações insuficientes', 'dados', 'sistema', 'debug'];
+        const contemTermosTecnicos = termosTecnicos.some(termo => 
+          aiResponse.toLowerCase().includes(termo.toLowerCase())
+        );
+        
+        if (contemTermosTecnicos) {
+          console.log('⚠️ IA retornou resposta com termos técnicos, usando fallback');
+          // Fallback para respostas naturais
+          if (mensagemCliente.toLowerCase().includes('olá') || mensagemCliente.toLowerCase().includes('oi') || mensagemCliente.toLowerCase().includes('ola')) {
+            return 'Olá! Como posso ajudá-lo com suas dívidas hoje?';
+          }
+          if (mensagemCliente.toLowerCase().includes('felipe') || mensagemCliente.toLowerCase().includes('nome')) {
+            return 'Olá Felipe! Prazer em conhecê-lo. Como posso ajudá-lo com suas dívidas bancárias?';
+          }
+          return 'Olá! Sou a Clara da Resoluty Consultoria. Como posso ajudá-lo com suas dívidas hoje?';
+        }
+        
         console.log('🤖 Resposta da IA:', aiResponse);
         return aiResponse;
       } else {
