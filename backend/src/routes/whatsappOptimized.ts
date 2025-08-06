@@ -4,6 +4,7 @@ import { salvarMensagemLead, buscarLead } from '../services/leadService';
 import { buscarHistoricoCliente } from '../services/historicoService';
 import { gerarPromptCerebro } from '../services/cerebroService';
 import { callInternalWebhook } from '../config/api';
+import { supabase } from '../config/supabase';
 
 const router = Router();
 
@@ -265,9 +266,30 @@ whatsappManager.on('message-received', async ({ instanceId, message }) => {
 // Função para processar mensagem com IA
 async function processMessageWithAI(message: any, instanceId: string): Promise<string | null> {
   try {
-    // Buscar histórico do cliente
-    const historicoResult = await buscarHistoricoCliente(message.from);
-    const historico = historicoResult.data || [];
+    // Buscar histórico diretamente da tabela mensagens_leads
+    const numeroLimpo = message.from.replace('@s.whatsapp.net', '');
+    console.log('📋 Buscando histórico para:', numeroLimpo);
+    
+    const { data: mensagens, error } = await supabase
+      .from('mensagens_leads')
+      .select('*')
+      .eq('numero', numeroLimpo)
+      .order('timestamp', { ascending: true })
+      .limit(10);
+
+    if (error) {
+      console.error('❌ Erro ao buscar mensagens:', error);
+    }
+
+    // Converter para formato esperado pela IA
+    const historico = (mensagens || []).map(msg => ({
+      id: msg.id,
+      texto: msg.mensagem,
+      timestamp: msg.timestamp,
+      autor: msg.autor
+    }));
+
+    console.log('📋 Histórico encontrado:', historico.length, 'mensagens');
     
     // Gerar resposta com IA usando o cérebro
     const resposta = await gerarPromptCerebro(historico, message.body, message.from);
@@ -321,5 +343,38 @@ async function processMessageWithAI(message: any, instanceId: string): Promise<s
     }
   }
 }
+
+// Endpoint para testar a IA
+router.post('/test-ai', async (req, res) => {
+  try {
+    const { message, historico = [] } = req.body;
+    
+    if (!message) {
+      return res.status(400).json({
+        success: false,
+        error: 'Mensagem é obrigatória'
+      });
+    }
+
+    console.log('🧪 Testando IA com mensagem:', message);
+    console.log('🧪 Histórico:', historico);
+
+    const resposta = await gerarPromptCerebro(historico, message);
+    
+    res.json({
+      success: true,
+      message: message,
+      resposta: resposta,
+      historico: historico
+    });
+
+  } catch (error) {
+    console.error('❌ Erro no teste da IA:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+});
 
 export default router; 
