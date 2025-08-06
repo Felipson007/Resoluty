@@ -33,13 +33,21 @@ export async function gerarPromptCerebro(
       .map((msg: { autor: string; texto: string }) => `${msg.autor}: ${msg.texto}`)
       .join('\n');
 
-    // Prompt simples apenas com histórico
-    const prompt = `Histórico da conversa:
-${historicoFormatado}
+    // Prompt específico para respostas concisas conforme solicitado
+    const prompt = `Leia a seguinte mensagem do Cliente: ${mensagemCliente}
 
-Mensagem atual do cliente: ${mensagemCliente}
+Baseado na mensagem recebida e no histórico das mensagens, detecte a intenção do cliente
 
-Responda de forma natural e amigável, sempre focando em ajudar com dívidas bancárias.`;
+Caso o Cliente tenha dito o valor total da divida, responda apenas o seguinte: "O Valor da Divida do Cliente é de" e adicione o valor da Divida
+
+Caso o Cliente tenha sugerido claramente um horário para Reunião, responda apenas o seguinte: "Agendar Google Meet "
+
+Caso o cliente tenha dito que recebe salário em conta responda apenas o seguinte: "Abrir para Atendente"
+
+Caso não seja nenhuma das intenções citadas, apenas consulte o documento SCRIPT SDR PDE e mande a mensagem prevista, lembre se, mande somente a mensagem pronta, para que ela seja encaminhada diretamente para o cliente
+
+=== HISTÓRICO DA CONVERSA ===
+${historicoFormatado}`;
 
     console.log('🧠 Histórico fornecido (primeiros 500 chars):', prompt.substring(0, 500) + '...');
 
@@ -96,7 +104,7 @@ Responda de forma natural e amigável, sempre focando em ajudar com dívidas ban
   } catch (error) {
     console.error('❌ Erro ao gerar resposta da IA:', error);
     
-    // Fallback simples
+    // Fallback simples e conciso
     if (mensagemCliente.toLowerCase().includes('olá') || mensagemCliente.toLowerCase().includes('oi') || mensagemCliente.toLowerCase().includes('ola')) {
       return 'Olá! Seja bem-vindo à Resoluty Consultoria! Meu nome é Clara e estou aqui para te ajudar na redução das suas dívidas bancárias. Como você se chama?';
     }

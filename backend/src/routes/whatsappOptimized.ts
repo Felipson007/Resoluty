@@ -265,43 +265,60 @@ whatsappManager.on('message-received', async ({ instanceId, message }) => {
 // Função para processar mensagem com IA
 async function processMessageWithAI(message: any, instanceId: string): Promise<string | null> {
   try {
-         // Buscar histórico do cliente
-     const historicoResult = await buscarHistoricoCliente(message.from);
-     const historico = historicoResult.data || [];
-     
-     // Gerar resposta com IA
-     const prompt = await gerarPromptCerebro(historico, message.body, message.from);
+    // Buscar histórico do cliente
+    const historicoResult = await buscarHistoricoCliente(message.from);
+    const historico = historicoResult.data || [];
     
-    if (prompt) {
-      // Enviar resposta
-      const success = await whatsappManager.sendMessage(instanceId, message.from, prompt);
+    // Gerar resposta com IA usando o cérebro
+    const resposta = await gerarPromptCerebro(historico, message.body, message.from);
+    
+    if (resposta) {
+      // Enviar resposta via WhatsApp
+      const success = await whatsappManager.sendMessage(instanceId, message.from, resposta);
       
       if (success) {
-                 // Salvar resposta no banco
-         await salvarMensagemLead(message.from, prompt, 'ai', instanceId);
+        // Salvar resposta no banco
+        await salvarMensagemLead(message.from, resposta, 'sistema', instanceId);
         
         // Emitir para frontend
         if (socketIO) {
-                     socketIO.emit('new-message', {
-             contactId: message.from,
-             message: {
-               id: `ai-${Date.now()}`,
-               texto: prompt,
-               timestamp: new Date().toISOString(),
-               autor: 'ai'
-             },
-             instanceId
-           });
+          socketIO.emit('new-message', {
+            contactId: message.from,
+            message: {
+              id: `ai-${Date.now()}`,
+              texto: resposta,
+              timestamp: new Date().toISOString(),
+              autor: 'sistema'
+            },
+            instanceId
+          });
         }
         
-        return prompt;
+        console.log('✅ Resposta da IA enviada e salva:', resposta);
+        return resposta;
+      } else {
+        console.error('❌ Erro: Falha ao enviar mensagem via WhatsApp');
+        return null;
       }
+    } else {
+      console.error('❌ Erro: IA não retornou resposta válida');
+      return null;
     }
     
-    return null;
   } catch (error) {
     console.error('❌ Erro ao processar mensagem com IA:', error);
-    return null;
+    
+    // Fallback em caso de erro
+    const fallbackResponse = 'Olá! Como posso ajudá-lo com suas dívidas bancárias hoje?';
+    
+    try {
+      await whatsappManager.sendMessage(instanceId, message.from, fallbackResponse);
+      console.log('✅ Resposta de fallback enviada');
+      return fallbackResponse;
+    } catch (fallbackError) {
+      console.error('❌ Erro ao enviar resposta de fallback:', fallbackError);
+      return null;
+    }
   }
 }
 

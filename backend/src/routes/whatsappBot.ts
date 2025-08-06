@@ -578,14 +578,10 @@ async function startBot(instanceId: string, number: string): Promise<void> {
               status: lead.metadata?.status || 'lead_novo'
             } : undefined;
             
-                         // Gera prompt usando o cérebro com a mensagem atual
-             const promptCerebro = await gerarPromptCerebro(historicoFinal, text, from);
+            // Gera prompt usando o cérebro com a mensagem atual
+            const resposta = await gerarPromptCerebro(historicoFinal, text, from);
             
-            let resposta = 'Desculpe, não consegui responder.';
-            try {
-              const iaResp = await callInternalWebhook('/webhook/ia', { message: promptCerebro });
-              resposta = iaResp.resposta || resposta;
-              
+            if (resposta) {
               // Adiciona resposta ao histórico em memória
               historicoPorUsuario[from].push({
                 texto: resposta,
@@ -604,7 +600,7 @@ async function startBot(instanceId: string, number: string): Promise<void> {
               // Salva resposta da IA no banco
               await salvarInteracaoHistorico({
                 cliente_id: from.replace('@c.us', ''),
-                mensagem_usuario: '',
+                mensagem_usuario: text,
                 resposta_ia: resposta,
                 data: new Date().toISOString(),
                 canal: 'whatsapp',
@@ -626,8 +622,10 @@ async function startBot(instanceId: string, number: string): Promise<void> {
                   number
                 });
               }
-            } catch (error) {
-              console.error('Erro ao processar mensagem:', error);
+              
+              console.log('✅ Resposta da IA enviada:', resposta);
+            } else {
+              console.error('❌ Erro: IA não retornou resposta válida');
             }
           } catch (error) {
             console.error('Erro ao processar timeout da mensagem:', error);
