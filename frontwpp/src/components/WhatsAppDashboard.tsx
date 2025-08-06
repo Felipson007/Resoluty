@@ -56,11 +56,25 @@ const WhatsAppDashboard: React.FC = () => {
 
   const checkWhatsAppStatus = useCallback(async () => {
     try {
+      console.log('🔍 Verificando status do WhatsApp...');
       const instances = await ApiService.getWhatsAppInstances();
+      console.log('📱 Instâncias encontradas:', instances);
+      
       const hasConnected = instances.some((instance: any) => instance.isConnected);
+      console.log('✅ WhatsApp conectado:', hasConnected);
+      
+      // Atualizar status local
+      const newStatus = {
+        connected: hasConnected,
+        number: instances.find((i: any) => i.isConnected)?.number || ''
+      };
+      
+      console.log('📊 Novo status:', newStatus);
+      setWhatsappStatus(newStatus);
+      
       return hasConnected;
     } catch (error) {
-      console.error('Erro ao verificar status do WhatsApp:', error);
+      console.error('❌ Erro ao verificar status do WhatsApp:', error);
       return false;
     }
   }, []);
@@ -76,9 +90,14 @@ const WhatsAppDashboard: React.FC = () => {
         throw new Error('Backend não está respondendo.');
       }
       
-      // Buscar leads
-      const leads = await ApiService.getLeads();
-      setContacts(leads);
+      // Verificar status do WhatsApp primeiro
+      const whatsappConnected = await checkWhatsAppStatus();
+      
+      // Buscar leads apenas se WhatsApp estiver conectado
+      if (whatsappConnected) {
+        const leads = await ApiService.getLeads();
+        setContacts(leads);
+      }
       
     } catch (err: any) {
       console.error('❌ Erro ao inicializar app:', err);
@@ -86,15 +105,22 @@ const WhatsAppDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [checkWhatsAppStatus]);
 
   // Inicialização
   useEffect(() => {
     initializeApp();
+    
+    // Verificar status do WhatsApp periodicamente
+    const statusInterval = setInterval(async () => {
+      await checkWhatsAppStatus();
+    }, 10000); // Verificar a cada 10 segundos
+    
     return () => {
       socketService.disconnect();
+      clearInterval(statusInterval);
     };
-  }, [initializeApp]);
+  }, [initializeApp, checkWhatsAppStatus]);
 
   // Configurar Socket.IO com otimizações
   useEffect(() => {
@@ -396,8 +422,11 @@ const WhatsAppDashboard: React.FC = () => {
     );
   }
 
-  // Tela de conexão WhatsApp
-  if (!whatsappStatus.connected && !loading) {
+  // Tela de conexão WhatsApp - apenas se realmente não estiver conectado
+  if (!whatsappStatus.connected && !loading && !isLoadingData) {
+    console.log('🚨 Mostrando tela de conexão WhatsApp');
+    console.log('📊 Status atual:', { whatsappStatus, loading, isLoadingData });
+    
     return (
       <Box sx={{ 
         minHeight: '100vh',
@@ -449,40 +478,47 @@ const WhatsAppDashboard: React.FC = () => {
             Conecte o WhatsApp
           </Typography>
 
-          <Typography variant="body1" color="text.secondary" sx={{ 
-            mb: 4, 
-            maxWidth: 400,
-            lineHeight: 1.6,
-            fontSize: '1.1rem'
+          <Typography variant="body1" sx={{ 
+            color: 'text.secondary', 
+            mb: 4,
+            lineHeight: 1.6
           }}>
-            Para começar a usar o sistema, você precisa conectar o WhatsApp.
+            Para começar a usar o sistema, você precisa<br />
+            conectar o WhatsApp.
           </Typography>
 
-          <Button 
-            variant="contained" 
+          <Button
+            variant="contained"
             size="large"
             onClick={handleAddWhatsApp}
-            sx={{ 
+            sx={{
               background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
-              '&:hover': { 
-                background: 'linear-gradient(135deg, #128C7E 0%, #075E54 100%)',
-                transform: 'translateY(-2px)',
-                boxShadow: '0 8px 25px rgba(37, 211, 102, 0.4)'
-              },
-              px: 5,
+              color: 'white',
               py: 2,
+              px: 4,
+              borderRadius: 3,
               fontSize: '1.1rem',
               fontWeight: 600,
-              borderRadius: 3,
-              transition: 'all 0.3s ease',
-              minWidth: 200
+              textTransform: 'none',
+              boxShadow: '0 8px 25px rgba(37, 211, 102, 0.3)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #128C7E 0%, #25D366 100%)',
+                transform: 'translateY(-2px)',
+                boxShadow: '0 12px 35px rgba(37, 211, 102, 0.4)'
+              },
+              transition: 'all 0.3s ease'
             }}
           >
             Adicionar WhatsApp
           </Button>
 
-          <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 2 }}>
-            Após conectar o WhatsApp, você poderá ver e gerenciar seus contatos aqui.
+          <Typography variant="body2" sx={{ 
+            color: 'text.secondary', 
+            mt: 3,
+            opacity: 0.8
+          }}>
+            Após conectar o WhatsApp, você poderá ver e gerenciar seus<br />
+            contatos aqui.
           </Typography>
         </Box>
       </Box>

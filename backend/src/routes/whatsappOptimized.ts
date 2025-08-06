@@ -66,8 +66,12 @@ router.post('/request-qr', async (req, res) => {
 // Endpoint para obter status das instâncias
 router.get('/instances', (req, res) => {
   try {
+    console.log('📱 Endpoint /instances chamado');
     const instances = whatsappManager.getInstances();
     const healthStatus = whatsappManager.getHealthStatus();
+    
+    console.log('📱 Instâncias retornadas:', instances);
+    console.log('📱 Health status:', healthStatus);
     
     res.json({
       success: true,
