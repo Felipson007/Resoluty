@@ -152,8 +152,13 @@ const WhatsAppOptimized: React.FC = () => {
       // Navegar automaticamente para dashboard se conectado
       if (status.connected && status.number) {
         console.log('✅ WhatsApp conectado, navegando para dashboard...');
-        // Disparar evento para mudar para dashboard
-        window.dispatchEvent(new CustomEvent('changeView', { detail: 'dashboard' }));
+        try {
+          // Disparar evento para mudar para dashboard
+          window.dispatchEvent(new CustomEvent('changeView', { detail: 'dashboard' }));
+          console.log('✅ Evento changeView disparado para dashboard');
+        } catch (error) {
+          console.error('❌ Erro ao navegar para dashboard:', error);
+        }
       }
     };
 
@@ -175,14 +180,24 @@ const WhatsAppOptimized: React.FC = () => {
 
     const handleInstanceConnected = (data: { instanceId: string; number: string }) => {
       console.log('✅ Instância conectada:', data);
-      // Navegar automaticamente para dashboard quando uma instância se conectar
-      window.dispatchEvent(new CustomEvent('changeView', { detail: 'dashboard' }));
+      try {
+        // Navegar automaticamente para dashboard quando uma instância se conectar
+        window.dispatchEvent(new CustomEvent('changeView', { detail: 'dashboard' }));
+        console.log('✅ Evento changeView disparado para dashboard (instance connected)');
+      } catch (error) {
+        console.error('❌ Erro ao navegar para dashboard (instance connected):', error);
+      }
     };
 
     const handleInstanceReady = (data: { instanceId: string; number: string }) => {
       console.log('✅ Instância pronta:', data);
-      // Navegar automaticamente para dashboard quando uma instância estiver pronta
-      window.dispatchEvent(new CustomEvent('changeView', { detail: 'dashboard' }));
+      try {
+        // Navegar automaticamente para dashboard quando uma instância estiver pronta
+        window.dispatchEvent(new CustomEvent('changeView', { detail: 'dashboard' }));
+        console.log('✅ Evento changeView disparado para dashboard (instance ready)');
+      } catch (error) {
+        console.error('❌ Erro ao navegar para dashboard (instance ready):', error);
+      }
     };
 
     const handleInstanceRemoved = (data: { instanceId: string }) => {
@@ -211,6 +226,17 @@ const WhatsAppOptimized: React.FC = () => {
       socketService.off('whatsapp-instance-removed', handleInstanceRemoved);
     };
   }, [checkSystemStatus]);
+
+  // Função para navegar manualmente para dashboard
+  const handleManualDashboardNavigation = () => {
+    try {
+      console.log('🔄 Navegação manual para dashboard...');
+      window.dispatchEvent(new CustomEvent('changeView', { detail: 'dashboard' }));
+      console.log('✅ Navegação manual executada');
+    } catch (error) {
+      console.error('❌ Erro na navegação manual:', error);
+    }
+  };
 
   // Função para adicionar nova instância
   const handleAddInstance = async () => {
@@ -421,6 +447,18 @@ const WhatsAppOptimized: React.FC = () => {
               <RefreshIcon />
             </IconButton>
           </Tooltip>
+          
+          {memoizedStatus.connected && (
+            <Tooltip title="Acessar Dashboard">
+              <Button
+                variant="outlined"
+                color="secondary"
+                onClick={handleManualDashboardNavigation}
+              >
+                📱 Dashboard
+              </Button>
+            </Tooltip>
+          )}
           
           <Button
             variant="contained"
