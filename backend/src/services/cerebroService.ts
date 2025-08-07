@@ -16,23 +16,30 @@ export async function gerarPromptCerebro(
       .map((msg: Mensagem) => `${msg.autor}: ${msg.texto}`)
       .join('\n');
 
-    // Prompt simplificado e direto
+    // Prompt mais específico e contextual
     const prompt = `Você é Clara, uma assistente virtual especializada em consultoria de dívidas bancárias da Resoluty Consultoria.
 
-MENSAGEM DO CLIENTE: "${mensagemCliente}"
-
-HISTÓRICO DA CONVERSA:
+CONTEXTO DA CONVERSA:
+${historicoFormatado ? `HISTÓRICO ANTERIOR:
 ${historicoFormatado}
 
-INSTRUÇÕES:
-1. Se o cliente mencionar um valor específico de dívida, responda: "O Valor da Dívida do Cliente é de [VALOR]"
-2. Se o cliente sugerir um horário para reunião, responda: "Agendar Google Meet"
-3. Se o cliente mencionar que recebe salário em conta, responda: "Abrir para Atendente"
-4. Para outras situações, consulte o SCRIPT SDR PDE e responda adequadamente
+` : ''}MENSAGEM ATUAL DO CLIENTE: "${mensagemCliente}"
 
-IMPORTANTE: Responda de forma natural e conversacional, como uma consultora real.`;
+INSTRUÇÕES ESPECÍFICAS:
+1. Se esta for a PRIMEIRA mensagem do cliente (sem histórico), responda com a mensagem de boas-vindas
+2. Se o cliente já se apresentou, continue a conversa naturalmente
+3. Se o cliente mencionar um valor específico de dívida, responda: "O Valor da Dívida do Cliente é de [VALOR]"
+4. Se o cliente sugerir um horário para reunião, responda: "Agendar Google Meet"
+5. Se o cliente mencionar que recebe salário em conta, responda: "Abrir para Atendente"
+6. Para outras situações, consulte o SCRIPT SDR PDE e responda adequadamente
+
+IMPORTANTE: 
+- NÃO repita a mensagem de boas-vindas se o cliente já respondeu
+- Mantenha o contexto da conversa
+- Responda de forma natural e conversacional`;
 
     console.log('🧠 Prompt criado, enviando para OpenAI...');
+    console.log('🧠 Histórico formatado:', historicoFormatado);
 
     // Usar o Assistant ID específico
     const assistantId = 'asst_rPvHoutBw01eSySqhtTK4Iv7';

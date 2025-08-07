@@ -5,6 +5,7 @@ import { buscarHistoricoCliente } from '../services/historicoService';
 import { gerarPromptCerebro } from '../services/cerebroService';
 import { callInternalWebhook } from '../config/api';
 import { supabase } from '../config/supabase';
+import crypto from 'crypto';
 
 const router = Router();
 
@@ -281,24 +282,30 @@ async function processMessageWithAI(message: any, instanceId: string): Promise<s
     const numeroLimpo = message.from.replace('@s.whatsapp.net', '');
     console.log('📋 Buscando histórico para:', numeroLimpo);
     
-    const { data: mensagens, error } = await supabase
-      .from('mensagens_leads')
-      .select('*')
-      .eq('numero', numeroLimpo)
-      .order('timestamp', { ascending: true })
-      .limit(10);
+    let historico: any[] = [];
+    
+    try {
+      const { data: mensagens, error } = await supabase
+        .from('mensagens_leads')
+        .select('*')
+        .eq('numero', numeroLimpo)
+        .order('timestamp', { ascending: true })
+        .limit(10);
 
-    if (error) {
-      console.error('❌ Erro ao buscar mensagens:', error);
+      if (error) {
+        console.error('❌ Erro ao buscar mensagens:', error);
+        console.warn('⚠️ Continuando sem histórico devido a erro de RLS');
+      } else {
+        historico = (mensagens || []).map(msg => ({
+          id: msg.id,
+          texto: msg.mensagem,
+          timestamp: msg.timestamp,
+          autor: msg.autor
+        }));
+      }
+    } catch (historicoError) {
+      console.warn('⚠️ Erro ao buscar histórico, continuando sem:', historicoError);
     }
-
-    // Converter para formato esperado pela IA
-    const historico = (mensagens || []).map(msg => ({
-      id: msg.id,
-      texto: msg.mensagem,
-      timestamp: msg.timestamp,
-      autor: msg.autor
-    }));
 
     console.log('📋 Histórico encontrado:', historico.length, 'mensagens');
     
@@ -310,8 +317,12 @@ async function processMessageWithAI(message: any, instanceId: string): Promise<s
       const success = await whatsappManager.sendMessage(instanceId, message.from, resposta);
       
       if (success) {
-        // Salvar resposta no banco
-        await salvarMensagemLead(message.from, resposta, 'ai', instanceId);
+        // Salvar resposta no banco (com tratamento de erro)
+        try {
+          await salvarMensagemLead(message.from, resposta, 'ai', instanceId);
+        } catch (saveError) {
+          console.warn('⚠️ Erro ao salvar resposta no banco, mas mensagem foi enviada:', saveError);
+        }
         
         // Emitir para frontend
         if (socketIO) {
@@ -373,6 +384,82 @@ router.post('/test-ai', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Erro interno do servidor'
+    });
+  }
+});
+
+// Endpoint para testar conexão com banco
+router.get('/test-db', async (req, res) => {
+  try {
+    console.log('🧪 Testando conexão com banco de dados...');
+    
+    // Teste 1: Verificar se consegue conectar
+    const { data: testData, error: testError } = await supabase
+      .from('leads')
+      .select('count')
+      .limit(1);
+    
+    if (testError) {
+      console.error('❌ Erro ao conectar com banco:', testError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro de conexão com banco',
+        details: testError
+      });
+    }
+    
+    console.log('✅ Conexão com banco OK');
+    
+    // Teste 2: Tentar inserir um lead de teste
+    const testLead = {
+      id: crypto.randomUUID(),
+      numero: 'teste-connection',
+      metadata: {
+        id: crypto.randomUUID(),
+        numero: 'teste-connection',
+        status: 'lead_novo',
+        ultima_atividade: new Date().toISOString()
+      }
+    };
+    
+    const { data: insertData, error: insertError } = await supabase
+      .from('leads')
+      .insert(testLead)
+      .select();
+    
+    if (insertError) {
+      console.error('❌ Erro ao inserir lead de teste:', insertError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao inserir no banco',
+        details: insertError,
+        connection: 'OK',
+        insert: 'FAILED'
+      });
+    }
+    
+    console.log('✅ Inserção no banco OK');
+    
+    // Limpar o lead de teste
+    await supabase
+      .from('leads')
+      .delete()
+      .eq('numero', 'teste-connection');
+    
+    res.json({
+      success: true,
+      message: 'Banco de dados funcionando corretamente',
+      connection: 'OK',
+      insert: 'OK',
+      delete: 'OK'
+    });
+    
+  } catch (error) {
+    console.error('❌ Erro no teste do banco:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno no teste',
+      details: error
     });
   }
 });
