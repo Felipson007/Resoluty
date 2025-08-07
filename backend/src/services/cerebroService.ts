@@ -1,6 +1,7 @@
 import { Mensagem } from '../types/conversa';
 import openai from '../config/openai';
 import { supabase } from '../config/supabase';
+import { obterDisponibilidadeFormatada, obterProximasDatasDisponiveis, agendarReuniao } from './googleCalendarService';
 
 // Interface para configurações do cérebro
 interface CerebroConfig {
@@ -10,22 +11,9 @@ interface CerebroConfig {
   timeoutSeconds: number;
 }
 
-// Cache para configurações (evita consultas desnecessárias ao banco)
-let cerebroConfigCache: CerebroConfig | null = null;
-let lastCacheUpdate = 0;
-const CACHE_DURATION = 30000; // 30 segundos
-
 // Função para buscar configurações do cérebro do banco
 async function buscarConfiguracoesCerebro(): Promise<CerebroConfig> {
-  const now = Date.now();
-  
-  // Retornar cache se ainda válido
-  if (cerebroConfigCache && (now - lastCacheUpdate) < CACHE_DURATION) {
-    return cerebroConfigCache;
-  }
-
   try {
-    // Buscar todas as configurações do cérebro
     const { data: configs, error } = await supabase
       .from('configuracoes')
       .select('*')
@@ -37,22 +25,10 @@ async function buscarConfiguracoesCerebro(): Promise<CerebroConfig> {
       ]);
 
     if (error) {
-      console.error('❌ Erro ao buscar configurações do cérebro:', error);
+      console.error('❌ Erro ao buscar configurações:', error);
+      throw error;
     }
 
-    // Configurações padrão
-    const defaultConfig: CerebroConfig = {
-      prompt: `CONTEXTO DA CONVERSA:
-\${historicoFormatado ? \`HISTÓRICO ANTERIOR:
-\${historicoFormatado}
-
-\` : ''}MENSAGEM ATUAL DO CLIENTE: "\${mensagemCliente}"`,
-      assistantId: 'asst_rPvHoutBw01eSySqhtTK4Iv7',
-      maxAttempts: 30,
-      timeoutSeconds: 30
-    };
-
-    // Mapear configurações do banco
     const configMap = new Map();
     if (configs) {
       configs.forEach(config => {
@@ -60,46 +36,25 @@ async function buscarConfiguracoesCerebro(): Promise<CerebroConfig> {
       });
     }
 
-    // Criar configuração final
-    const finalConfig: CerebroConfig = {
-      prompt: configMap.get('cerebro_prompt') || defaultConfig.prompt,
-      assistantId: configMap.get('cerebro_assistant_id') || defaultConfig.assistantId,
-      maxAttempts: parseInt(configMap.get('cerebro_max_attempts')) || defaultConfig.maxAttempts,
-      timeoutSeconds: parseInt(configMap.get('cerebro_timeout_seconds')) || defaultConfig.timeoutSeconds
+    // Prompt padrão simples mas editável
+    const defaultPrompt = `Leia a seguinte mensagem do Cliente: \${mensagemCliente}
+
+
+IMPORTANTE: Se houver ERRO_GOOGLE_CALENDAR no contexto, você deve informar ao cliente que o sistema de agendamento está temporariamente indisponível e que um atendente humano entrará em contato em breve. Seja cordial e profissional.
+
+=== HISTÓRICO DA CONVERSA ===
+\${historicoFormatado}`;
+
+    return {
+      prompt: configMap.get('cerebro_prompt') || defaultPrompt,
+      assistantId: configMap.get('cerebro_assistant_id') || 'asst_rPvHoutBw01eSySqhtTK4Iv7',
+      maxAttempts: parseInt(configMap.get('cerebro_max_attempts')) || 30,
+      timeoutSeconds: parseInt(configMap.get('cerebro_timeout_seconds')) || 30
     };
-
-    // Atualizar cache
-    cerebroConfigCache = finalConfig;
-    lastCacheUpdate = now;
-
-    console.log('✅ Configurações do cérebro carregadas:', {
-      assistantId: finalConfig.assistantId,
-      maxAttempts: finalConfig.maxAttempts,
-      timeoutSeconds: finalConfig.timeoutSeconds,
-      promptLength: finalConfig.prompt.length
-    });
-
-    return finalConfig;
   } catch (error) {
-    console.error('❌ Erro ao buscar configurações do cérebro:', error);
-    return cerebroConfigCache || {
-      prompt: `CONTEXTO DA CONVERSA:
-\${historicoFormatado ? \`HISTÓRICO ANTERIOR:
-\${historicoFormatado}
-
-\` : ''}MENSAGEM ATUAL DO CLIENTE: "\${mensagemCliente}"`,
-      assistantId: 'asst_rPvHoutBw01eSySqhtTK4Iv7',
-      maxAttempts: 30,
-      timeoutSeconds: 30
-    };
+    console.error('❌ Erro ao buscar configurações:', error);
+    throw error;
   }
-}
-
-// Função para invalidar cache (chamada quando configurações são alteradas)
-export function invalidarCacheCerebro() {
-  cerebroConfigCache = null;
-  lastCacheUpdate = 0;
-  console.log('🔄 Cache do cérebro invalidado');
 }
 
 export async function gerarPromptCerebro(
@@ -108,92 +63,106 @@ export async function gerarPromptCerebro(
   numeroCliente?: string
 ): Promise<string | null> {
   try {
-    console.log('🤖 Iniciando processamento da IA...');
-    console.log('📝 Mensagem do cliente:', mensagemCliente);
+    console.log('🤖 Processando mensagem:', mensagemCliente);
     console.log('📋 Histórico:', historico.length, 'mensagens');
 
-    // Buscar configurações dinâmicas do banco
     const config = await buscarConfiguracoesCerebro();
-    console.log('🧠 Configurações carregadas do banco');
 
-    // Formatar histórico para o prompt
+    // Formatar histórico simples
     const historicoFormatado = historico
       .map((msg: Mensagem) => `${msg.autor}: ${msg.texto}`)
       .join('\n');
 
-    // Criar prompt inteligente com contexto claro
-    let promptFinal = config.prompt
+    // Prompt do frontend (editável)
+    const promptFrontend = config.prompt
       .replace('${historicoFormatado}', historicoFormatado)
       .replace('${mensagemCliente}', mensagemCliente);
 
-    // Adicionar instruções contextuais automáticas
-    if (historico.length === 0) {
-      promptFinal += '\n\nCONTEXTO: Esta é a primeira mensagem do cliente. Responda com a mensagem de boas-vindas padrão.';
-    } else {
-      promptFinal += '\n\nCONTEXTO: O cliente já iniciou a conversa. Continue naturalmente baseado no histórico acima. A mensagem atual é a última que o cliente enviou.';
+    // Verificar se a mensagem menciona agendamento ou disponibilidade
+    const mensagemMencionaAgendamento = mensagemCliente.toLowerCase().includes('agendar') || 
+                                       mensagemCliente.toLowerCase().includes('reunião') || 
+                                       mensagemCliente.toLowerCase().includes('reuniao') ||
+                                       mensagemCliente.toLowerCase().includes('disponível') ||
+                                       mensagemCliente.toLowerCase().includes('disponivel') ||
+                                       mensagemCliente.toLowerCase().includes('horário') ||
+                                       mensagemCliente.toLowerCase().includes('horario');
+
+    // Obter informações de disponibilidade se necessário
+    let informacoesDisponibilidade = '';
+    let googleCalendarError = false;
+    
+    if (mensagemMencionaAgendamento) {
+      try {
+        // Buscar próximas datas disponíveis
+        const datasDisponiveis = await obterProximasDatasDisponiveis(7);
+        
+        if (datasDisponiveis.length > 0) {
+          // Verificar disponibilidade para as próximas 3 datas
+          const disponibilidadeFormatada = [];
+          for (let i = 0; i < Math.min(3, datasDisponiveis.length); i++) {
+            const disponibilidade = await obterDisponibilidadeFormatada(datasDisponiveis[i]);
+            disponibilidadeFormatada.push(disponibilidade);
+          }
+          
+          informacoesDisponibilidade = `\n\nINFORMAÇÕES DE DISPONIBILIDADE DOS ATENDENTES:\n${disponibilidadeFormatada.join('\n\n')}`;
+        }
+      } catch (error) {
+        console.error('❌ Erro ao obter disponibilidade:', error);
+        googleCalendarError = true;
+        informacoesDisponibilidade = '\n\nERRO_GOOGLE_CALENDAR: Sistema de agendamento temporariamente indisponível. IA deve informar que passará para atendente humano.';
+      }
     }
 
-    console.log('🧠 Prompt criado, enviando para OpenAI...');
-    console.log('🧠 Histórico formatado:', historicoFormatado);
-    console.log('🧠 Prompt final:', promptFinal);
-    console.log('🧠 Assistant ID:', config.assistantId);
+    // Prompt do backend (fixo para histórico)
+    const promptBackend = `HISTÓRICO DA CONVERSA:
+${historicoFormatado}
 
-    // Criar um novo thread
+MENSAGEM ATUAL DO CLIENTE: "${mensagemCliente}"
+Analise o histórico acima para entender o contexto da conversa. Caso não historico e seja uma primeira mensagem, apresente-se normalmente${informacoesDisponibilidade}`;
+
+    // Combinar os dois prompts
+    const promptFinal = `${promptBackend}
+
+${promptFrontend}`;
+
+    console.log('🧠 Enviando para OpenAI...');
+
+    // Criar thread e executar
     const thread = await openai.beta.threads.create();
-    console.log('🧵 Thread criado:', thread.id);
-    
     await openai.beta.threads.messages.create(thread.id, {
       role: 'user',
       content: promptFinal
     });
-    console.log('📝 Mensagem adicionada ao thread');
 
-    // Executar o assistente
     const run = await openai.beta.threads.runs.create(thread.id, {
       assistant_id: config.assistantId
     });
-    console.log('🤖 Run iniciado:', run.id);
 
     let runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
-    console.log('📊 Status inicial do run:', runStatus.status);
-    
     let attempts = 0;
-    const maxAttempts = config.maxAttempts;
     
-    while ((runStatus.status === 'in_progress' || runStatus.status === 'queued') && attempts < maxAttempts) {
+    while ((runStatus.status === 'in_progress' || runStatus.status === 'queued') && attempts < config.maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 1000));
       runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
       attempts++;
-      console.log(`📊 Status do run (tentativa ${attempts}/${maxAttempts}):`, runStatus.status);
     }
-
-    console.log('📊 Status final do run:', runStatus.status);
 
     if (runStatus.status === 'completed') {
       const messages = await openai.beta.threads.messages.list(thread.id);
-      console.log('📨 Mensagens do thread:', messages.data.length);
-      
       const lastMessage = messages.data[0];
-      console.log('📨 Última mensagem:', lastMessage);
       
       if (lastMessage && lastMessage.content[0].type === 'text') {
         const resposta = lastMessage.content[0].text.value;
-        
-        console.log('🤖 Resposta da IA:', resposta);
+        console.log('🤖 Resposta:', resposta);
         return resposta;
-      } else {
-        console.error('❌ Erro: IA não retornou resposta válida');
-        console.error('❌ Última mensagem:', lastMessage);
-        return null;
       }
-    } else {
-      console.error('❌ Erro: Run falhou com status:', runStatus.status);
-      console.error('❌ Detalhes do erro:', runStatus);
-      return null;
     }
 
+    console.error('❌ IA não retornou resposta válida');
+    return null;
+
   } catch (error) {
-    console.error('❌ Erro ao gerar resposta da IA:', error);
+    console.error('❌ Erro ao processar IA:', error);
     return null;
   }
 }

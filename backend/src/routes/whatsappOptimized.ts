@@ -612,14 +612,6 @@ router.post('/cerebro-prompt', async (req, res) => {
     
     console.log('✅ Configurações salvas com sucesso');
     
-    // Invalidar cache do cérebro
-    try {
-      const { invalidarCacheCerebro } = await import('../services/cerebroService');
-      invalidarCacheCerebro();
-    } catch (cacheError) {
-      console.warn('⚠️ Erro ao invalidar cache, mas configurações foram salvas:', cacheError);
-    }
-    
     res.json({
       success: true,
       message: 'Configurações salvas com sucesso',

@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { gerarPromptCerebro } from './services/cerebroService';
 import { buscarLead } from './services/leadService';
 import { supabase } from './config/supabase';
+import { atualizarStatusLead } from './services/leadService';
 import fs from 'fs';
 import path from 'path';
 const qrcode = require('qrcode-terminal');
@@ -299,10 +300,10 @@ async function initializeWhatsApp() {
       }
     });
 
-    // Mensagens enviadas
+    // Mensagens enviadas pelo bot (para salvar no histórico)
     whatsappClient.on('message_create', async (msg) => {
       if (msg.fromMe) {
-        console.log(`📤 Mensagem enviada para ${msg.to}: ${msg.body}`);
+        console.log(`📤 Mensagem enviada pelo bot para ${msg.to}: ${msg.body}`);
         
         const message = {
           id: msg.id._serialized,
@@ -324,18 +325,18 @@ async function initializeWhatsApp() {
 
         console.log(`💾 Mensagem enviada salva no histórico. Total para ${msg.to}: ${messageHistory[msg.to].length}`);
 
-        // Salvar no Supabase
-        try {
-          await supabase.from('mensagens_leads').insert({
-            mensagem: msg.body,
-            autor: 'ai',
-            numero: msg.to,
-            timestamp: message.timestamp
-          });
-          console.log('✅ Mensagem enviada salva no Supabase');
-        } catch (error) {
-          console.error('❌ Erro ao salvar mensagem enviada no Supabase:', error);
-        }
+                 // Salvar no Supabase
+         try {
+           await supabase.from('mensagens_leads').insert({
+             mensagem: msg.body,
+             autor: 'sistema',
+             numero: msg.to,
+             timestamp: message.timestamp
+           });
+           console.log('✅ Mensagem enviada salva no Supabase');
+         } catch (error) {
+           console.error('❌ Erro ao salvar mensagem enviada no Supabase:', error);
+         }
       }
     });
 
@@ -401,6 +402,12 @@ async function handleAIAutoReply(msg: any) {
     if (aiResponse) {
       console.log('🤖 Resposta da IA:', aiResponse);
       
+      // Verificar se a resposta indica erro do Google Calendar
+      const googleCalendarError = aiResponse.toLowerCase().includes('erro_google_calendar') || 
+                                 aiResponse.toLowerCase().includes('sistema de agendamento temporariamente indisponível') ||
+                                 aiResponse.toLowerCase().includes('passará para atendente') ||
+                                 aiResponse.toLowerCase().includes('atendente humano');
+      
       // Enviar resposta via WhatsApp
       await whatsappClient!.sendMessage(msg.from, aiResponse);
       
@@ -411,6 +418,26 @@ async function handleAIAutoReply(msg: any) {
         numero: msg.from,
         timestamp: new Date().toISOString()
       });
+      
+      // Se houve erro do Google Calendar, marcar para SDR
+      if (googleCalendarError) {
+        try {
+          const numeroCliente = msg.from.replace('@c.us', '');
+          await atualizarStatusLead(numeroCliente, 'lead_avancado');
+          console.log('🚨 Conversa marcada para SDR devido a erro do Google Calendar');
+          
+          // Emitir evento para o frontend
+          if (socketIO) {
+            socketIO.emit('lead-status-changed', {
+              numero: numeroCliente,
+              status: 'sdr',
+              motivo: 'Google Calendar Error'
+            });
+          }
+        } catch (error) {
+          console.error('❌ Erro ao marcar lead para SDR:', error);
+        }
+      }
       
       console.log('✅ Resposta da IA enviada e salva');
     } else {

@@ -2,7 +2,7 @@ import { Client, LocalAuth, Message } from 'whatsapp-web.js';
 import { Boom } from '@hapi/boom';
 import { buscarHistoricoCliente, salvarInteracaoHistorico } from '../services/historicoService';
 import { gerarPromptCerebro } from '../services/cerebroService';
-import { salvarMensagemLead, buscarLead, extrairInformacoesCliente, criarOuAtualizarLead } from '../services/leadService';
+import { salvarMensagemLead, buscarLead, extrairInformacoesCliente, criarOuAtualizarLead, atualizarStatusLead } from '../services/leadService';
 import { supabase } from '../config/supabase';
 import { callInternalWebhook } from '../config/api';
 import fs from 'fs';
@@ -561,7 +561,7 @@ async function startBot(instanceId: string, number: string): Promise<void> {
             // Montar histórico estruturado para o cérebro
             const historicoEstruturado = (historicoDB || []).flatMap((item: any) => [
               { texto: item.mensagem_usuario, timestamp: item.data, autor: 'usuario' },
-              item.resposta_ia ? { texto: item.resposta_ia, timestamp: item.data, autor: 'ai' } : null
+              item.resposta_ia ? { texto: item.resposta_ia, timestamp: item.data, autor: 'sistema' } : null
             ]).filter(Boolean);
             
             // Combinar histórico do banco com histórico em memória
@@ -578,55 +578,83 @@ async function startBot(instanceId: string, number: string): Promise<void> {
               status: lead.metadata?.status || 'lead_novo'
             } : undefined;
             
-            // Gera prompt usando o cérebro com a mensagem atual
-            const resposta = await gerarPromptCerebro(historicoFinal, text, from);
-            
-            if (resposta) {
-              // Adiciona resposta ao histórico em memória
-              historicoPorUsuario[from].push({
-                texto: resposta,
-                timestamp: new Date().toISOString(),
-                autor: 'ai',
-              });
+                         // Gera prompt usando o cérebro com a mensagem atual
+             const resposta = await gerarPromptCerebro(historicoFinal, text, from);
+             
+             if (resposta) {
+               // Verificar se a resposta indica erro do Google Calendar
+               const googleCalendarError = resposta.toLowerCase().includes('erro_google_calendar') || 
+                                          resposta.toLowerCase().includes('sistema de agendamento temporariamente indisponível') ||
+                                          resposta.toLowerCase().includes('passará para atendente') ||
+                                          resposta.toLowerCase().includes('atendente humano');
+               
+               // Adiciona resposta ao histórico em memória
+               historicoPorUsuario[from].push({
+                 texto: resposta,
+                 timestamp: new Date().toISOString(),
+                 autor: 'sistema',
+               });
 
-              // Extrair informações do cliente da conversa
-              const informacoesCliente = await extrairInformacoesCliente(from, text, resposta);
-              
-              // Atualizar lead com informações extraídas
-              if (informacoesCliente) {
-                await criarOuAtualizarLead(from, informacoesCliente);
-              }
+               // Extrair informações do cliente da conversa
+               const informacoesCliente = await extrairInformacoesCliente(from, text, resposta);
+               
+               // Atualizar lead com informações extraídas
+               if (informacoesCliente) {
+                 await criarOuAtualizarLead(from, informacoesCliente);
+               }
 
-              // Salva resposta da IA no banco
-              await salvarInteracaoHistorico({
-                cliente_id: from.replace('@c.us', ''),
-                mensagem_usuario: text,
-                resposta_ia: resposta,
-                data: new Date().toISOString(),
-                canal: 'whatsapp',
-              });
+               // Salva resposta da IA no banco
+               await salvarInteracaoHistorico({
+                 cliente_id: from.replace('@c.us', ''),
+                 mensagem_usuario: text,
+                 resposta_ia: resposta,
+                 data: new Date().toISOString(),
+                 canal: 'whatsapp',
+               });
 
-              // Envia resposta via WhatsApp
-              await instance.client.sendMessage(from, resposta);
+               // Envia resposta via WhatsApp
+               await instance.client.sendMessage(from, resposta);
 
-              // Emitir evento via Socket.IO para resposta da IA
-              if (socketIO) {
-                socketIO.emit('new-message', {
-                  contactId: from,
-                  message: {
-                    texto: resposta,
-                    timestamp: new Date().toISOString(),
-                    autor: 'ai'
-                  },
-                  instanceId,
-                  number
-                });
-              }
-              
-              console.log('✅ Resposta da IA enviada:', resposta);
-            } else {
-              console.error('❌ Erro: IA não retornou resposta válida');
-            }
+               // Se houve erro do Google Calendar, marcar para SDR
+               if (googleCalendarError) {
+                 try {
+                   const numeroCliente = from.replace('@c.us', '');
+                   await atualizarStatusLead(numeroCliente, 'lead_avancado');
+                   console.log('🚨 Conversa marcada para SDR devido a erro do Google Calendar');
+                   
+                   // Emitir evento para o frontend
+                   if (socketIO) {
+                     socketIO.emit('lead-status-changed', {
+                       numero: numeroCliente,
+                       status: 'lead_avancado',
+                       motivo: 'Google Calendar Error',
+                       instanceId,
+                       number
+                     });
+                   }
+                 } catch (error) {
+                   console.error('❌ Erro ao marcar lead para SDR:', error);
+                 }
+               }
+
+               // Emitir evento via Socket.IO para resposta da IA
+               if (socketIO) {
+                 socketIO.emit('new-message', {
+                   contactId: from,
+                   message: {
+                     texto: resposta,
+                     timestamp: new Date().toISOString(),
+                     autor: 'sistema'
+                   },
+                   instanceId,
+                   number
+                 });
+               }
+               
+               console.log('✅ Resposta da IA enviada:', resposta);
+             } else {
+               console.error('❌ Erro: IA não retornou resposta válida');
+             }
           } catch (error) {
             console.error('Erro ao processar timeout da mensagem:', error);
           }

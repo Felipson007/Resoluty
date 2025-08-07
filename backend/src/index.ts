@@ -9,6 +9,7 @@ import whatsappManager from './services/whatsappManager';
 import whatsappOptimizedRouter from './routes/whatsappOptimized';
 import { setSocketIO as setWhatsAppOptimizedSocketIO } from './routes/whatsappOptimized';
 import webhookGHL from './routes/webhookGHL';
+import googleCalendarRouter from './routes/googleCalendar';
 import { STARTUP_CONFIG, startupEvents, setStartupState, StartupState, MONITORING_CONFIG } from './config/startup';
 import { PERFORMANCE_CONFIG, getSocketIOConfig, startPerformanceMonitoring } from './config/performance';
 
@@ -31,6 +32,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Registrar rotas
 app.use('/webhook', webhookGHL);
 app.use('/api/whatsapp', whatsappOptimizedRouter);
+app.use('/api/calendar', googleCalendarRouter);
 
 // Socket.IO otimizado
 const io = new Server(server, {
@@ -288,7 +290,7 @@ app.get('/api/conversations/:contact/messages', async (req, res) => {
       id: msg.id,
       texto: msg.mensagem,
       timestamp: msg.timestamp,
-              autor: msg.autor === 'ai' ? 'ai' : 'usuario',
+              autor: msg.autor === 'sistema' ? 'sistema' : 'usuario',
       contactId: msg.numero
     }));
     
