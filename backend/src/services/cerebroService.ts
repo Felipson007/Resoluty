@@ -36,11 +36,15 @@ async function buscarConfiguracoesCerebro(): Promise<CerebroConfig> {
       });
     }
 
-    // Prompt padrão simples mas editável
+    // Prompt padrão melhorado para evitar repetições
     const defaultPrompt = `Leia a seguinte mensagem do Cliente: \${mensagemCliente}
 
-
-IMPORTANTE: Se houver ERRO_GOOGLE_CALENDAR no contexto, você deve informar ao cliente que o sistema de agendamento está temporariamente indisponível e que um atendente humano entrará em contato em breve. Seja cordial e profissional.
+IMPORTANTE: 
+- Analise cuidadosamente o histórico da conversa antes de responder
+- NÃO repita informações que já foram dadas pelo cliente
+- Se o cliente já forneceu informações sobre dívida, salário, etc., não peça novamente
+- Seja conciso e direto ao ponto
+- Se houver ERRO_GOOGLE_CALENDAR no contexto, você deve informar ao cliente que o sistema de agendamento está temporariamente indisponível e que um atendente humano entrará em contato em breve. Seja cordial e profissional.
 
 === HISTÓRICO DA CONVERSA ===
 \${historicoFormatado}`;
@@ -67,6 +71,12 @@ export async function gerarPromptCerebro(
     console.log('📋 Histórico:', historico.length, 'mensagens');
 
     const config = await buscarConfiguracoesCerebro();
+
+    // Delay padrão de 30 segundos antes de processar
+    const delaySeconds = 30;
+    console.log(`⏰ Aguardando ${delaySeconds} segundos antes de processar...`);
+    await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
+    console.log('✅ Delay concluído, processando IA...');
 
     // Formatar histórico simples
     const historicoFormatado = historico
@@ -113,12 +123,18 @@ export async function gerarPromptCerebro(
       }
     }
 
-    // Prompt do backend (fixo para histórico)
+    // Prompt do backend melhorado para contexto
     const promptBackend = `HISTÓRICO DA CONVERSA:
 ${historicoFormatado}
 
 MENSAGEM ATUAL DO CLIENTE: "${mensagemCliente}"
-Analise o histórico acima para entender o contexto da conversa. Caso não historico e seja uma primeira mensagem, apresente-se normalmente${informacoesDisponibilidade}`;
+
+INSTRUÇÕES IMPORTANTES:
+1. Analise cuidadosamente todo o histórico da conversa
+2. NÃO peça informações que o cliente já forneceu
+3. Se o cliente já mencionou valores de dívida, banco, salário, etc., use essas informações
+4. Seja conciso e direto ao ponto
+5. Evite repetir perguntas já feitas${informacoesDisponibilidade}`;
 
     // Combinar os dois prompts
     const promptFinal = `${promptBackend}
