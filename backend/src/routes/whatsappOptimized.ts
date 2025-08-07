@@ -250,13 +250,11 @@ whatsappManager.on('message-received', async ({ instanceId, message }) => {
       return;
     }
     
-    // Processar mensagem com IA
-    const processedMessage = await processMessageWithAI(message, instanceId);
-    
-    // Salvar no banco de dados
+    // 🔧 CORREÇÃO: Primeiro salvar a mensagem do usuário no banco
+    console.log('📝 Salvando mensagem do usuário no banco...');
     await salvarMensagemLead(message.from, message.body, 'usuario', instanceId);
     
-    // Emitir para frontend
+    // Emitir mensagem do usuário para frontend
     if (socketIO) {
       socketIO.emit('new-message', {
         contactId: message.from,
@@ -269,6 +267,10 @@ whatsappManager.on('message-received', async ({ instanceId, message }) => {
         instanceId
       });
     }
+    
+    // 🔧 CORREÇÃO: Depois processar mensagem com IA (agora o histórico incluirá a mensagem atual)
+    console.log('🤖 Processando resposta da IA...');
+    const processedMessage = await processMessageWithAI(message, instanceId);
     
   } catch (error) {
     console.error('❌ Erro ao processar mensagem recebida:', error);
