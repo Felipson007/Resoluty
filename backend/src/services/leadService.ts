@@ -249,13 +249,17 @@ export async function salvarMensagemLead(
     // Salvar mensagem
     console.log('📋 Salvando mensagem no banco...');
     try {
+      // Validar autor - a constraint só aceita 'usuario' e 'sistema'
+      const autorValido = autor === 'usuario' ? 'usuario' : 'sistema';
+      console.log('📋 Autor validado:', autorValido);
+      
       const { error } = await supabase
         .from('mensagens_leads')
         .insert({
           lead_id: lead.id,
           numero: numeroLimpo,
           mensagem,
-          autor,
+          autor: autorValido,
           timestamp: new Date().toISOString()
         });
 

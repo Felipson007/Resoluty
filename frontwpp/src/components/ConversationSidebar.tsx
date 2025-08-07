@@ -44,8 +44,8 @@ const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
   const [searchTerm, setSearchTerm] = React.useState('');
 
   const filteredContacts = contacts.filter(contact =>
-    contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    contact.phone.includes(searchTerm)
+    (contact.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (contact.phone || '').includes(searchTerm)
   );
 
   const getInitials = (name: string) => {
