@@ -1,5 +1,106 @@
 import { Mensagem } from '../types/conversa';
 import openai from '../config/openai';
+import { supabase } from '../config/supabase';
+
+// Interface para configurações do cérebro
+interface CerebroConfig {
+  prompt: string;
+  assistantId: string;
+  maxAttempts: number;
+  timeoutSeconds: number;
+}
+
+// Cache para configurações (evita consultas desnecessárias ao banco)
+let cerebroConfigCache: CerebroConfig | null = null;
+let lastCacheUpdate = 0;
+const CACHE_DURATION = 30000; // 30 segundos
+
+// Função para buscar configurações do cérebro do banco
+async function buscarConfiguracoesCerebro(): Promise<CerebroConfig> {
+  const now = Date.now();
+  
+  // Retornar cache se ainda válido
+  if (cerebroConfigCache && (now - lastCacheUpdate) < CACHE_DURATION) {
+    return cerebroConfigCache;
+  }
+
+  try {
+    // Buscar todas as configurações do cérebro
+    const { data: configs, error } = await supabase
+      .from('configuracoes')
+      .select('*')
+      .in('chave', [
+        'cerebro_prompt',
+        'cerebro_assistant_id',
+        'cerebro_max_attempts',
+        'cerebro_timeout_seconds'
+      ]);
+
+    if (error) {
+      console.error('❌ Erro ao buscar configurações do cérebro:', error);
+    }
+
+    // Configurações padrão
+    const defaultConfig: CerebroConfig = {
+      prompt: `CONTEXTO DA CONVERSA:
+\${historicoFormatado ? \`HISTÓRICO ANTERIOR:
+\${historicoFormatado}
+
+\` : ''}MENSAGEM ATUAL DO CLIENTE: "\${mensagemCliente}"`,
+      assistantId: 'asst_rPvHoutBw01eSySqhtTK4Iv7',
+      maxAttempts: 30,
+      timeoutSeconds: 30
+    };
+
+    // Mapear configurações do banco
+    const configMap = new Map();
+    if (configs) {
+      configs.forEach(config => {
+        configMap.set(config.chave, config.valor);
+      });
+    }
+
+    // Criar configuração final
+    const finalConfig: CerebroConfig = {
+      prompt: configMap.get('cerebro_prompt') || defaultConfig.prompt,
+      assistantId: configMap.get('cerebro_assistant_id') || defaultConfig.assistantId,
+      maxAttempts: parseInt(configMap.get('cerebro_max_attempts')) || defaultConfig.maxAttempts,
+      timeoutSeconds: parseInt(configMap.get('cerebro_timeout_seconds')) || defaultConfig.timeoutSeconds
+    };
+
+    // Atualizar cache
+    cerebroConfigCache = finalConfig;
+    lastCacheUpdate = now;
+
+    console.log('✅ Configurações do cérebro carregadas:', {
+      assistantId: finalConfig.assistantId,
+      maxAttempts: finalConfig.maxAttempts,
+      timeoutSeconds: finalConfig.timeoutSeconds,
+      promptLength: finalConfig.prompt.length
+    });
+
+    return finalConfig;
+  } catch (error) {
+    console.error('❌ Erro ao buscar configurações do cérebro:', error);
+    return cerebroConfigCache || {
+      prompt: `CONTEXTO DA CONVERSA:
+\${historicoFormatado ? \`HISTÓRICO ANTERIOR:
+\${historicoFormatado}
+
+\` : ''}MENSAGEM ATUAL DO CLIENTE: "\${mensagemCliente}"`,
+      assistantId: 'asst_rPvHoutBw01eSySqhtTK4Iv7',
+      maxAttempts: 30,
+      timeoutSeconds: 30
+    };
+  }
+}
+
+// Função para invalidar cache (chamada quando configurações são alteradas)
+export function invalidarCacheCerebro() {
+  cerebroConfigCache = null;
+  lastCacheUpdate = 0;
+  console.log('🔄 Cache do cérebro invalidado');
+}
 
 export async function gerarPromptCerebro(
   historico: Mensagem[],
@@ -11,39 +112,23 @@ export async function gerarPromptCerebro(
     console.log('📝 Mensagem do cliente:', mensagemCliente);
     console.log('📋 Histórico:', historico.length, 'mensagens');
 
+    // Buscar configurações dinâmicas
+    const config = await buscarConfiguracoesCerebro();
+
     // Formatar histórico para o prompt
     const historicoFormatado = historico
       .map((msg: Mensagem) => `${msg.autor}: ${msg.texto}`)
       .join('\n');
 
-    // Prompt mais específico e contextual
-    const prompt = `Você é Clara, uma assistente virtual especializada em consultoria de dívidas bancárias da Resoluty Consultoria.
-
-CONTEXTO DA CONVERSA:
-${historicoFormatado ? `HISTÓRICO ANTERIOR:
-${historicoFormatado}
-
-` : ''}MENSAGEM ATUAL DO CLIENTE: "${mensagemCliente}"
-
-INSTRUÇÕES ESPECÍFICAS:
-1. Se esta for a PRIMEIRA mensagem do cliente (sem histórico), responda com a mensagem de boas-vindas
-2. Se o cliente já se apresentou, continue a conversa naturalmente
-3. Se o cliente mencionar um valor específico de dívida, responda: "O Valor da Dívida do Cliente é de [VALOR]"
-4. Se o cliente sugerir um horário para reunião, responda: "Agendar Google Meet"
-5. Se o cliente mencionar que recebe salário em conta, responda: "Abrir para Atendente"
-6. Para outras situações, consulte o SCRIPT SDR PDE e responda adequadamente
-
-IMPORTANTE: 
-- NÃO repita a mensagem de boas-vindas se o cliente já respondeu
-- Mantenha o contexto da conversa
-- Responda de forma natural e conversacional`;
+    // Substituir variáveis no prompt
+    const prompt = config.prompt
+      .replace('${historicoFormatado}', historicoFormatado)
+      .replace('${mensagemCliente}', mensagemCliente);
 
     console.log('🧠 Prompt criado, enviando para OpenAI...');
     console.log('🧠 Histórico formatado:', historicoFormatado);
+    console.log('🧠 Assistant ID:', config.assistantId);
 
-    // Usar o Assistant ID específico
-    const assistantId = 'asst_rPvHoutBw01eSySqhtTK4Iv7';
-    
     // Criar um novo thread
     const thread = await openai.beta.threads.create();
     console.log('🧵 Thread criado:', thread.id);
@@ -56,7 +141,7 @@ IMPORTANTE:
 
     // Executar o assistente
     const run = await openai.beta.threads.runs.create(thread.id, {
-      assistant_id: assistantId
+      assistant_id: config.assistantId
     });
     console.log('🤖 Run iniciado:', run.id);
 
@@ -64,13 +149,13 @@ IMPORTANTE:
     console.log('📊 Status inicial do run:', runStatus.status);
     
     let attempts = 0;
-    const maxAttempts = 30; // 30 segundos máximo
+    const maxAttempts = config.maxAttempts;
     
     while ((runStatus.status === 'in_progress' || runStatus.status === 'queued') && attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 1000));
       runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
       attempts++;
-      console.log(`📊 Status do run (tentativa ${attempts}):`, runStatus.status);
+      console.log(`📊 Status do run (tentativa ${attempts}/${maxAttempts}):`, runStatus.status);
     }
 
     console.log('📊 Status final do run:', runStatus.status);

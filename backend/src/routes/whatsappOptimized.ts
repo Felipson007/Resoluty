@@ -464,4 +464,152 @@ router.get('/test-db', async (req, res) => {
   }
 });
 
+// Endpoint para obter configurações atuais do cérebro
+router.get('/cerebro-prompt', async (req, res) => {
+  try {
+    console.log('🧠 Buscando configurações atuais do cérebro...');
+    
+    const { data: configs, error } = await supabase
+      .from('configuracoes')
+      .select('*')
+      .in('chave', [
+        'cerebro_prompt',
+        'cerebro_assistant_id',
+        'cerebro_max_attempts',
+        'cerebro_timeout_seconds'
+      ]);
+    
+    if (error) {
+      console.error('❌ Erro ao buscar configurações:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar configurações'
+      });
+    }
+    
+    // Configurações padrão
+    const defaultConfig = {
+      prompt: `CONTEXTO DA CONVERSA:
+\${historicoFormatado ? \`HISTÓRICO ANTERIOR:
+\${historicoFormatado}
+
+\` : ''}MENSAGEM ATUAL DO CLIENTE: "\${mensagemCliente}"`,
+      assistantId: 'asst_rPvHoutBw01eSySqhtTK4Iv7',
+      maxAttempts: 30,
+      timeoutSeconds: 30
+    };
+
+    // Mapear configurações do banco
+    const configMap = new Map();
+    if (configs) {
+      configs.forEach(config => {
+        configMap.set(config.chave, config.valor);
+      });
+    }
+
+    const response = {
+      prompt: configMap.get('cerebro_prompt') || defaultConfig.prompt,
+      assistantId: configMap.get('cerebro_assistant_id') || defaultConfig.assistantId,
+      maxAttempts: parseInt(configMap.get('cerebro_max_attempts')) || defaultConfig.maxAttempts,
+      timeoutSeconds: parseInt(configMap.get('cerebro_timeout_seconds')) || defaultConfig.timeoutSeconds,
+      isDefault: configs.length === 0
+    };
+    
+    res.json({
+      success: true,
+      ...response
+    });
+    
+  } catch (error) {
+    console.error('❌ Erro ao buscar configurações:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+});
+
+// Endpoint para salvar configurações do cérebro
+router.post('/cerebro-prompt', async (req, res) => {
+  try {
+    const { prompt, assistantId, maxAttempts, timeoutSeconds } = req.body;
+    
+    if (!prompt) {
+      return res.status(400).json({
+        success: false,
+        error: 'Prompt é obrigatório'
+      });
+    }
+    
+    console.log('🧠 Salvando configurações do cérebro...');
+    
+    // Preparar configurações para salvar
+    const configsToSave = [
+      {
+        chave: 'cerebro_prompt',
+        valor: prompt,
+        atualizado_em: new Date().toISOString()
+      }
+    ];
+
+    // Adicionar outras configurações se fornecidas
+    if (assistantId) {
+      configsToSave.push({
+        chave: 'cerebro_assistant_id',
+        valor: assistantId,
+        atualizado_em: new Date().toISOString()
+      });
+    }
+
+    if (maxAttempts) {
+      configsToSave.push({
+        chave: 'cerebro_max_attempts',
+        valor: maxAttempts.toString(),
+        atualizado_em: new Date().toISOString()
+      });
+    }
+
+    if (timeoutSeconds) {
+      configsToSave.push({
+        chave: 'cerebro_timeout_seconds',
+        valor: timeoutSeconds.toString(),
+        atualizado_em: new Date().toISOString()
+      });
+    }
+    
+    // Upsert: inserir se não existir, atualizar se existir
+    const { data, error } = await supabase
+      .from('configuracoes')
+      .upsert(configsToSave)
+      .select();
+    
+    if (error) {
+      console.error('❌ Erro ao salvar configurações:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao salvar configurações'
+      });
+    }
+    
+    console.log('✅ Configurações salvas com sucesso');
+    
+    // Invalidar cache do cérebro
+    const { invalidarCacheCerebro } = await import('../services/cerebroService');
+    invalidarCacheCerebro();
+    
+    res.json({
+      success: true,
+      message: 'Configurações salvas com sucesso',
+      data
+    });
+    
+  } catch (error) {
+    console.error('❌ Erro ao salvar configurações:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+});
+
 export default router; 

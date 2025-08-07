@@ -1,12 +1,40 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Box, CircularProgress, Alert, Snackbar, Typography, Paper, Chip, Button, Tabs, Tab } from '@mui/material';
-import { WhatsApp as WhatsAppIcon, Settings as SettingsIcon } from '@mui/icons-material';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  Box,
+  Typography,
+  Button,
+  Paper,
+  Grid,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemAvatar,
+  Avatar,
+  Badge,
+  Chip,
+  TextField,
+  IconButton,
+  Tooltip,
+  Alert,
+  CircularProgress,
+  Snackbar
+} from '@mui/material';
+import {
+  Send,
+  WhatsApp,
+  Person,
+  SmartToy,
+  Settings,
+  Refresh,
+  Psychology
+} from '@mui/icons-material';
+import ApiService from '../services/apiService';
+import socketService from '../services/socketService';
+import CerebroEditor from './CerebroEditor';
 import ConversationSidebar from './ConversationSidebar';
 import ChatArea from './ChatArea';
 import MessageInput from './MessageInput';
 import FilterTabs from './FilterTabs';
-import socketService from '../services/socketService';
-import ApiService from '../services/apiService';
 
 export interface Contact {
   id: string;
@@ -53,6 +81,9 @@ const WhatsAppDashboard: React.FC = () => {
   // Estados para transparência no carregamento
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
+  
+  // Estado para editor do cérebro
+  const [showCerebroEditor, setShowCerebroEditor] = useState(false);
 
   const checkWhatsAppStatus = useCallback(async () => {
     try {
@@ -567,20 +598,31 @@ const WhatsAppDashboard: React.FC = () => {
           borderBottom: '1px solid #e0e0e0',
           flexShrink: 0,
         }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Central de Atendimento
-            </Typography>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<SettingsIcon />}
-              onClick={() => window.dispatchEvent(new CustomEvent('changeView', { detail: 'config' }))}
-              sx={{ minWidth: 'auto' }}
-            >
-              Config
-            </Button>
-          </Box>
+                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+             <Typography variant="h6" sx={{ fontWeight: 600 }}>
+               Central de Atendimento
+             </Typography>
+             <Box sx={{ display: 'flex', gap: 1 }}>
+               <Button
+                 variant="outlined"
+                 size="small"
+                 startIcon={<Psychology />}
+                 onClick={() => setShowCerebroEditor(true)}
+                 sx={{ minWidth: 'auto', color: 'purple.main' }}
+               >
+                 🧠 Cérebro
+               </Button>
+               <Button
+                 variant="outlined"
+                 size="small"
+                 startIcon={<Settings />}
+                 onClick={() => window.dispatchEvent(new CustomEvent('changeView', { detail: 'config' }))}
+                 sx={{ minWidth: 'auto' }}
+               >
+                 Config
+               </Button>
+             </Box>
+           </Box>
           
           <FilterTabs
             selectedFilter={selectedFilter}
@@ -706,19 +748,25 @@ const WhatsAppDashboard: React.FC = () => {
         </Box>
       )}
 
-      {/* Snackbar para erros */}
-      <Snackbar 
-        open={!!error} 
-        autoHideDuration={6000} 
-        onClose={() => setError(null)}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-      >
-        <Alert severity="error" onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      </Snackbar>
-    </Box>
-  );
-};
+             {/* Snackbar para erros */}
+       <Snackbar 
+         open={!!error} 
+         autoHideDuration={6000} 
+         onClose={() => setError(null)}
+         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+       >
+         <Alert severity="error" onClose={() => setError(null)}>
+           {error}
+         </Alert>
+       </Snackbar>
+
+       {/* Editor do Cérebro */}
+       <CerebroEditor 
+         open={showCerebroEditor}
+         onClose={() => setShowCerebroEditor(false)}
+       />
+     </Box>
+   );
+ };
 
 export default WhatsAppDashboard; 

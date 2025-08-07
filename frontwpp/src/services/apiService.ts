@@ -1,4 +1,5 @@
 import { API_CONFIG } from '../config/api';
+import axios from 'axios'; // Added axios import
 
 class ApiService {
   private baseURL: string;
@@ -192,6 +193,35 @@ class ApiService {
     } catch (error) {
       console.error('❌ Erro ao obter saúde do sistema:', error);
       return null;
+    }
+  }
+
+  // Métodos para gerenciar configurações do cérebro
+  async getCerebroPrompt() {
+    try {
+      const response = await this.request('/api/whatsapp/cerebro-prompt');
+      return response;
+    } catch (error) {
+      console.error('Erro ao buscar configurações do cérebro:', error);
+      throw error;
+    }
+  }
+
+  async saveCerebroPrompt(config: {
+    prompt: string;
+    assistantId?: string;
+    maxAttempts?: number;
+    timeoutSeconds?: number;
+  }) {
+    try {
+      const response = await this.request('/api/whatsapp/cerebro-prompt', {
+        method: 'POST',
+        body: JSON.stringify(config)
+      });
+      return response;
+    } catch (error) {
+      console.error('Erro ao salvar configurações do cérebro:', error);
+      throw error;
     }
   }
 }

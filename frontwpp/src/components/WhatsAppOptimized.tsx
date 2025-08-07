@@ -26,10 +26,12 @@ import {
   QrCode as QrCodeIcon,
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
-  Warning as WarningIcon
+  Warning as WarningIcon,
+  Psychology as PsychologyIcon
 } from '@mui/icons-material';
 import socketService from '../services/socketService';
 import ApiService from '../services/apiService';
+import CerebroEditor from './CerebroEditor';
 
 interface WhatsAppInstance {
   id: string;
@@ -61,6 +63,7 @@ const WhatsAppOptimized: React.FC = () => {
   const [qrCode, setQrCode] = useState<string>('');
   const [selectedInstance, setSelectedInstance] = useState<string | null>(null);
   const [isAddingInstance, setIsAddingInstance] = useState(false);
+  const [showCerebroEditor, setShowCerebroEditor] = useState(false);
 
   // Configurações de performance
   const PERFORMANCE_CONFIG = {
@@ -442,6 +445,15 @@ const WhatsAppOptimized: React.FC = () => {
         </Box>
         
         <Box sx={{ display: 'flex', gap: 1 }}>
+          <Tooltip title="Editar Cérebro da IA">
+            <IconButton 
+              onClick={() => setShowCerebroEditor(true)}
+              sx={{ color: 'purple.main' }}
+            >
+              <PsychologyIcon />
+            </IconButton>
+          </Tooltip>
+          
           <Tooltip title="Atualizar status">
             <IconButton onClick={handleRefreshStatus} disabled={loading}>
               <RefreshIcon />
@@ -535,6 +547,12 @@ const WhatsAppOptimized: React.FC = () => {
           {error}
         </Alert>
       </Snackbar>
+
+      {/* Editor do Cérebro */}
+      <CerebroEditor 
+        open={showCerebroEditor}
+        onClose={() => setShowCerebroEditor(false)}
+      />
     </Box>
   );
 };
