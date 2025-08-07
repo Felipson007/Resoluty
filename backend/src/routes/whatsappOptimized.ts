@@ -534,6 +534,8 @@ router.post('/cerebro-prompt', async (req, res) => {
   try {
     const { prompt, assistantId, maxAttempts, timeoutSeconds } = req.body;
     
+    console.log('🧠 Recebendo dados para salvar:', { prompt: prompt?.substring(0, 100) + '...', assistantId, maxAttempts, timeoutSeconds });
+    
     if (!prompt) {
       return res.status(400).json({
         success: false,
@@ -577,25 +579,35 @@ router.post('/cerebro-prompt', async (req, res) => {
       });
     }
     
+    console.log('📝 Configurações preparadas:', configsToSave);
+    
     // Upsert: inserir se não existir, atualizar se existir
     const { data, error } = await supabase
       .from('configuracoes')
-      .upsert(configsToSave)
+      .upsert(configsToSave, {
+        onConflict: 'chave',
+        ignoreDuplicates: false
+      })
       .select();
     
     if (error) {
       console.error('❌ Erro ao salvar configurações:', error);
       return res.status(500).json({
         success: false,
-        error: 'Erro ao salvar configurações'
+        error: 'Erro ao salvar configurações',
+        details: error.message
       });
     }
     
     console.log('✅ Configurações salvas com sucesso');
     
     // Invalidar cache do cérebro
-    const { invalidarCacheCerebro } = await import('../services/cerebroService');
-    invalidarCacheCerebro();
+    try {
+      const { invalidarCacheCerebro } = await import('../services/cerebroService');
+      invalidarCacheCerebro();
+    } catch (cacheError) {
+      console.warn('⚠️ Erro ao invalidar cache, mas configurações foram salvas:', cacheError);
+    }
     
     res.json({
       success: true,
@@ -607,7 +619,30 @@ router.post('/cerebro-prompt', async (req, res) => {
     console.error('❌ Erro ao salvar configurações:', error);
     res.status(500).json({
       success: false,
-      error: 'Erro interno do servidor'
+      error: 'Erro interno do servidor',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// Endpoint de teste simples
+router.get('/test-simple', (req, res) => {
+  try {
+    console.log('🧪 Teste simples chamado');
+    res.json({
+      success: true,
+      message: 'Backend funcionando',
+      timestamp: new Date().toISOString(),
+      env: {
+        supabaseUrl: process.env.SUPABASE_URL ? '✅ Configurado' : '❌ Não configurado',
+        supabaseKey: process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅ Configurado' : '❌ Não configurado'
+      }
+    });
+  } catch (error) {
+    console.error('❌ Erro no teste simples:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno'
     });
   }
 });
