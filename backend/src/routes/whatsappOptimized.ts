@@ -309,7 +309,16 @@ async function processMessageWithAI(message: any, instanceId: string): Promise<s
       console.warn('⚠️ Erro ao buscar histórico, continuando sem:', historicoError);
     }
 
+    // 🔧 CORREÇÃO: Adicionar a mensagem atual do usuário ao histórico
+    historico.push({
+      id: `current-${Date.now()}`,
+      texto: message.body,
+      timestamp: new Date().toISOString(),
+      autor: 'usuario'
+    });
+
     console.log('📋 Histórico encontrado:', historico.length, 'mensagens');
+    console.log('📋 Histórico completo:', JSON.stringify(historico, null, 2));
     
     // Gerar resposta com IA usando o cérebro
     const resposta = await gerarPromptCerebro(historico, message.body, message.from);

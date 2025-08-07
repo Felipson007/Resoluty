@@ -112,21 +112,30 @@ export async function gerarPromptCerebro(
     console.log('📝 Mensagem do cliente:', mensagemCliente);
     console.log('📋 Histórico:', historico.length, 'mensagens');
 
-    // Buscar configurações dinâmicas
+    // Buscar configurações dinâmicas do banco
     const config = await buscarConfiguracoesCerebro();
+    console.log('🧠 Configurações carregadas do banco');
 
     // Formatar histórico para o prompt
     const historicoFormatado = historico
       .map((msg: Mensagem) => `${msg.autor}: ${msg.texto}`)
       .join('\n');
 
-    // Substituir variáveis no prompt
-    const prompt = config.prompt
+    // Criar prompt inteligente com contexto claro
+    let promptFinal = config.prompt
       .replace('${historicoFormatado}', historicoFormatado)
       .replace('${mensagemCliente}', mensagemCliente);
 
+    // Adicionar instruções contextuais automáticas
+    if (historico.length === 0) {
+      promptFinal += '\n\nCONTEXTO: Esta é a primeira mensagem do cliente. Responda com a mensagem de boas-vindas padrão.';
+    } else {
+      promptFinal += '\n\nCONTEXTO: O cliente já iniciou a conversa. Continue naturalmente baseado no histórico acima. A mensagem atual é a última que o cliente enviou.';
+    }
+
     console.log('🧠 Prompt criado, enviando para OpenAI...');
     console.log('🧠 Histórico formatado:', historicoFormatado);
+    console.log('🧠 Prompt final:', promptFinal);
     console.log('🧠 Assistant ID:', config.assistantId);
 
     // Criar um novo thread
@@ -135,7 +144,7 @@ export async function gerarPromptCerebro(
     
     await openai.beta.threads.messages.create(thread.id, {
       role: 'user',
-      content: prompt
+      content: promptFinal
     });
     console.log('📝 Mensagem adicionada ao thread');
 
