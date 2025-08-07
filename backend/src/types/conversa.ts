@@ -1,8 +1,8 @@
 export interface Mensagem {
-  id?: string;
+  id: string;
   texto: string;
-  timestamp: string; // ISO string
-  autor: 'usuario' | 'ai';
+  timestamp: string;
+  autor: 'usuario' | 'sistema';
 }
 
 export interface HistoricoConversa {

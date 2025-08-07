@@ -376,9 +376,10 @@ async function handleAIAutoReply(msg: any) {
     const conversationHistory = messageHistory[msg.from] || [];
     
     // Converter histórico para formato do cérebro
-    const historicoFormatado = conversationHistory.map(m => ({
+    const historicoFormatado = conversationHistory.map((m, index) => ({
+      id: `msg-${index}`,
       texto: m.body,
-      autor: m.isFromMe ? 'ai' as const : 'usuario' as const,
+      autor: m.isFromMe ? 'sistema' as const : 'usuario' as const,
       timestamp: m.timestamp
     }));
 
@@ -406,7 +407,7 @@ async function handleAIAutoReply(msg: any) {
       // Salvar resposta no Supabase
       await supabase.from('mensagens_leads').insert({
         mensagem: aiResponse,
-        autor: 'ai',
+        autor: 'sistema',
         numero: msg.from,
         timestamp: new Date().toISOString()
       });

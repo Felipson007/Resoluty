@@ -319,7 +319,7 @@ async function processMessageWithAI(message: any, instanceId: string): Promise<s
       if (success) {
         // Salvar resposta no banco (com tratamento de erro)
         try {
-          await salvarMensagemLead(message.from, resposta, 'ai', instanceId);
+          await salvarMensagemLead(message.from, resposta, 'sistema', instanceId);
         } catch (saveError) {
           console.warn('⚠️ Erro ao salvar resposta no banco, mas mensagem foi enviada:', saveError);
         }
@@ -332,7 +332,7 @@ async function processMessageWithAI(message: any, instanceId: string): Promise<s
               id: `ai-${Date.now()}`,
               texto: resposta,
               timestamp: new Date().toISOString(),
-              autor: 'ai'
+              autor: 'sistema'
             },
             instanceId
           });

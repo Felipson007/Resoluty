@@ -27,7 +27,7 @@ export interface MensagemLead {
   lead_id: string;
   numero: string;
   mensagem: string;
-  autor: 'usuario' | 'ai';
+  autor: 'usuario' | 'sistema';
   timestamp: string;
   instance_id?: string;
   created_at: string;
@@ -213,7 +213,7 @@ export async function buscarLeadsPorStatus(status: LeadStatus): Promise<Lead[]> 
 export async function salvarMensagemLead(
   numero: string, 
   mensagem: string, 
-  autor: 'usuario' | 'ai',
+  autor: 'usuario' | 'sistema',
   instanceId?: string
 ): Promise<boolean> {
   try {
