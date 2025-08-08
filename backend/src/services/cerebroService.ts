@@ -2,6 +2,7 @@ import { Mensagem } from '../types/conversa';
 import openai from '../config/openai';
 import { supabase } from '../config/supabase';
 import { obterDisponibilidadeFormatada, obterProximasDatasDisponiveis, agendarReuniao } from './googleCalendarService';
+import { extrairValorDivida, extrairNomeCliente, extrairBancoDivida, extrairTipoDivida, salvarValorDivida, isValorAceito } from './leadService';
 
 // Interface para configurações do cérebro
 interface CerebroConfig {
@@ -61,9 +62,60 @@ IMPORTANTE:
   }
 }
 
+// Função para analisar valor da dívida e gerar resposta apropriada
+async function analisarValorDivida(mensagemCliente: string, numeroCliente: string, historico: Mensagem[]): Promise<string | null> {
+  try {
+    console.log('💰 Analisando valor da dívida na mensagem:', mensagemCliente);
+    
+    // Extrair valor da dívida
+    const valorDivida = extrairValorDivida(mensagemCliente);
+    
+    if (valorDivida) {
+      console.log('💰 Valor da dívida extraído:', valorDivida);
+      
+      // Extrair outras informações
+      const nomeCliente = extrairNomeCliente(mensagemCliente) || extrairNomeCliente(historico.map(m => m.texto).join(' '));
+      const bancoDivida = extrairBancoDivida(mensagemCliente) || extrairBancoDivida(historico.map(m => m.texto).join(' '));
+      const tipoDivida = extrairTipoDivida(mensagemCliente) || extrairTipoDivida(historico.map(m => m.texto).join(' '));
+      
+      // Salvar no banco
+      await salvarValorDivida(numeroCliente, valorDivida, nomeCliente || undefined, bancoDivida || undefined, tipoDivida || undefined);
+      
+      // Verificar se o valor é aceito
+      if (!isValorAceito(valorDivida)) {
+        console.log('❌ Valor abaixo de 6 mil reais:', valorDivida);
+        
+        // Buscar nome do cliente no histórico se não foi extraído da mensagem atual
+        let nomeParaResposta = nomeCliente;
+        if (!nomeParaResposta) {
+          for (const msg of historico) {
+            const nomeExtraido = extrairNomeCliente(msg.texto);
+            if (nomeExtraido) {
+              nomeParaResposta = nomeExtraido;
+              break;
+            }
+          }
+        }
+        
+        // Gerar resposta para valor não aceito
+        const nome = nomeParaResposta || 'Cliente';
+        return `${nome}, em razão do valor da sua dívida a contratação dos nossos serviços se torna inviável para você, e como seguimos uma política de transparência meu objetivo é te informar. Então nesse caso o Sr. possui alguma outra dívida com outro banco ou com o mesmo banco?`;
+      } else {
+        console.log('✅ Valor aceito (acima de 6 mil):', valorDivida);
+        return null; // Deixar a IA processar normalmente
+      }
+    }
+    
+    return null; // Nenhum valor extraído, deixar a IA processar
+  } catch (error) {
+    console.error('❌ Erro ao analisar valor da dívida:', error);
+    return null;
+  }
+}
+
 export async function gerarPromptCerebro(
   historico: Mensagem[],
-  mensagemCliente: string,
+  mensagemCliente: string,  
   numeroCliente?: string
 ): Promise<string | null> {
   try {
@@ -77,6 +129,15 @@ export async function gerarPromptCerebro(
     console.log(`⏰ Aguardando ${delaySeconds} segundos antes de processar...`);
     await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
     console.log('✅ Delay concluído, processando IA...');
+
+    // Analisar valor da dívida primeiro
+    if (numeroCliente) {
+      const respostaValorDivida = await analisarValorDivida(mensagemCliente, numeroCliente, historico);
+      if (respostaValorDivida) {
+        console.log('💰 Retornando resposta para valor não aceito:', respostaValorDivida);
+        return respostaValorDivida;
+      }
+    }
 
     // Formatar histórico simples
     const historicoFormatado = historico

@@ -18,6 +18,10 @@ export interface Lead {
   id: string;
   numero: string;
   metadata: LeadMetadata;
+  valor_divida?: number;
+  nome_cliente?: string;
+  banco_divida?: string;
+  tipo_divida?: string;
   created_at: string;
   updated_at: string;
 }
@@ -31,6 +35,157 @@ export interface MensagemLead {
   timestamp: string;
   instance_id?: string;
   created_at: string;
+}
+
+// Função para extrair valor da dívida de uma mensagem
+export function extrairValorDivida(mensagem: string): number | null {
+  try {
+    // Padrões para encontrar valores de dívida
+    const padroes = [
+      /(\d+(?:\.\d{3})*(?:,\d{2})?)\s*(?:mil|milhões?|milhoes?|reais?|r\$)/i,
+      /r\$\s*(\d+(?:\.\d{3})*(?:,\d{2})?)/i,
+      /(\d+(?:\.\d{3})*(?:,\d{2})?)\s*r\$/i,
+      /(\d+(?:\.\d{3})*(?:,\d{2})?)\s*reais?/i
+    ];
+
+    for (const padrao of padroes) {
+      const match = mensagem.match(padrao);
+      if (match) {
+        let valor = match[1];
+        
+        // Converter para número
+        valor = valor.replace(/\./g, '').replace(',', '.');
+        const numero = parseFloat(valor);
+        
+        // Se contém "mil", multiplicar por 1000
+        if (mensagem.toLowerCase().includes('mil')) {
+          return numero * 1000;
+        }
+        
+        // Se contém "milhões" ou "milhoes", multiplicar por 1000000
+        if (mensagem.toLowerCase().includes('milhões') || mensagem.toLowerCase().includes('milhoes')) {
+          return numero * 1000000;
+        }
+        
+        return numero;
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('❌ Erro ao extrair valor da dívida:', error);
+    return null;
+  }
+}
+
+// Função para extrair nome do cliente de uma mensagem
+export function extrairNomeCliente(mensagem: string): string | null {
+  try {
+    // Padrões para encontrar nomes
+    const padroes = [
+      /meu nome é\s+([a-zA-ZÀ-ÿ\s]+)/i,
+      /sou\s+([a-zA-ZÀ-ÿ\s]+)/i,
+      /chamo\s+([a-zA-ZÀ-ÿ\s]+)/i,
+      /nome\s+([a-zA-ZÀ-ÿ\s]+)/i
+    ];
+
+    for (const padrao of padroes) {
+      const match = mensagem.match(padrao);
+      if (match) {
+        const nome = match[1].trim();
+        if (nome.length > 2 && nome.length < 50) {
+          return nome;
+        }
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('❌ Erro ao extrair nome do cliente:', error);
+    return null;
+  }
+}
+
+// Função para extrair banco da dívida
+export function extrairBancoDivida(mensagem: string): string | null {
+  try {
+    const bancos = [
+      'itau', 'itaú', 'bradesco', 'santander', 'banco do brasil', 'bb', 
+      'caixa', 'nubank', 'inter', 'c6 bank', 'pagseguro', 'mercadopago'
+    ];
+
+    const mensagemLower = mensagem.toLowerCase();
+    
+    for (const banco of bancos) {
+      if (mensagemLower.includes(banco)) {
+        return banco;
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('❌ Erro ao extrair banco da dívida:', error);
+    return null;
+  }
+}
+
+// Função para extrair tipo da dívida
+export function extrairTipoDivida(mensagem: string): string | null {
+  try {
+    const tipos = [
+      'cartão de crédito', 'cartao de credito', 'cartão', 'cartao',
+      'cheque especial', 'cheque', 'empréstimo', 'emprestimo',
+      'financiamento', 'consignado', 'pessoal'
+    ];
+
+    const mensagemLower = mensagem.toLowerCase();
+    
+    for (const tipo of tipos) {
+      if (mensagemLower.includes(tipo)) {
+        return tipo;
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('❌ Erro ao extrair tipo da dívida:', error);
+    return null;
+  }
+}
+
+// Função para salvar valor da dívida
+export async function salvarValorDivida(numero: string, valor: number, nome?: string, banco?: string, tipo?: string): Promise<boolean> {
+  try {
+    const numeroLimpo = numero.replace('@s.whatsapp.net', '').replace('@c.us', '');
+    console.log('💰 Salvando valor da dívida:', { numero: numeroLimpo, valor, nome, banco, tipo });
+
+    const { data, error } = await supabase
+      .from('leads')
+      .update({
+        valor_divida: valor,
+        nome_cliente: nome,
+        banco_divida: banco,
+        tipo_divida: tipo,
+        updated_at: new Date().toISOString()
+      })
+      .eq('numero', numeroLimpo);
+
+    if (error) {
+      console.error('❌ Erro ao salvar valor da dívida:', error);
+      return false;
+    }
+
+    console.log('✅ Valor da dívida salvo com sucesso');
+    return true;
+  } catch (error) {
+    console.error('❌ Erro ao salvar valor da dívida:', error);
+    return false;
+  }
+}
+
+// Função para verificar se valor é aceito (acima de 6 mil)
+export function isValorAceito(valor: number): boolean {
+  return valor >= 6000;
 }
 
 // Criar ou atualizar lead
