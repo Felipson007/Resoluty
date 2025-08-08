@@ -66,7 +66,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({ contact, messages, onStatusChange }
     });
   };
 
-  const StatusIcon = statusConfig[contact.status].icon;
+  // Verificação de segurança para o status
+  const contactStatus = contact.status || 'bot';
+  const statusInfo = statusConfig[contactStatus] || statusConfig.bot;
+  const StatusIcon = statusInfo.icon;
 
   return (
     <Box sx={{ 
@@ -127,11 +130,11 @@ const ChatArea: React.FC<ChatAreaProps> = ({ contact, messages, onStatusChange }
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Chip
             icon={<StatusIcon sx={{ fontSize: '16px !important' }} />}
-            label={statusConfig[contact.status].label}
+            label={statusInfo.label}
             size="small"
             sx={{
-              backgroundColor: `${statusConfig[contact.status].color}20`,
-              color: statusConfig[contact.status].color,
+              backgroundColor: `${statusInfo.color}20`,
+              color: statusInfo.color,
               fontWeight: 500,
             }}
           />

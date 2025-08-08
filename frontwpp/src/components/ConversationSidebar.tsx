@@ -86,7 +86,10 @@ const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
       <Box sx={{ flex: 1, overflow: 'auto' }}>
         <List sx={{ p: 0 }}>
           {filteredContacts.map((contact, index) => {
-            const StatusIcon = statusConfig[contact.status].icon;
+            // Verificação de segurança para o status
+            const contactStatus = contact.status || 'bot';
+            const statusInfo = statusConfig[contactStatus] || statusConfig.bot;
+            const StatusIcon = statusInfo.icon;
             const isSelected = contact.id === selectedContactId;
             
             return (
@@ -152,11 +155,11 @@ const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
                           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <Chip
                               icon={<StatusIcon sx={{ fontSize: '16px !important' }} />}
-                              label={statusConfig[contact.status].label}
+                              label={statusInfo.label}
                               size="small"
                               sx={{
-                                backgroundColor: `${statusConfig[contact.status].color}20`,
-                                color: statusConfig[contact.status].color,
+                                backgroundColor: `${statusInfo.color}20`,
+                                color: statusInfo.color,
                                 fontWeight: 500,
                                 fontSize: '0.75rem',
                               }}

@@ -43,10 +43,21 @@ async function buscarConfiguracoesCerebro(): Promise<CerebroConfig> {
 IMPORTANTE: 
 - Analise cuidadosamente o histórico da conversa antes de responder
 - NÃO repita informações que já foram dadas pelo cliente
-- Se o cliente já forneceu informações sobre dívida, salário, etc., não peça novamente
+- NÃO mencione valores de dívida a menos que o cliente tenha fornecido um valor específico
 - Seja conciso e direto ao ponto
+- Responda de forma natural e conversacional
 - Se houver ERRO_GOOGLE_CALENDAR no contexto, você deve informar ao cliente que o sistema de agendamento está temporariamente indisponível e que um atendente humano entrará em contato em breve. Seja cordial e profissional.
+Baseado na Mensagem atual do cliente e no histórico das mensagens, detecte a intenção do cliente
 
+Caso o Cliente tenha dito o valor total da dívida, responda apenas o seguinte: "O Valor da Divida do Cliente é de" e adicione o valor da Divida
+
+Caso o Cliente tenha sugerido claramente um horário para Reunião, responda apenas o seguinte: "Agendar Google Meet"
+
+Caso o cliente tenha dito que recebe salário em conta, responda apenas o seguinte: "Abrir para Atendente"
+
+Caso não seja nenhuma das intenções citadas, apenas consulte o documento SCRIPT SDR PDE e mande a mensagem prevista, lembre se, mande somente a mensagem pronta, para que ela seja encaminhada diretamente para o cliente
+
+O valor da divida não deve ser repetido ao cliente como string apenas continue o fluxo normalmente após ele falar a divida
 === HISTÓRICO DA CONVERSA ===
 \${historicoFormatado}`;
 
@@ -193,9 +204,10 @@ MENSAGEM ATUAL DO CLIENTE: "${mensagemCliente}"
 INSTRUÇÕES IMPORTANTES:
 1. Analise cuidadosamente todo o histórico da conversa
 2. NÃO peça informações que o cliente já forneceu
-3. Se o cliente já mencionou valores de dívida, banco, salário, etc., use essas informações
+3. NÃO mencione valores de dívida a menos que o cliente tenha fornecido um valor específico
 4. Seja conciso e direto ao ponto
-5. Evite repetir perguntas já feitas${informacoesDisponibilidade}`;
+5. Evite repetir perguntas já feitas
+6. Responda de forma natural e conversacional${informacoesDisponibilidade}`;
 
     // Combinar os dois prompts
     const promptFinal = `${promptBackend}

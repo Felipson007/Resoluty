@@ -40,37 +40,69 @@ export interface MensagemLead {
 // Função para extrair valor da dívida de uma mensagem
 export function extrairValorDivida(mensagem: string): number | null {
   try {
-    // Padrões para encontrar valores de dívida
+    console.log('🔍 Analisando mensagem para extrair valor da dívida:', mensagem);
+    
+    // Verificar se a mensagem contém palavras-chave relacionadas a dívida
+    const palavrasChaveDivida = [
+      'dívida', 'divida', 'deve', 'devendo', 'valor', 'total', 'cheque especial', 
+      'cartão', 'cartao', 'empréstimo', 'emprestimo', 'financiamento', 'conta'
+    ];
+    
+    const mensagemLower = mensagem.toLowerCase();
+    const contemPalavraChave = palavrasChaveDivida.some(palavra => mensagemLower.includes(palavra));
+    
+    if (!contemPalavraChave) {
+      console.log('❌ Mensagem não contém palavras-chave de dívida');
+      return null;
+    }
+    
+    // Padrões para encontrar valores de dívida (mais específicos)
     const padroes = [
-      /(\d+(?:\.\d{3})*(?:,\d{2})?)\s*(?:mil|milhões?|milhoes?|reais?|r\$)/i,
+      // Padrão: "160mil reais", "50 mil", "100mil"
+      /(\d+(?:\.\d{3})*)\s*(?:mil|milhões?|milhoes?)\s*(?:reais?|r\$)?/i,
+      // Padrão: "R$ 50.000", "R$ 100000"
       /r\$\s*(\d+(?:\.\d{3})*(?:,\d{2})?)/i,
-      /(\d+(?:\.\d{3})*(?:,\d{2})?)\s*r\$/i,
-      /(\d+(?:\.\d{3})*(?:,\d{2})?)\s*reais?/i
+      // Padrão: "50.000 reais", "100000 reais"
+      /(\d+(?:\.\d{3})*(?:,\d{2})?)\s*reais?/i,
+      // Padrão: "valor de 50000", "total de 100000"
+      /(?:valor|total|dívida|divida)\s+(?:de\s+)?(\d+(?:\.\d{3})*(?:,\d{2})?)/i
     ];
 
     for (const padrao of padroes) {
       const match = mensagem.match(padrao);
       if (match) {
         let valor = match[1];
+        console.log('💰 Valor encontrado:', valor);
         
         // Converter para número
         valor = valor.replace(/\./g, '').replace(',', '.');
         const numero = parseFloat(valor);
         
+        if (isNaN(numero)) {
+          console.log('❌ Valor não é um número válido:', valor);
+          continue;
+        }
+        
         // Se contém "mil", multiplicar por 1000
-        if (mensagem.toLowerCase().includes('mil')) {
-          return numero * 1000;
+        if (mensagemLower.includes('mil') && !mensagemLower.includes('milhões') && !mensagemLower.includes('milhoes')) {
+          const valorFinal = numero * 1000;
+          console.log('✅ Valor final (mil):', valorFinal);
+          return valorFinal;
         }
         
         // Se contém "milhões" ou "milhoes", multiplicar por 1000000
-        if (mensagem.toLowerCase().includes('milhões') || mensagem.toLowerCase().includes('milhoes')) {
-          return numero * 1000000;
+        if (mensagemLower.includes('milhões') || mensagemLower.includes('milhoes')) {
+          const valorFinal = numero * 1000000;
+          console.log('✅ Valor final (milhões):', valorFinal);
+          return valorFinal;
         }
         
+        console.log('✅ Valor final:', numero);
         return numero;
       }
     }
     
+    console.log('❌ Nenhum valor de dívida encontrado');
     return null;
   } catch (error) {
     console.error('❌ Erro ao extrair valor da dívida:', error);

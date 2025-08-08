@@ -86,7 +86,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Button
             size="small"
-            variant={contact.status === 'bot' ? 'contained' : 'outlined'}
+            variant={(contact.status || 'bot') === 'bot' ? 'contained' : 'outlined'}
             startIcon={<BotIcon />}
             onClick={() => handleStatusChange('bot')}
             sx={{ borderRadius: 2, textTransform: 'none', fontSize: '0.75rem' }}
@@ -96,7 +96,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           
           <Button
             size="small"
-            variant={contact.status === 'humano' ? 'contained' : 'outlined'}
+            variant={(contact.status || 'bot') === 'humano' ? 'contained' : 'outlined'}
             startIcon={<PersonIcon />}
             onClick={() => handleStatusChange('humano')}
             sx={{ borderRadius: 2, textTransform: 'none', fontSize: '0.75rem' }}
@@ -106,7 +106,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           
           <Button
             size="small"
-            variant={contact.status === 'finalizado' ? 'contained' : 'outlined'}
+            variant={(contact.status || 'bot') === 'finalizado' ? 'contained' : 'outlined'}
             startIcon={<CheckCircleIcon />}
             onClick={() => handleStatusChange('finalizado')}
             sx={{ borderRadius: 2, textTransform: 'none', fontSize: '0.75rem' }}
